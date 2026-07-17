@@ -157,6 +157,27 @@ function openCharacter(id) {
   showTab('gioco');
 }
 
+/* Apre la scheda direttamente su un tab (dall'indice in copertina).
+   Usa il personaggio attivo, altrimenti l'ultimo modificato; se non
+   esiste ancora nessun personaggio rimanda alla lista. */
+function openSheetAtTab(tab) {
+  let c = getActive();
+  if (!c && characters.length) {
+    c = [...characters].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    activeId = c.id;
+    saveAll();
+  }
+  if (!c) {
+    renderCharList();
+    showView('list');
+    toast('Crea prima un personaggio');
+    return;
+  }
+  renderSheet();
+  showView('sheet');
+  showTab(tab);
+}
+
 /* ---------------------------------------------------------- lista schede */
 
 function axisClass(buildKey) {
@@ -545,6 +566,33 @@ function wireStaticEvents() {
     showView(target);
   }));
   $('#btn-char-menu').addEventListener('click', charMenu);
+
+  // ---- menù copertina (hamburger + indice) ----
+  const coverMenuBtn = $('#btn-cover-menu');
+  const coverMenu = $('#cover-menu');
+  function closeCoverMenu() {
+    coverMenu.classList.add('hidden');
+    coverMenuBtn.setAttribute('aria-expanded', 'false');
+  }
+  coverMenuBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const open = coverMenu.classList.toggle('hidden');
+    coverMenuBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  });
+  document.addEventListener('click', e => {
+    if (!coverMenu.classList.contains('hidden') && !coverMenu.contains(e.target)) closeCoverMenu();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeCoverMenu();
+  });
+  coverMenu.addEventListener('click', e => {
+    const item = e.target.closest('.cm-item');
+    if (!item) return;
+    closeCoverMenu();
+    if (item.dataset.menuNav === 'list') { renderCharList(); showView('list'); return; }
+    if (item.dataset.menuNav === 'new') { createCharacterFlow(); return; }
+    if (item.dataset.menuTab) openSheetAtTab(item.dataset.menuTab);
+  });
 
   // ---- lista personaggi (delegation) ----
   $('#char-list').addEventListener('click', e => {

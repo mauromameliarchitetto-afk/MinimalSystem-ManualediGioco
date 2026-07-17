@@ -61,7 +61,9 @@ stesso URL — non serve ripetere tutto il setup.
 
 ## Cosa fa l'app, in breve
 
-- **Copertina**: prima schermata, con l'immagine di copertina del manuale.
+- **Copertina**: prima schermata, con l'immagine di copertina del manuale e
+  un menù a tendina (bottone ☰ in alto a destra) con l'indice per saltare
+  direttamente alla lista personaggi o a una sezione della scheda.
 - **Lista personaggi**: crea, apre, duplica, elimina schede (tutte salvate
   sul dispositivo).
 - **In gioco**: barre HP/MP/PP con pulsanti rapidi +1/+5/-1/-5, tiro rapido
