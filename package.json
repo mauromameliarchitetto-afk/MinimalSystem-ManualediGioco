@@ -1,0 +1,17 @@
+{
+  "name": "minimal-system-companion",
+  "version": "1.0.0",
+  "description": "Companion app nativa (Capacitor) per il GDR Minimal System",
+  "private": true,
+  "scripts": {
+    "build:www": "rm -rf www && mkdir -p www && cp -r index.html manifest.json service-worker.js css js img icons www/"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.0.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  }
+}

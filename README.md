@@ -59,6 +59,23 @@ stesso URL — non serve ripetere tutto il setup.
 
 ---
 
+## Alternativa — APK nativo (Capacitor, senza sito)
+
+Il repository include anche una GitHub Action (`.github/workflows/build-apk.yml`)
+che a ogni aggiornamento di `main` compila un **APK nativo con Capacitor**:
+tutti i file dell'app sono impacchettati *dentro* l'APK, quindi funziona
+completamente offline e non dipende da GitHub Pages né da alcun URL.
+
+- L'APK pronto si scarica dalla sezione **Releases** del repository
+  (file `MinimalSystem.apk`).
+- Ogni build ha un numero di versione crescente: gli aggiornamenti si
+  installano sopra la versione precedente senza perdere i personaggi salvati.
+- La firma usa `release.keystore` (incluso nel repo per semplicità: è
+  un'app personale gratuita — non riutilizzare questa chiave per app da
+  pubblicare sul Play Store).
+
+---
+
 ## Cosa fa l'app, in breve
 
 - **Copertina**: prima schermata, con l'immagine di copertina del manuale e
