@@ -1,0 +1,1 @@
+# MinimalSystem-ManualediGioco
