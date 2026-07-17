@@ -22,6 +22,26 @@
   <section id="view-cover" class="view">
     <img class="cover-img" src="img/cover.jpg" alt="">
     <div class="cover-scrim"></div>
+
+    <button class="cover-menu-btn" id="btn-cover-menu" aria-label="Apri indice" aria-expanded="false" aria-controls="cover-menu">
+      <span class="menu-lines"><span></span><span></span><span></span></span>
+    </button>
+    <nav class="cover-menu hidden" id="cover-menu" aria-label="Indice">
+      <div class="cm-label">Indice</div>
+      <button class="cm-item" data-menu-nav="list">I tuoi personaggi</button>
+      <button class="cm-item" data-menu-nav="new">Crea nuovo personaggio</button>
+      <div class="cm-sep"></div>
+      <div class="cm-label">Scheda personaggio</div>
+      <button class="cm-item" data-menu-tab="gioco">In gioco</button>
+      <button class="cm-item" data-menu-tab="identita">Identità</button>
+      <button class="cm-item" data-menu-tab="primarie">Primarie</button>
+      <button class="cm-item" data-menu-tab="terziarie">Terziarie</button>
+      <button class="cm-item" data-menu-tab="tratti">Tratti</button>
+      <button class="cm-item" data-menu-tab="livelli">Livelli</button>
+      <button class="cm-item" data-menu-tab="retro">Equip. &amp; Poteri</button>
+      <button class="cm-item" data-menu-tab="note">Note</button>
+    </nav>
+
     <div class="cover-content">
       <div class="cover-kicker">Companion App</div>
       <h1 class="cover-title">Minimal System</h1>

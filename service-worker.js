@@ -1,4 +1,4 @@
-const CACHE_NAME = 'minimal-system-v1';
+const CACHE_NAME = 'minimal-system-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -10,7 +10,9 @@ const APP_SHELL = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
-  './icons/apple-touch-icon.png'
+  './icons/apple-touch-icon.png',
+  './icons/favicon-16.png',
+  './icons/favicon-32.png'
 ];
 
 self.addEventListener('install', event => {
