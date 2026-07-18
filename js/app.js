@@ -44,12 +44,13 @@ function touchActive() {
 /* ------------------------------------------------------------- factories */
 
 function defaultSlots() {
-  return ['Testa', 'Torso', 'Braccio Destro', 'Braccio Sinistro', 'Gamba Destra', 'Gamba Sinistra']
-    .map(name => ({ name, atk: 0, dif: 0, bonus: 0, dur: 0 }));
+  return ['Capo', 'Busto', 'Braccio Sx', 'Braccio Dx', 'Gamba Sx', 'Gamba Dx']
+    .map(name => ({ name, item: '', atk: 0, dif: 0, bonus: 0, dur: 0 }));
 }
-function defaultRows(n) {
-  return Array.from({ length: n }, () => ({ nome: '', effetto: '' }));
-}
+/* Righe delle tabelle del retro scheda (colonne come da schede ufficiali) */
+function makeTecnicaRow() { return { nome: '', bonus: '', malus: '', durata: '', utilizzi: '', lv: '' }; }
+function makeAbilitaRow() { return { nome: '', bonus: '', costo: '', durata: '', utilizzi: '', lv: '' }; }
+function makeBoostRow()   { return { bonus: '', range: '', pp: '', costo: '', limite: '', lv: '' }; }
 function defaultBoost() {
   const o = {};
   BOOST_LEVELS.forEach(b => { o[b.lv] = { appreso: false }; });
@@ -115,8 +116,9 @@ function newCharacter(nome) {
     hpMaxTracked: null, mpMaxTracked: null, prMaxTracked: null,
     hpCur: null, mpCur: null, ppCur: null, prCur: null,
     slots: defaultSlots(),
-    tecniche: defaultRows(10),
-    abilita: defaultRows(4),
+    tecniche: [],
+    abilita: [],
+    boostRows: [],
     boost: defaultBoost(),
     inventario: [],
     note: { aspetto: '', morale: '', background: '', libere: '' }
@@ -135,6 +137,19 @@ function ensureShape(c) {
     if (!hadShown || !Array.isArray(c.shownTraits[k])) {
       c.shownTraits[k] = TRAIT_LISTS[k].filter(n => (Number(c.traits[k][n]) || 0) > 0);
     }
+  });
+  // migrazione retro scheda: le vecchie righe {nome, effetto} passano alle
+  // colonne ufficiali (l'effetto libero finisce nella prima colonna utile)
+  c.tecniche = (c.tecniche || []).map(r => r.effetto === undefined ? r
+    : { ...makeTecnicaRow(), nome: r.nome || '', bonus: r.effetto || '' });
+  c.abilita = (c.abilita || []).map(r => r.effetto === undefined ? r
+    : { ...makeAbilitaRow(), nome: r.nome || '', costo: r.effetto || '' });
+  // rinomina i vecchi nomi predefiniti delle locazioni in quelli ufficiali
+  const slotRenames = { 'Testa': 'Capo', 'Torso': 'Busto', 'Braccio Destro': 'Braccio Dx',
+    'Braccio Sinistro': 'Braccio Sx', 'Gamba Destra': 'Gamba Dx', 'Gamba Sinistra': 'Gamba Sx' };
+  (c.slots || []).forEach(s => {
+    if (slotRenames[s.name]) s.name = slotRenames[s.name];
+    if (s.item === undefined) s.item = '';
   });
   return c;
 }
@@ -502,6 +517,7 @@ function renderSlots(c) {
   $('#slot-grid').innerHTML = c.slots.map((s, i) => `
     <div class="slot-card" data-slotidx="${i}">
       <input type="text" class="slot-name" value="${escapeHtml(s.name)}" data-slotname="${i}" placeholder="Locazione">
+      <div class="slot-item"><input type="text" value="${escapeHtml(s.item || '')}" data-slotitem="${i}" placeholder="Oggetto / arma equipaggiata"></div>
       <div class="slot-fields">
         <div class="sf"><label>Atk</label><input type="number" value="${s.atk}" data-slotfield="atk" data-idx="${i}"></div>
         <div class="sf"><label>Dif</label><input type="number" value="${s.dif}" data-slotfield="dif" data-idx="${i}"></div>
@@ -510,38 +526,47 @@ function renderSlots(c) {
       </div>
     </div>`).join('');
 }
-function editTableRows(id, rows, dataAttr) {
+function editTableRows(id, rows, dataAttr, fields) {
   $(id).innerHTML = rows.map((r, i) => `
-    <tr>
-      <td><input type="text" value="${escapeHtml(r.nome)}" data-${dataAttr}="nome" data-idx="${i}" placeholder="Nome"></td>
-      <td><input type="text" value="${escapeHtml(r.effetto)}" data-${dataAttr}="effetto" data-idx="${i}" placeholder="Effetto / costo"></td>
+    <tr>${fields.map(f => `
+      <td class="${f === fields[0] ? 'col-wide' : 'col-narrow'}"><input type="text" value="${escapeHtml(r[f] || '')}" data-${dataAttr}="${f}" data-idx="${i}"></td>`).join('')}
     </tr>`).join('');
 }
-/* Il retro della scheda dipende dalla build: numero di righe Tecniche e
-   Abilità secondo dotazione + tabella livelli. Le righe già compilate oltre
-   il limite (es. dopo un cambio di build) restano visibili. */
-function buildRows(rows, max) {
-  while (rows.length < max) rows.push({ nome: '', effetto: '' });
+/* Il retro della scheda dipende dalla build (schede retro ufficiali):
+   Guerriero 12 Tecniche + 4 Abilità · Eclettico 8+8 · Mago 4+12.
+   Le righe già compilate oltre il limite (es. dopo un cambio di build)
+   restano visibili. */
+function rowHasContent(r) {
+  return Object.values(r).some(v => String(v || '') !== '' && v !== 0);
+}
+function buildRows(rows, max, makeRow) {
+  while (rows.length < max) rows.push(makeRow());
   let visible = max;
   for (let i = rows.length - 1; i >= max; i--) {
-    if ((rows[i].nome || '') !== '' || (rows[i].effetto || '') !== '') { visible = i + 1; break; }
+    if (rowHasContent(rows[i])) { visible = i + 1; break; }
   }
   return rows.slice(0, visible);
 }
 function renderTecniche(c) {
   const b = BUILDS[c.build];
-  editTableRows('#tecniche-table', buildRows(c.tecniche, b.tecnicheMax), 'tecnica');
+  editTableRows('#tecniche-table', buildRows(c.tecniche, b.tecnicheMax, makeTecnicaRow), 'tecnica',
+    ['nome', 'bonus', 'malus', 'durata', 'utilizzi', 'lv']);
   $('#tecniche-count').textContent = `${b.label}: ${b.tecnicheMax}`;
 }
 function renderAbilita(c) {
   const b = BUILDS[c.build];
-  editTableRows('#abilita-table', buildRows(c.abilita, b.abilitaMax), 'abilita');
+  editTableRows('#abilita-table', buildRows(c.abilita, b.abilitaMax, makeAbilitaRow), 'abilita',
+    ['nome', 'bonus', 'costo', 'durata', 'utilizzi', 'lv']);
   $('#abilita-count').textContent = `${b.label}: ${b.abilitaMax}`;
+}
+function renderBoostRows(c) {
+  editTableRows('#boostrows-table', buildRows(c.boostRows, BOOST_ROWS_MAX, makeBoostRow), 'boostrow',
+    ['bonus', 'range', 'pp', 'costo', 'limite', 'lv']);
 }
 function renderRetroNote(c) {
   const b = BUILDS[c.build];
   $('#retro-build-note').textContent =
-    `Retro scheda ${b.label}: ${b.tecnicheMax} Tecniche e ${b.abilitaMax} Abilità (dotazione iniziale ${b.dotazione} + acquisizioni fino al Lv 20).`;
+    `Retro scheda ${b.label}: ${b.tecnicheMax} Tecniche e ${b.abilitaMax} Abilità, come da scheda ufficiale.`;
 }
 
 function renderBoost(c) {
@@ -601,6 +626,7 @@ function renderSheet() {
   renderRetroNote(c);
   renderTecniche(c);
   renderAbilita(c);
+  renderBoostRows(c);
   renderBoost(c);
   renderInventario(c);
   renderNote(c);
@@ -946,9 +972,13 @@ function wireStaticEvents() {
   $('#slot-grid').addEventListener('input', e => {
     const c = getActive(); if (!c) return;
     const nameInput = e.target.closest('[data-slotname]');
+    const itemInput = e.target.closest('[data-slotitem]');
     const fieldInput = e.target.closest('[data-slotfield]');
     if (nameInput) {
       c.slots[Number(nameInput.dataset.slotname)].name = nameInput.value;
+      touchActive();
+    } else if (itemInput) {
+      c.slots[Number(itemInput.dataset.slotitem)].item = itemInput.value;
       touchActive();
     } else if (fieldInput) {
       const idx = Number(fieldInput.dataset.idx), field = fieldInput.dataset.slotfield;
@@ -957,9 +987,10 @@ function wireStaticEvents() {
     }
   });
 
-  // ---- tecniche / abilità (edit tables) ----
+  // ---- tecniche / abilità / boost personali (edit tables) ----
   wireEditTable('#tecniche-table', 'tecnica', 'tecniche');
   wireEditTable('#abilita-table', 'abilita', 'abilita');
+  wireEditTable('#boostrows-table', 'boostrow', 'boostRows');
 
   // ---- boost ----
   $('#boost-table').addEventListener('change', e => {

@@ -6,9 +6,8 @@
    invece di indovinare un valore.
    ========================================================================== */
 
-// tecnicheMax/abilitaMax: righe del retro scheda per build — derivate da
-// dotazione iniziale + acquisizioni della Tabella Limiti di Livello (Lv 1→20):
-// Guerriero 10 Tec + 2 Ab · Eclettico 6 + 6 · Mago 2 Tec + 10 Ab
+// tecnicheMax/abilitaMax: righe di Tecniche/Abilità come da schede retro
+// ufficiali: Guerriero 12+4 · Eclettico (intermedio) 8+8 · Mago 4+12
 const BUILDS = {
   guerriero: {
     key: 'guerriero',
@@ -18,8 +17,8 @@ const BUILDS = {
     mpMult: 2,
     dotazione: '2 Tecniche',
     prIniziali: 10,
-    tecnicheMax: 10,
-    abilitaMax: 2,
+    tecnicheMax: 12,
+    abilitaMax: 4,
     swappable: false
   },
   eclettico: {
@@ -30,8 +29,8 @@ const BUILDS = {
     mpMultOptions: [5, 7],
     dotazione: '1 Tecnica + 1 Abilità magica',
     prIniziali: 8,
-    tecnicheMax: 6,
-    abilitaMax: 6,
+    tecnicheMax: 8,
+    abilitaMax: 8,
     swappable: true
   },
   mago: {
@@ -42,11 +41,14 @@ const BUILDS = {
     mpMult: 9,
     dotazione: '2 Abilità magiche',
     prIniziali: 10,
-    tecnicheMax: 2,
-    abilitaMax: 10,
+    tecnicheMax: 4,
+    abilitaMax: 12,
     swappable: false
   }
 };
+
+// Righe della tabella Boost compilabile del retro scheda (uguale per tutte le build)
+const BOOST_ROWS_MAX = 6;
 
 // 9 caratteristiche primarie — pool 40 punti, minimo 2 ciascuna
 const PRIMARY_STATS = [
