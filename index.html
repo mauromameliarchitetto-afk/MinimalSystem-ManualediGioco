@@ -160,10 +160,7 @@
       <div class="tab-panel" data-panel="identita">
         <div class="section-title"><span class="dot neutral"></span>Anagrafica</div>
         <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field-row">
-            <div class="field"><label>Razza</label><input type="text" id="f-razza" placeholder="es. Umano"></div>
-            <div class="field"><label>Bonus di razza (Bellezza)</label><input type="number" id="f-bonusrazza" value="0"></div>
-          </div>
+          <div class="field"><label>Razza</label><input type="text" id="f-razza" placeholder="es. Umano"></div>
           <div class="field"><label>Ruolo / occupazione</label><input type="text" id="f-ruolo" placeholder="es. Barista, mercenaria..."></div>
         </div></div>
 
@@ -173,7 +170,7 @@
 
         <div class="section-title"><span class="dot neutral"></span>Bellezza</div>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <p class="helper-text">Se non definita nel background: 1d20 + bonus di razza.</p>
+          <p class="helper-text">Se non definita nel background: 1d20.</p>
           <div class="roll-row">
             <button class="btn btn-magic" id="roll-bellezza-btn">Tira Bellezza</button>
             <div class="roll-result" id="bellezza-result">—</div>
@@ -311,17 +308,18 @@
 
       <!-- ---- RETRO / EQUIP & POTERI ---- -->
       <div class="tab-panel" data-panel="retro">
+        <p class="helper-text" id="retro-build-note">—</p>
         <div class="section-title"><span class="dot neutral"></span>Locazioni equipaggiamento</div>
         <p class="helper-text">Nomi predefiniti generici — rinominali secondo la tua scheda fisica se differiscono.</p>
         <div class="slot-grid" id="slot-grid"></div>
 
-        <div class="section-title"><span class="dot physical"></span>Tecniche <span class="chip" style="margin-left:auto;">10</span></div>
+        <div class="section-title"><span class="dot physical"></span>Tecniche <span class="chip" style="margin-left:auto;" id="tecniche-count">—</span></div>
         <div class="table-scroll"><table class="data-table edit-table">
           <thead><tr><th>Nome</th><th>Effetto / Costo</th></tr></thead>
           <tbody id="tecniche-table"></tbody>
         </table></div>
 
-        <div class="section-title"><span class="dot magic"></span>Abilità <span class="chip" style="margin-left:auto;">4</span></div>
+        <div class="section-title"><span class="dot magic"></span>Abilità <span class="chip" style="margin-left:auto;" id="abilita-count">—</span></div>
         <div class="table-scroll"><table class="data-table edit-table">
           <thead><tr><th>Nome</th><th>Effetto / Costo</th></tr></thead>
           <tbody id="abilita-table"></tbody>

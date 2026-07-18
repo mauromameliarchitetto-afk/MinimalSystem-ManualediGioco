@@ -91,7 +91,6 @@ function newCharacter(nome) {
     updatedAt: Date.now(),
     nome: nome || '',
     razza: '',
-    bonusRazza: 0,
     ruolo: '',
     build: 'guerriero',
     eclecticoHpMult: 7,
@@ -490,8 +489,32 @@ function editTableRows(id, rows, dataAttr) {
       <td><input type="text" value="${escapeHtml(r.effetto)}" data-${dataAttr}="effetto" data-idx="${i}" placeholder="Effetto / costo"></td>
     </tr>`).join('');
 }
-function renderTecniche(c) { editTableRows('#tecniche-table', c.tecniche, 'tecnica'); }
-function renderAbilita(c) { editTableRows('#abilita-table', c.abilita, 'abilita'); }
+/* Il retro della scheda dipende dalla build: numero di righe Tecniche e
+   Abilità secondo dotazione + tabella livelli. Le righe già compilate oltre
+   il limite (es. dopo un cambio di build) restano visibili. */
+function buildRows(rows, max) {
+  while (rows.length < max) rows.push({ nome: '', effetto: '' });
+  let visible = max;
+  for (let i = rows.length - 1; i >= max; i--) {
+    if ((rows[i].nome || '') !== '' || (rows[i].effetto || '') !== '') { visible = i + 1; break; }
+  }
+  return rows.slice(0, visible);
+}
+function renderTecniche(c) {
+  const b = BUILDS[c.build];
+  editTableRows('#tecniche-table', buildRows(c.tecniche, b.tecnicheMax), 'tecnica');
+  $('#tecniche-count').textContent = `${b.label}: ${b.tecnicheMax}`;
+}
+function renderAbilita(c) {
+  const b = BUILDS[c.build];
+  editTableRows('#abilita-table', buildRows(c.abilita, b.abilitaMax), 'abilita');
+  $('#abilita-count').textContent = `${b.label}: ${b.abilitaMax}`;
+}
+function renderRetroNote(c) {
+  const b = BUILDS[c.build];
+  $('#retro-build-note').textContent =
+    `Retro scheda ${b.label}: ${b.tecnicheMax} Tecniche e ${b.abilitaMax} Abilità (dotazione iniziale ${b.dotazione} + acquisizioni fino al Lv 20).`;
+}
 
 function renderBoost(c) {
   $('#boost-table').innerHTML = BOOST_LEVELS.map(b => {
@@ -529,7 +552,6 @@ function renderSheet() {
   renderHeader(c);
   renderBuildGrid(c);
   $('#f-razza').value = c.razza;
-  $('#f-bonusrazza').value = c.bonusRazza;
   $('#f-ruolo').value = c.ruolo;
   $('#f-bellezza-manuale').value = c.bellezzaManuale !== null ? c.bellezzaManuale : '';
   $('#bellezza-result').textContent = c.bellezzaTirata !== null ? c.bellezzaTirata : '—';
@@ -548,6 +570,7 @@ function renderSheet() {
   renderTertiaryPlusMinus(c);
   updateGrowthCost();
   renderSlots(c);
+  renderRetroNote(c);
   renderTecniche(c);
   renderAbilita(c);
   renderBoost(c);
@@ -642,7 +665,6 @@ function wireStaticEvents() {
 
   // ---- identità ----
   $('#f-razza').addEventListener('input', () => setField('razza', $('#f-razza').value));
-  $('#f-bonusrazza').addEventListener('input', () => setField('bonusRazza', Number($('#f-bonusrazza').value) || 0));
   $('#f-ruolo').addEventListener('input', () => setField('ruolo', $('#f-ruolo').value));
   $('#f-bellezza-manuale').addEventListener('input', () => {
     const v = $('#f-bellezza-manuale').value;
@@ -650,7 +672,7 @@ function wireStaticEvents() {
   });
   $('#roll-bellezza-btn').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
-    const roll = rollDie(20) + Number(c.bonusRazza || 0);
+    const roll = rollDie(20);
     c.bellezzaTirata = roll;
     $('#bellezza-result').textContent = roll;
     touchActive();
@@ -671,6 +693,9 @@ function wireStaticEvents() {
     renderBuildGrid(c);
     updateDerived(c);
     renderHeader(c);
+    renderRetroNote(c);
+    renderTecniche(c);
+    renderAbilita(c);
     touchActive();
   });
 

@@ -6,6 +6,9 @@
    invece di indovinare un valore.
    ========================================================================== */
 
+// tecnicheMax/abilitaMax: righe del retro scheda per build — derivate da
+// dotazione iniziale + acquisizioni della Tabella Limiti di Livello (Lv 1→20):
+// Guerriero 10 Tec + 2 Ab · Eclettico 6 + 6 · Mago 2 Tec + 10 Ab
 const BUILDS = {
   guerriero: {
     key: 'guerriero',
@@ -15,6 +18,8 @@ const BUILDS = {
     mpMult: 2,
     dotazione: '2 Tecniche',
     prIniziali: 10,
+    tecnicheMax: 10,
+    abilitaMax: 2,
     swappable: false
   },
   eclettico: {
@@ -25,6 +30,8 @@ const BUILDS = {
     mpMultOptions: [5, 7],
     dotazione: '1 Tecnica + 1 Abilità magica',
     prIniziali: 8,
+    tecnicheMax: 6,
+    abilitaMax: 6,
     swappable: true
   },
   mago: {
@@ -35,6 +42,8 @@ const BUILDS = {
     mpMult: 9,
     dotazione: '2 Abilità magiche',
     prIniziali: 10,
+    tecnicheMax: 2,
+    abilitaMax: 10,
     swappable: false
   }
 };

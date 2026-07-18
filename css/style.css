@@ -476,7 +476,7 @@ input,select,textarea{font-family:var(--font-body);}
 .roll-detail{font-size:10.5px;color:var(--testo-secondario-dark);}
 
 /* ---------- Form fields generic ---------- */
-.field{display:flex;flex-direction:column;gap:6px;}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0;}
 .field label{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--testo-secondario-dark);}
 .field input[type=text],.field input[type=number],.field textarea,.field select{
   background:var(--antracite-1);
@@ -485,10 +485,12 @@ input,select,textarea{font-family:var(--font-body);}
   padding:10px 12px;
   color:var(--testo-primario-dark);
   font-size:14px;
+  width:100%;
+  min-width:0;
 }
 .field textarea{resize:vertical;min-height:70px;line-height:1.5;font-family:var(--font-body);}
-.field-row{display:flex;gap:10px;}
-.field-row .field{flex:1;}
+.field-row{display:flex;gap:10px;flex-wrap:wrap;}
+.field-row .field{flex:1 1 120px;min-width:0;}
 
 /* ---------- Tratti ---------- */
 .trait-group{display:flex;flex-direction:column;gap:6px;}
@@ -555,9 +557,11 @@ table.edit-table td{padding:4px 6px;}
 .slot-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
 .slot-fields .sf{display:flex;flex-direction:column;gap:3px;}
 .slot-fields label{font-size:8.5px;text-transform:uppercase;color:var(--testo-secondario-dark);letter-spacing:.04em;}
+.slot-fields .sf{min-width:0;}
 .slot-fields input{
   background:var(--antracite-1);border:1px solid var(--bordo-scuro);border-radius:5px;
   color:var(--testo-primario-dark);font-family:var(--font-mono);text-align:center;padding:6px 2px;font-size:13px;
+  width:100%;min-width:0;
 }
 
 /* ---------- Boost table ---------- */
