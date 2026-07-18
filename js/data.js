@@ -84,9 +84,9 @@ const TRAIT_LISTS = {
   conoscenze: ['Architettura', 'Bassifondi', 'Caccia', 'Cavalcare', 'Fauna', 'Flora',
     'Free Running', 'Geografia', "Gioco d'Azzardo", 'Guidare', 'Meccanica', 'Navigare',
     'Orientamento', 'Pesca', 'Politica', 'Seguire Tracce', 'Sopravvivenza'],
-  capacitaNormali: ['Riparare', 'Scassinare', 'Lanciare', 'Furtività', 'Tecniche',
-    'Contrattazione', 'Percezione', 'Ascoltare', 'Intuito Olfattivo', 'Persuasione',
-    'Provocare', 'Intimidire', 'Nuotare', 'Scalare'],
+  capacitaNormali: ['Riparare', 'Scassinare', 'Lanciare', 'Furtività', 'Contrattazione',
+    'Percezione', 'Ascoltare', 'Intuito Olfattivo', 'Persuasione', 'Provocare',
+    'Intimidire', 'Nuotare', 'Scalare'],
   capacitaCombattive: ['Tattica Militare', 'Ascia', 'Spada', 'Lancia', 'Arco', 'Spadone',
     'Guardia', 'Guarigione', 'Elusione', 'Robustezza', 'Arte Combattiva', 'Spirito']
 };
