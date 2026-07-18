@@ -39,8 +39,8 @@ const BUILDS = {
   }
 };
 
-// Righe della tabella Boost compilabile del retro scheda (uguale per tutte le build)
-const BOOST_ROWS_MAX = 6;
+// Boost compilabili del retro scheda: si parte con 1, massimo 2
+const BOOST_ROWS_MAX = 2;
 
 // Sblocco di Tecniche e Abilità per build e livello (tabella limiti di livello):
 // Lv 1 dotazione iniziale · Lv 4/12/20 acquisizione di classe

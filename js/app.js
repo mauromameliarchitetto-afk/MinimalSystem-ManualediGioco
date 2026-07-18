@@ -119,6 +119,7 @@ function newCharacter(nome) {
     tecniche: [],
     abilita: [],
     boostRows: [],
+    boostRowsShown: 1,
     boost: defaultBoost(),
     inventario: [],
     note: { aspetto: '', morale: '', background: '', libere: '' }
@@ -144,6 +145,11 @@ function ensureShape(c) {
     : { ...makeTecnicaRow(), nome: r.nome || '', bonus: r.effetto || '' });
   c.abilita = (c.abilita || []).map(r => r.effetto === undefined ? r
     : { ...makeAbilitaRow(), nome: r.nome || '', costo: r.effetto || '' });
+  // boost: quante righe sono attive (1 o 2), dedotto dal contenuto se assente
+  if (typeof c.boostRowsShown !== 'number') {
+    const piene = (c.boostRows || []).filter(rowHasContent).length;
+    c.boostRowsShown = clamp(Math.max(1, piene), 1, BOOST_ROWS_MAX);
+  }
   // rinomina i vecchi nomi predefiniti delle locazioni in quelli ufficiali
   const slotRenames = { 'Testa': 'Capo', 'Torso': 'Busto', 'Braccio Destro': 'Braccio Dx',
     'Braccio Sinistro': 'Braccio Sx', 'Gamba Destra': 'Gamba Dx', 'Gamba Sinistra': 'Gamba Sx' };
@@ -566,8 +572,11 @@ function renderAbilita(c) {
   $('#abilita-count').textContent = `${un.ab} / ${max.ab}`;
 }
 function renderBoostRows(c) {
-  editTableRows('#boostrows-table', buildRows(c.boostRows, BOOST_ROWS_MAX, makeBoostRow), 'boostrow',
+  const shown = clamp(c.boostRowsShown || 1, 1, BOOST_ROWS_MAX);
+  editTableRows('#boostrows-table', buildRows(c.boostRows, shown, makeBoostRow), 'boostrow',
     ['bonus', 'range', 'pp', 'costo', 'limite', 'lv']);
+  $('#boost-add').classList.toggle('hidden', shown >= BOOST_ROWS_MAX);
+  $('#boost-remove').classList.toggle('hidden', shown < 2);
 }
 function renderRetroNote(c) {
   const b = BUILDS[c.build];
@@ -1004,6 +1013,19 @@ function wireStaticEvents() {
   wireEditTable('#tecniche-table', 'tecnica', 'tecniche');
   wireEditTable('#abilita-table', 'abilita', 'abilita');
   wireEditTable('#boostrows-table', 'boostrow', 'boostRows');
+  $('#boost-add').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    c.boostRowsShown = BOOST_ROWS_MAX;
+    renderBoostRows(c);
+    touchActive();
+  });
+  $('#boost-remove').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    if (c.boostRows[1]) c.boostRows[1] = makeBoostRow();
+    c.boostRowsShown = 1;
+    renderBoostRows(c);
+    touchActive();
+  });
 
   // ---- boost ----
   $('#boost-table').addEventListener('change', e => {
