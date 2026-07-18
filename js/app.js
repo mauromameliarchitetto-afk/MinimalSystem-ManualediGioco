@@ -553,6 +553,7 @@ function init() {
   showView('cover');
   wireStaticEvents();
   registerServiceWorker();
+  checkForUpdate();
 }
 
 function wireStaticEvents() {
@@ -566,6 +567,15 @@ function wireStaticEvents() {
     showView(target);
   }));
   $('#btn-char-menu').addEventListener('click', charMenu);
+
+  // ---- banner aggiornamento ----
+  $('#update-banner-btn').addEventListener('click', () => {
+    if (!updateUrl) return;
+    toast('Download avviato: a fine scaricamento tocca la notifica per installare');
+    // Navigazione diretta: in Capacitor gli URL esterni si aprono nel
+    // browser di sistema e la WebView resta sull'app.
+    location.href = updateUrl;
+  });
 
   // ---- menù copertina (hamburger + indice) ----
   const coverMenuBtn = $('#btn-cover-menu');
@@ -1018,6 +1028,42 @@ function exportCharacter(c) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/* ------------------------------------------------------- aggiornamenti app */
+
+const RELEASES_API = 'https://api.github.com/repos/mauromameliarchitetto-afk/MinimalSystem-ManualediGioco/releases/latest';
+let updateUrl = null;
+
+function isNativeApp() {
+  return window.Capacitor !== undefined || location.hostname === 'localhost';
+}
+
+function cmpVersions(a, b) {
+  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d) return d;
+  }
+  return 0;
+}
+
+/* Solo nell'app nativa: confronta la versione installata (APP_VERSION,
+   scritta dalla build) con l'ultima release su GitHub e, se c'è di meglio,
+   mostra il banner con il bottone di download. */
+function checkForUpdate() {
+  if (!isNativeApp() || typeof APP_VERSION === 'undefined' || !APP_VERSION) return;
+  fetch(RELEASES_API)
+    .then(r => r.json())
+    .then(rel => {
+      const m = /^apk-v(\d+(?:\.\d+)*)$/.exec(rel.tag_name || '');
+      if (!m || cmpVersions(m[1], APP_VERSION) <= 0) return;
+      const apk = (rel.assets || []).find(a => a.name && a.name.endsWith('.apk'));
+      updateUrl = apk ? apk.browser_download_url : rel.html_url;
+      $('#update-banner-text').textContent = `Nuova versione disponibile (v${m[1]})`;
+      $('#update-banner').classList.remove('hidden');
+    })
+    .catch(() => { /* offline o API non raggiungibile: nessun avviso */ });
 }
 
 /* ------------------------------------------------------------ service worker */

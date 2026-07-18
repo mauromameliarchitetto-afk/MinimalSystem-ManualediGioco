@@ -29,6 +29,9 @@ jobs:
       - name: Build web assets
         run: npm run build:www
 
+      - name: Stamp app version
+        run: echo "const APP_VERSION = '1.0.${{ github.run_number }}';" > www/js/version.js
+
       - name: Add Android platform
         run: npx cap add android
 
