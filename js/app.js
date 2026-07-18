@@ -1023,11 +1023,24 @@ function exportCharacter(c) {
 /* ------------------------------------------------------------ service worker */
 
 function registerServiceWorker() {
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js').catch(err => console.error('SW error', err));
-    });
+  if (!('serviceWorker' in navigator)) return;
+  // Nell'app nativa (Capacitor) i file sono già sul dispositivo: il service
+  // worker serve solo alla versione web. Se una versione precedente lo aveva
+  // registrato va rimosso insieme alla sua cache, altrimenti dopo un
+  // aggiornamento dell'APK continua a mostrare i file dell'app vecchia.
+  const isNative = window.Capacitor !== undefined || location.hostname === 'localhost';
+  if (isNative) {
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      const hadSw = regs.length > 0;
+      return Promise.all(regs.map(r => r.unregister()))
+        .then(() => (window.caches ? caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))) : null))
+        .then(() => { if (hadSw) location.reload(); });
+    }).catch(() => {});
+    return;
   }
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(err => console.error('SW error', err));
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);
