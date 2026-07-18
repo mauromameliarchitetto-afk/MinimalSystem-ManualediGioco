@@ -16,7 +16,7 @@ let activeId = null;
 function loadAll() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    characters = raw ? JSON.parse(raw) : [];
+    characters = (raw ? JSON.parse(raw) : []).map(ensureShape);
   } catch (e) {
     console.error('Errore lettura storage', e);
     characters = [];
@@ -83,6 +83,11 @@ function defaultCustomTraits() {
   Object.keys(TRAIT_LISTS).forEach(k => { o[k] = []; });
   return o;
 }
+function defaultShownTraits() {
+  const o = {};
+  Object.keys(TRAIT_LISTS).forEach(k => { o[k] = []; });
+  return o;
+}
 
 function newCharacter(nome) {
   return {
@@ -106,6 +111,7 @@ function newCharacter(nome) {
     ledger: [],
     traits: defaultTraits(),
     customTraits: defaultCustomTraits(),
+    shownTraits: defaultShownTraits(),
     hpMaxTracked: null, mpMaxTracked: null, prMaxTracked: null,
     hpCur: null, mpCur: null, ppCur: null, prCur: null,
     slots: defaultSlots(),
@@ -120,7 +126,16 @@ function newCharacter(nome) {
 /* Colma eventuali campi mancanti se il personaggio arriva da una versione precedente dell'app */
 function ensureShape(c) {
   const d = newCharacter();
+  const hadShown = c.shownTraits !== undefined;
   Object.keys(d).forEach(k => { if (c[k] === undefined) c[k] = d[k]; });
+  // migrazione: i tratti già valorizzati diventano automaticamente "posseduti"
+  Object.keys(TRAIT_LISTS).forEach(k => {
+    if (!c.traits[k]) c.traits[k] = {};
+    if (!Array.isArray(c.customTraits[k])) c.customTraits[k] = [];
+    if (!hadShown || !Array.isArray(c.shownTraits[k])) {
+      c.shownTraits[k] = TRAIT_LISTS[k].filter(n => (Number(c.traits[k][n]) || 0) > 0);
+    }
+  });
   return c;
 }
 
@@ -382,14 +397,25 @@ function renderQi(c) {
 function renderTraits(c) {
   const wrap = $('#trait-lists');
   wrap.innerHTML = Object.keys(TRAIT_LISTS).map(listKey => {
-    const rows = TRAIT_LISTS[listKey].map(name => traitRowHtml(listKey, name, c.traits[listKey][name] || 0, false));
+    const shown = c.shownTraits[listKey] || [];
+    const rows = TRAIT_LISTS[listKey]
+      .filter(name => shown.includes(name))
+      .map(name => traitRowHtml(listKey, name, c.traits[listKey][name] || 0, false));
     const customRows = (c.customTraits[listKey] || []).map((t, i) => traitRowHtml(listKey, t.name, t.value, true, i));
-    return `<div class="section-title"><span class="dot neutral"></span>${TRAIT_LIST_LABELS[listKey]} <span class="chip" style="margin-left:auto;">${TRAIT_LISTS[listKey].length}</span></div>
+    const empty = !rows.length && !customRows.length
+      ? `<div class="helper-text" style="padding:2px 2px 6px;">Nessun tratto ancora — aggiungine uno dal menù qui sotto.</div>` : '';
+    const available = TRAIT_LISTS[listKey].filter(name => !shown.includes(name));
+    return `<div class="section-title"><span class="dot neutral"></span>${TRAIT_LIST_LABELS[listKey]} <span class="chip" style="margin-left:auto;">${rows.length + customRows.length}</span></div>
       <div class="trait-group" data-list="${listKey}">
+        ${empty}
         ${rows.join('')}
         ${customRows.join('')}
       </div>
-      <button class="btn btn-ghost btn-sm" data-addtrait="${listKey}" style="align-self:flex-start;margin-bottom:4px;">+ Aggiungi tratto</button>`;
+      <select class="trait-add-select" data-addtraitsel="${listKey}">
+        <option value="" selected disabled>+ Aggiungi tratto…</option>
+        ${available.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}
+        <option value="__custom__">Tratto personalizzato…</option>
+      </select>`;
   }).join('');
   updateTraitsRemaining(c);
 }
@@ -415,7 +441,9 @@ function traitRowHtml(listKey, name, value, isCustom, idx) {
     <span class="t-dice">${dice}</span>
     <input type="number" value="${value}" min="0" max="50" data-traitvalue="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''}>
     <button class="btn btn-icon btn-sm btn-ghost btn-roll" data-traitroll="${escapeHtml(name)}" data-list="${listKey}" title="Tira">🎲</button>
-    ${isCustom ? `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-delcustom="${listKey}" data-idx="${idx}" title="Rimuovi">✕</button>` : ''}
+    ${isCustom
+      ? `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-delcustom="${listKey}" data-idx="${idx}" title="Rimuovi">✕</button>`
+      : `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-hidetrait="${escapeHtml(name)}" data-list="${listKey}" title="Rimuovi">✕</button>`}
   </div>`;
 }
 
@@ -782,7 +810,15 @@ function wireStaticEvents() {
     const c = getActive(); if (!c) return;
     const rollBtn = e.target.closest('[data-traitroll]');
     const delBtn = e.target.closest('[data-delcustom]');
-    const addBtn = e.target.closest('[data-addtrait]');
+    const hideBtn = e.target.closest('[data-hidetrait]');
+    if (hideBtn) {
+      const list = hideBtn.dataset.list, name = hideBtn.dataset.hidetrait;
+      c.shownTraits[list] = (c.shownTraits[list] || []).filter(n => n !== name);
+      c.traits[list][name] = 0;
+      renderTraits(c);
+      touchActive();
+      return;
+    }
     if (rollBtn) {
       const list = rollBtn.dataset.list, name = rollBtn.dataset.traitroll;
       const val = getTraitValue(c, list, name);
@@ -797,13 +833,19 @@ function wireStaticEvents() {
       touchActive();
       return;
     }
-    if (addBtn) {
-      const list = addBtn.dataset.addtrait;
+  });
+  $('#trait-lists').addEventListener('change', e => {
+    const sel = e.target.closest('[data-addtraitsel]');
+    if (!sel || !sel.value) return;
+    const c = getActive(); if (!c) return;
+    const list = sel.dataset.addtraitsel;
+    if (sel.value === '__custom__') {
       c.customTraits[list].push({ name: '', value: 0 });
-      renderTraits(c);
-      touchActive();
-      return;
+    } else if (!(c.shownTraits[list] || []).includes(sel.value)) {
+      c.shownTraits[list].push(sel.value);
     }
+    renderTraits(c);
+    touchActive();
   });
   $('#trait-lists').addEventListener('input', e => {
     const c = getActive(); if (!c) return;
