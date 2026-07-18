@@ -554,12 +554,15 @@ table.data-table td.num,table.data-table th.num{font-family:var(--font-mono);}
 .table-scroll{overflow-x:auto;border:1px solid var(--bordo-scuro);border-radius:var(--radius);}
 .table-scroll table{border:none;}
 
-/* Tabella editabile (Tecniche/Abilità) */
+/* Tabella editabile (Tecniche/Abilità/Boost) */
 table.edit-table input{
   width:100%;background:transparent;border:none;color:var(--testo-primario-dark);
   font-size:12px;padding:2px;
 }
 table.edit-table td{padding:4px 6px;}
+table.edit-table td.col-wide{min-width:120px;}
+table.edit-table td.col-narrow{min-width:64px;}
+table.edit-table thead th{white-space:nowrap;}
 
 /* ---------- Retro scheda: locazioni ---------- */
 .slot-grid{display:flex;flex-direction:column;gap:10px;}
@@ -571,6 +574,11 @@ table.edit-table td{padding:4px 6px;}
   width:100%;background:transparent;border:none;border-bottom:1px dashed var(--bordo-scuro);
   color:var(--testo-primario-dark);font-family:var(--font-title);font-weight:600;
   font-size:13px;padding:2px 0 6px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em;
+}
+.slot-card .slot-item{margin-bottom:8px;}
+.slot-card .slot-item input{
+  width:100%;min-width:0;background:var(--antracite-1);border:1px solid var(--bordo-scuro);
+  border-radius:5px;color:var(--testo-primario-dark);font-size:13px;padding:7px 10px;
 }
 .slot-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
 .slot-fields .sf{display:flex;flex-direction:column;gap:3px;}
