@@ -1,9 +1,10 @@
-const CACHE_NAME = 'minimal-system-v6';
+const CACHE_NAME = 'minimal-system-v7';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
   './css/style.css',
+  './js/version.js',
   './js/data.js',
   './js/app.js',
   './img/cover.jpg',
