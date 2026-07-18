@@ -368,8 +368,58 @@ function updatePlayBars(c) {
   $('#hp-bar').style.width = pct(c.hpCur, c.hpMaxTracked) + '%';
   $('#mp-bar').style.width = pct(c.mpCur, c.mpMaxTracked) + '%';
   $('#pp-bar').style.width = pct(c.ppCur, ppMax) + '%';
+  renderDiagram(c);
 }
 function pct(cur, max) { return max > 0 ? clamp((cur / max) * 100, 0, 100) : 0; }
+
+/* ------------------------------------------- diagramma scheda (fronte) */
+
+/* Ogni voce: chiave dato, posizione (coordinate viewBox 320x430) e
+   larghezza input in % del contenitore. p: primaria · t: terziaria */
+const DIAGRAM_SPEC = [
+  { key: 'lv',      x: 37,  y: 27,  w: 13 },
+  { key: 'qi',      x: 283, y: 27,  w: 13 },
+  { key: 'p:mira',  x: 160, y: 55,  w: 11 },
+  { key: 'p:dex',   x: 120, y: 95,  w: 11 },
+  { key: 'p:dif',   x: 200, y: 95,  w: 11 },
+  { key: 'p:for',   x: 160, y: 135, w: 11 },
+  { key: 'p:vel',   x: 120, y: 175, w: 11 },
+  { key: 'p:dmen',  x: 200, y: 175, w: 11 },
+  { key: 'p:fmen',  x: 160, y: 215, w: 11 },
+  { key: 't:carisma', x: 120, y: 255, w: 11 },
+  { key: 't:stile',   x: 200, y: 255, w: 11 },
+  { key: 't:fortuna', x: 160, y: 295, w: 11 },
+  { key: 'p:hp',    x: 90,  y: 345, w: 13 },
+  { key: 'hpcur',   x: 70,  y: 368, w: 9 },
+  { key: 'p:mp',    x: 230, y: 345, w: 13 },
+  { key: 'mpcur',   x: 250, y: 368, w: 9 },
+  { key: 'prcur',   x: 160, y: 385, w: 11 }
+];
+
+function initDiagram() {
+  $('#dg-inputs').innerHTML = DIAGRAM_SPEC.map(f =>
+    `<input type="number" class="dg-input" data-dg="${f.key}" style="left:${(f.x / 320 * 100).toFixed(2)}%;top:${(f.y / 430 * 100).toFixed(2)}%;width:${f.w}%;">`
+  ).join('');
+}
+
+function diagramValue(c, key) {
+  if (key.startsWith('p:')) return c.primary[key.slice(2)];
+  if (key.startsWith('t:')) return c.tertiary[key.slice(2)];
+  if (key === 'lv') return c.livello;
+  if (key === 'qi') return c.qi;
+  if (key === 'hpcur') return c.hpCur;
+  if (key === 'mpcur') return c.mpCur;
+  if (key === 'prcur') return c.prCur;
+  return null;
+}
+
+function renderDiagram(c) {
+  $$('#stat-diagram [data-dg]').forEach(inp => {
+    if (inp === document.activeElement) return;
+    const v = diagramValue(c, inp.dataset.dg);
+    inp.value = (v === null || v === undefined) ? '' : v;
+  });
+}
 
 /* ------------------------------------------------------------ terziarie */
 
@@ -629,6 +679,7 @@ function renderSheet() {
   $('#bellezza-result').textContent = c.bellezzaTirata !== null ? c.bellezzaTirata : '—';
   renderPrimaryStats(c);
   updateDerived(c);
+  renderDiagram(c);
   renderQi(c);
   renderTertiaryStats(c);
   renderTertiaryRefTable();
@@ -655,6 +706,7 @@ function renderSheet() {
 
 function init() {
   loadAll();
+  initDiagram();
   renderCharList();
   if (activeId && getActive()) {
     renderSheet();
@@ -772,6 +824,54 @@ function wireStaticEvents() {
     touchActive();
   });
 
+  // ---- diagramma scheda (fronte) ----
+  $('#stat-diagram').addEventListener('input', e => {
+    const inp = e.target.closest('[data-dg]');
+    if (!inp) return;
+    const c = getActive(); if (!c) return;
+    const key = inp.dataset.dg;
+    const raw = Math.floor(Number(inp.value));
+    if (key.startsWith('p:')) {
+      const k = key.slice(2);
+      const v = isNaN(raw) ? PRIMARY_MIN : Math.max(PRIMARY_MIN, raw);
+      c.primary[k] = v;
+      const st = $(`#primary-stats input[data-pstat-input="${k}"]`);
+      if (st) st.value = v;
+      updatePrimaryRemaining(c);
+      updateDerived(c);
+    } else if (key.startsWith('t:')) {
+      const k = key.slice(2);
+      const v = isNaN(raw) ? TERTIARY_MIN : clamp(raw, TERTIARY_MIN, TERTIARY_MAX);
+      c.tertiary[k] = v;
+      const st = $(`#tertiary-stats input[data-tstat-input="${k}"]`);
+      if (st) st.value = v;
+      updateTertiaryRemaining(c);
+      renderTertiaryPlusMinus(c);
+    } else if (key === 'lv') {
+      c.livello = clamp(isNaN(raw) ? 1 : raw, 1, 20);
+      $('#f-livello').value = c.livello;
+      $('#hud-lv').textContent = c.livello;
+      $('#sheet-sub').textContent = `${BUILDS[c.build].label} · Livello ${c.livello}`;
+      highlightCurrentLevel(c);
+      renderRetroNote(c);
+      renderTecniche(c);
+      renderAbilita(c);
+    } else if (key === 'qi') {
+      c.qi = isNaN(raw) ? null : raw;
+      renderQi(c);
+    } else if (key === 'hpcur') {
+      c.hpCur = clamp(isNaN(raw) ? 0 : raw, 0, c.hpMaxTracked || 0);
+      updatePlayBars(c);
+    } else if (key === 'mpcur') {
+      c.mpCur = clamp(isNaN(raw) ? 0 : raw, 0, c.mpMaxTracked || 0);
+      updatePlayBars(c);
+    } else if (key === 'prcur') {
+      c.prCur = clamp(isNaN(raw) ? 0 : raw, 0, c.prMaxTracked || 0);
+      updatePlayBars(c);
+    }
+    touchActive();
+  });
+
   // ---- primarie: point buy (delegation) ----
   $('#primary-stats').addEventListener('click', e => {
     const btn = e.target.closest('[data-pstat]');
@@ -818,6 +918,7 @@ function wireStaticEvents() {
     const qi = (rollDie(4) + rollDie(6) + rollDie(10)) * 10;
     c.qi = qi;
     renderQi(c);
+    renderDiagram(c);
     touchActive();
   });
   $('#f-qi-progresso').addEventListener('input', () => setField('qiProgresso', Number($('#f-qi-progresso').value) || 0));
@@ -834,6 +935,7 @@ function wireStaticEvents() {
     $(`#tertiary-stats input[data-tstat-input="${key}"]`).value = next;
     updateTertiaryRemaining(c);
     renderTertiaryPlusMinus(c);
+    renderDiagram(c);
     touchActive();
   });
   $('#tertiary-stats').addEventListener('input', e => {
@@ -847,6 +949,7 @@ function wireStaticEvents() {
     c.tertiary[key] = v;
     updateTertiaryRemaining(c);
     renderTertiaryPlusMinus(c);
+    renderDiagram(c);
     touchActive();
   });
 
@@ -929,6 +1032,7 @@ function wireStaticEvents() {
     renderRetroNote(c);
     renderTecniche(c);
     renderAbilita(c);
+    renderDiagram(c);
     touchActive();
   });
   $('#f-ap-disponibili').addEventListener('input', () => setField('apDisponibili', Number($('#f-ap-disponibili').value) || 0));

@@ -181,6 +181,64 @@
 
       <!-- ---- PRIMARIE ---- -->
       <div class="tab-panel" data-panel="primarie">
+        <div class="section-title"><span class="dot"></span>Diagramma della scheda</div>
+        <p class="helper-text">Il fronte della scheda ufficiale, compilabile: tocca un cerchio e scrivi il valore. Comprende le 9 primarie (pool 40), le terziarie CAR · STILE · FOR (pool 5), LV, Q.I., i valori in uso e i P.R. Tutto resta sincronizzato con le altre schede.</p>
+        <div class="box"><div class="box-bar bicolor"></div><div class="box-pad">
+          <div class="diagram-wrap" id="stat-diagram">
+            <svg viewBox="0 0 320 430" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="14" y="14" width="46" height="26" rx="4" class="dg-rect"/>
+              <text x="37" y="10" class="dg-lab">LV</text>
+              <rect x="260" y="14" width="46" height="26" rx="4" class="dg-rect"/>
+              <text x="283" y="10" class="dg-lab">Q.I.</text>
+
+              <g stroke="#4A4F58" stroke-width="1.3">
+                <line x1="160" y1="55" x2="120" y2="95"/>
+                <line x1="160" y1="55" x2="200" y2="95"/>
+                <line x1="120" y1="95" x2="200" y2="95"/>
+                <line x1="120" y1="95" x2="160" y2="135"/>
+                <line x1="200" y1="95" x2="160" y2="135"/>
+                <line x1="120" y1="95" x2="120" y2="175"/>
+                <line x1="200" y1="95" x2="200" y2="175"/>
+                <line x1="160" y1="135" x2="120" y2="175"/>
+                <line x1="160" y1="135" x2="200" y2="175"/>
+                <line x1="120" y1="175" x2="200" y2="175"/>
+                <line x1="120" y1="175" x2="160" y2="215"/>
+                <line x1="200" y1="175" x2="160" y2="215"/>
+                <line x1="160" y1="215" x2="120" y2="255"/>
+                <line x1="160" y1="215" x2="200" y2="255"/>
+                <line x1="120" y1="255" x2="160" y2="295"/>
+                <line x1="200" y1="255" x2="160" y2="295"/>
+              </g>
+              <g stroke="#4A4F58" stroke-width="1">
+                <line x1="160" y1="295" x2="109.5" y2="331"/>
+                <line x1="160" y1="295" x2="210.5" y2="331"/>
+              </g>
+
+              <circle cx="160" cy="55" r="19" class="dg-c"/><text x="160" y="32" class="dg-lab">Mira</text>
+              <circle cx="120" cy="95" r="19" class="dg-c"/><text x="88" y="92" class="dg-lab">Dex</text>
+              <circle cx="200" cy="95" r="19" class="dg-c"/><text x="231" y="92" class="dg-lab">Dif</text>
+              <circle cx="160" cy="135" r="19" class="dg-c"/><text x="160" y="112" class="dg-lab">Forza</text>
+              <circle cx="120" cy="175" r="19" class="dg-c"/><text x="88" y="172" class="dg-lab">Vel</text>
+              <circle cx="200" cy="175" r="19" class="dg-c"/><text x="238" y="172" class="dg-lab">D.Men</text>
+              <circle cx="160" cy="215" r="19" class="dg-c"/><text x="160" y="192" class="dg-lab">F.Men</text>
+              <circle cx="120" cy="255" r="19" class="dg-c dg-c-t"/><text x="87" y="252" class="dg-lab">Car</text>
+              <circle cx="200" cy="255" r="19" class="dg-c dg-c-t"/><text x="234" y="252" class="dg-lab">Stile</text>
+              <circle cx="160" cy="295" r="19" class="dg-c dg-c-t"/><text x="160" y="272" class="dg-lab">For</text>
+
+              <circle cx="90" cy="345" r="24" class="dg-c dg-c-hp"/><text x="90" y="315" class="dg-lab">HP</text>
+              <circle cx="70" cy="368" r="15" class="dg-c dg-c-sm"/><text x="70" y="392" class="dg-lab">Uso</text>
+              <circle cx="112" cy="368" r="15" class="dg-c dg-c-sm"/><text x="112" y="372" class="dg-lab">K.O.</text>
+
+              <circle cx="230" cy="345" r="24" class="dg-c dg-c-mp"/><text x="230" y="315" class="dg-lab">MP</text>
+              <circle cx="250" cy="368" r="15" class="dg-c dg-c-sm"/><text x="250" y="392" class="dg-lab">Uso</text>
+              <circle cx="208" cy="368" r="15" class="dg-c dg-c-sm"/><text x="208" y="372" class="dg-lab">K.O.</text>
+
+              <circle cx="160" cy="385" r="18" class="dg-c"/><text x="160" y="412" class="dg-lab">P.R.</text>
+            </svg>
+            <div class="dg-inputs" id="dg-inputs"></div>
+          </div>
+        </div></div>
+
         <div class="section-title"><span class="dot neutral"></span>Caratteristiche primarie · 40 punti</div>
         <p class="helper-text">Minimo 2 per caratteristica. HP e MP qui sono i valori <em>base</em>: il totale reale si ottiene moltiplicandoli per i moltiplicatori della build (sotto).</p>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
