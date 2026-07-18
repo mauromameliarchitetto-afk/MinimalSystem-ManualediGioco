@@ -517,6 +517,24 @@ input,select,textarea{font-family:var(--font-body);}
 }
 .trait-row .btn-roll{flex:none;}
 .trait-row .btn-del{flex:none;opacity:.5;}
+.trait-add-select{
+  appearance:none;
+  -webkit-appearance:none;
+  align-self:flex-start;
+  margin-bottom:4px;
+  background:transparent;
+  border:1px solid var(--bordo-scuro);
+  border-radius:var(--radius);
+  color:var(--testo-secondario-dark-2);
+  font-family:var(--font-title);
+  font-weight:600;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  padding:8px 12px;
+  cursor:pointer;
+  max-width:100%;
+}
 
 /* ---------- Tabelle ---------- */
 table.data-table{width:100%;border-collapse:collapse;font-size:12px;}
