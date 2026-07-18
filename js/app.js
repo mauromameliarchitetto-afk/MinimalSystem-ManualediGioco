@@ -392,7 +392,20 @@ function renderTraits(c) {
       </div>
       <button class="btn btn-ghost btn-sm" data-addtrait="${listKey}" style="align-self:flex-start;margin-bottom:4px;">+ Aggiungi tratto</button>`;
   }).join('');
+  updateTraitsRemaining(c);
 }
+function updateTraitsRemaining(c) {
+  let sum = 0;
+  Object.keys(TRAIT_LISTS).forEach(k => {
+    TRAIT_LISTS[k].forEach(name => { sum += Number(c.traits[k][name]) || 0; });
+    (c.customTraits[k] || []).forEach(t => { sum += Number(t.value) || 0; });
+  });
+  const remaining = TRAIT_POOL - sum;
+  const el = $('#traits-remaining');
+  el.textContent = remaining;
+  el.className = 'remaining' + (remaining < 0 ? ' neg' : (remaining === 0 ? ' zero' : ''));
+}
+
 function traitRowHtml(listKey, name, value, isCustom, idx) {
   const dice = diceForValue(Number(value) || 0);
   const nameHtml = isCustom
@@ -782,6 +795,7 @@ function wireStaticEvents() {
       }
       const row = valInput.closest('.trait-row');
       row.querySelector('.t-dice').textContent = diceForValue(v);
+      updateTraitsRemaining(c);
       touchActive();
       return;
     }

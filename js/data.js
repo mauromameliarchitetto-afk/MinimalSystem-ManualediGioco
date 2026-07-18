@@ -84,12 +84,16 @@ const TRAIT_LISTS = {
   conoscenze: ['Architettura', 'Bassifondi', 'Caccia', 'Cavalcare', 'Fauna', 'Flora',
     'Free Running', 'Geografia', "Gioco d'Azzardo", 'Guidare', 'Meccanica', 'Navigare',
     'Orientamento', 'Pesca', 'Politica', 'Seguire Tracce', 'Sopravvivenza'],
-  capacitaNormali: ['Riparare', 'Scassinare', 'Lanciare', 'Furtività', 'Contrattazione',
-    'Percezione', 'Ascoltare', 'Intuito Olfattivo', 'Persuasione', 'Provocare',
-    'Intimidire', 'Nuotare', 'Scalare'],
+  capacitaNormali: ['Riparare', 'Scassinare', 'Lanciare', 'Furtività', 'Tecniche',
+    'Contrattazione', 'Percezione', 'Ascoltare', 'Intuito Olfattivo', 'Persuasione',
+    'Provocare', 'Intimidire', 'Nuotare', 'Scalare'],
   capacitaCombattive: ['Tattica Militare', 'Ascia', 'Spada', 'Lancia', 'Arco', 'Spadone',
     'Guardia', 'Guarigione', 'Elusione', 'Robustezza', 'Arte Combattiva', 'Spirito']
 };
+// Pool unico alla creazione (Lv 1): 15 punti spendibili in totale tra
+// Conoscenze, Capacità Normali e Capacità Combattive
+const TRAIT_POOL = 15;
+
 const TRAIT_LIST_LABELS = {
   conoscenze: 'Conoscenze',
   capacitaNormali: 'Capacità Normali',
