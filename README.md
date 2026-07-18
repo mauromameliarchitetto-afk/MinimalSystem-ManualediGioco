@@ -76,6 +76,50 @@ completamente offline e non dipende da GitHub Pages né da alcun URL.
 
 ---
 
+## Versione Apple (iPhone / iPad)
+
+L'app è identica anche su iOS: stessa scheda, stessi dati salvati sul
+dispositivo. Ci sono due strade, in ordine di semplicità:
+
+### Strada 1 — PWA da Safari (consigliata, gratis, 30 secondi)
+
+1. Apri l'URL di GitHub Pages (vedi Passo 1) con **Safari** su iPhone/iPad.
+2. Tocca il pulsante **Condividi** (il quadrato con la freccia in su).
+3. Scegli **"Aggiungi alla schermata Home"**.
+
+L'app compare come icona a tutto schermo, funziona anche **offline**
+(service worker) e salva i personaggi sul dispositivo, esattamente come la
+versione Android. Per aggiornarla basta riaprirla con connessione attiva.
+
+> Nota: su iOS va usato Safari — Chrome e Firefox su iPhone non possono
+> installare PWA.
+
+### Strada 2 — App nativa (.ipa con Capacitor)
+
+Come per l'APK Android, una GitHub Action
+(`.github/workflows/build-ipa.yml`) compila a ogni aggiornamento di `main`
+un pacchetto **iOS nativo** (`MinimalSystem.ipa`, nella sezione
+**Releases**) con tutti i file impacchettati dentro, quindi completamente
+offline.
+
+A differenza di Android, però, **Apple non permette di installare un
+`.ipa` con un semplice tocco**: il pacchetto è generato senza firma e va
+installato in uno di questi modi:
+
+- **AltStore** ([altstore.io](https://altstore.io)) o **Sideloadly**
+  ([sideloadly.io](https://sideloadly.io)) dal computer, con un Apple ID
+  gratuito. Limite del piano gratuito Apple: l'app scade dopo **7 giorni**
+  e va rinnovata (AltStore lo fa quasi da solo se il computer è nella
+  stessa rete). I dati salvati non si perdono al rinnovo.
+- Un account **Apple Developer** (99 $/anno): permette di firmare l'app
+  per un anno, distribuirla via **TestFlight** o pubblicarla
+  sull'**App Store**.
+
+Se non vuoi dipendere dal computer, la Strada 1 (PWA) resta l'opzione
+migliore su iOS: per questa app le funzionalità sono identiche.
+
+---
+
 ## Cosa fa l'app, in breve
 
 - **Copertina**: prima schermata, con l'immagine di copertina del manuale e

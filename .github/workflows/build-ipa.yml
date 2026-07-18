@@ -1,0 +1,81 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web assets
+        run: npm run build:www
+
+      - name: Stamp app version
+        run: echo "const APP_VERSION = '1.0.${{ github.run_number }}';" > www/js/version.js
+
+      - name: Add iOS platform
+        run: npx cap add ios
+
+      - name: Generate icons and splash screens
+        run: >
+          npx @capacitor/assets generate --ios
+          --iconBackgroundColor '#14161A' --iconBackgroundColorDark '#14161A'
+          --splashBackgroundColor '#14161A' --splashBackgroundColorDark '#14161A'
+
+      - name: Sync web assets into iOS project
+        run: npx cap sync ios
+
+      - name: Set version from run number
+        run: |
+          sed -i '' "s/MARKETING_VERSION = 1.0;/MARKETING_VERSION = 1.0.${{ github.run_number }};/g" ios/App/App.xcodeproj/project.pbxproj
+          sed -i '' "s/CURRENT_PROJECT_VERSION = 1;/CURRENT_PROJECT_VERSION = ${{ github.run_number }};/g" ios/App/App.xcodeproj/project.pbxproj
+
+      - name: Build unsigned archive
+        run: |
+          cd ios/App
+          xcodebuild archive \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/App.xcarchive \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA
+        run: |
+          mkdir Payload
+          cp -R ios/App/build/App.xcarchive/Products/Applications/App.app Payload/
+          zip -qry MinimalSystem.ipa Payload
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-v1.0.${{ github.run_number }}
+          name: Minimal System iOS v1.0.${{ github.run_number }}
+          body: |
+            App iOS nativa (non firmata) della Companion App di Minimal System, generata automaticamente.
+
+            **Installazione**: Apple non permette di installare un file `.ipa` con un semplice tocco
+            come su Android. Le opzioni sono:
+            - **AltStore** o **Sideloadly** dal proprio computer, con un Apple ID gratuito
+              (l'app va rinnovata ogni 7 giorni con account gratuito);
+            - un account **Apple Developer** (99$/anno) per firmarla e installarla senza limiti
+              o distribuirla via TestFlight/App Store.
+
+            In alternativa, senza installare nulla: apri la PWA in Safari e usa
+            "Aggiungi a schermata Home" (vedi README, funziona anche offline).
+          files: MinimalSystem.ipa
