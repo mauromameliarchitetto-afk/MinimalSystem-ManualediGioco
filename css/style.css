@@ -390,6 +390,46 @@ input,select,textarea{font-family:var(--font-body);}
 .swap-row{display:flex;align-items:center;gap:10px;margin-top:4px;}
 .swap-row .btn-sm{flex:none;}
 
+/* ---------- Diagramma scheda (fronte) ---------- */
+.diagram-wrap{
+  position:relative;
+  width:100%;
+  max-width:400px;
+  margin:0 auto;
+}
+.diagram-wrap svg{width:100%;height:auto;display:block;}
+.dg-rect{fill:var(--antracite-1);stroke:var(--bordo-scuro);stroke-width:2;}
+.dg-c{fill:var(--antracite-1);stroke:var(--bianco-artico);stroke-width:2;}
+.dg-c-t{stroke:var(--testo-secondario-dark);}
+.dg-c-hp{stroke:var(--fisico);stroke-width:2.6;}
+.dg-c-mp{stroke:var(--magico);stroke-width:2.6;}
+.dg-c-sm{stroke:var(--bordo-scuro);}
+.dg-lab{
+  font-family:var(--font-title);
+  font-size:8px;
+  font-weight:600;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  fill:var(--testo-secondario-dark);
+  text-anchor:middle;
+}
+.dg-inputs{position:absolute;inset:0;}
+.dg-input{
+  position:absolute;
+  transform:translate(-50%,-50%);
+  background:transparent;
+  border:none;
+  color:var(--testo-primario-dark);
+  font-family:var(--font-mono);
+  font-size:14px;
+  text-align:center;
+  padding:0;
+  -moz-appearance:textfield;
+}
+.dg-input::-webkit-outer-spin-button,.dg-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.dg-input:focus{outline:none;color:var(--fisico-forte);}
+@media (max-width:379px){.dg-input{font-size:12px;}}
+
 /* ---------- Point buy ---------- */
 .pointbuy-header{
   display:flex;align-items:baseline;justify-content:space-between;
