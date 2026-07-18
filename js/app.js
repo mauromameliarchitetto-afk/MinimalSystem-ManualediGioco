@@ -97,6 +97,7 @@ function newCharacter(nome) {
     updatedAt: Date.now(),
     nome: nome || '',
     razza: '',
+    eta: '',
     ruolo: '',
     build: 'guerriero',
     eclecticoHpMult: 7,
@@ -673,7 +674,6 @@ function renderNote(c) {
   $('#n-morale').value = c.note.morale;
   $('#n-background').value = c.note.background;
   $('#n-libere').value = c.note.libere;
-  renderPortrait(c);
 }
 
 function renderPortrait(c) {
@@ -716,8 +716,10 @@ function renderSheet() {
   const c = getActive();
   if (!c) return;
   renderHeader(c);
+  renderPortrait(c);
   renderBuildGrid(c);
   $('#f-razza').value = c.razza;
+  $('#f-eta').value = c.eta;
   $('#f-ruolo').value = c.ruolo;
   $('#f-bellezza-manuale').value = c.bellezzaManuale !== null ? c.bellezzaManuale : '';
   $('#bellezza-result').textContent = c.bellezzaTirata !== null ? c.bellezzaTirata : '—';
@@ -834,6 +836,7 @@ function wireStaticEvents() {
 
   // ---- identità ----
   $('#f-razza').addEventListener('input', () => setField('razza', $('#f-razza').value));
+  $('#f-eta').addEventListener('input', () => setField('eta', $('#f-eta').value));
   $('#f-ruolo').addEventListener('input', () => setField('ruolo', $('#f-ruolo').value));
   $('#f-bellezza-manuale').addEventListener('input', () => {
     const v = $('#f-bellezza-manuale').value;

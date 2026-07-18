@@ -159,9 +159,22 @@
 
       <!-- ---- IDENTITÀ ---- -->
       <div class="tab-panel" data-panel="identita">
+        <div class="section-title"><span class="dot neutral"></span>Volto del personaggio</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad portrait-pad">
+          <div class="portrait-frame" id="portrait-frame"><span class="portrait-placeholder" id="portrait-placeholder">Nessuna immagine</span></div>
+          <div class="portrait-actions">
+            <input type="file" id="portrait-file" accept="image/*" class="hidden">
+            <button class="btn btn-ghost btn-sm" id="portrait-load">Carica immagine</button>
+            <button class="btn btn-ghost btn-sm hidden" id="portrait-remove">✕ Rimuovi</button>
+          </div>
+        </div></div>
+
         <div class="section-title"><span class="dot neutral"></span>Anagrafica</div>
         <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field"><label>Razza</label><input type="text" id="f-razza" placeholder="es. Umano"></div>
+          <div class="field-row">
+            <div class="field"><label>Razza</label><input type="text" id="f-razza" placeholder="es. Umano"></div>
+            <div class="field" style="max-width:110px;"><label>Età</label><input type="text" id="f-eta" placeholder="es. 27"></div>
+          </div>
           <div class="field"><label>Ruolo / occupazione</label><input type="text" id="f-ruolo" placeholder="es. Barista, mercenaria..."></div>
         </div></div>
 
@@ -412,16 +425,6 @@
 
       <!-- ---- NOTE / BACKGROUND ---- -->
       <div class="tab-panel" data-panel="note">
-        <div class="section-title"><span class="dot neutral"></span>Volto del personaggio</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad portrait-pad">
-          <div class="portrait-frame" id="portrait-frame"><span class="portrait-placeholder" id="portrait-placeholder">Nessuna immagine</span></div>
-          <div class="portrait-actions">
-            <input type="file" id="portrait-file" accept="image/*" class="hidden">
-            <button class="btn btn-ghost btn-sm" id="portrait-load">Carica immagine</button>
-            <button class="btn btn-ghost btn-sm hidden" id="portrait-remove">✕ Rimuovi</button>
-          </div>
-        </div></div>
-
         <div class="section-title"><span class="dot neutral"></span>Aspetto e comportamento</div>
         <div class="field"><textarea id="n-aspetto" placeholder="Altezza, peso, età, capelli, occhi, comportamento generale..."></textarea></div>
 
