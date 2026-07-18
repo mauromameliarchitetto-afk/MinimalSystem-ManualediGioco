@@ -124,8 +124,24 @@ function newCharacter(nome) {
     boost: defaultBoost(),
     inventario: [],
     portrait: null,
+    bg: defaultBg(),
     note: { aspetto: '', morale: '', background: '', libere: '' }
   };
+}
+
+/* Campi del background (da Campi_scheda: dati generali, aspetto, vita,
+   atteggiamento, passato, relazioni — esclusi i ridondanti già presenti
+   altrove: nome, età, occupazione, abilità) */
+function defaultBg() {
+  const keys = ['nascitaData', 'nascitaLuogo', 'origini', 'frase',
+    'altezza', 'peso', 'pelle', 'acconciatura', 'occhi', 'segni', 'corporatura', 'postura', 'vestiario', 'oggetto',
+    'incompetenze', 'debolezze', 'hobby', 'abitudini',
+    'personalita', 'morale', 'autocontrollo', 'motivazione', 'scoraggiamento', 'sicurezza', 'filosofia', 'paura', 'obiettivoBreve', 'obiettivoLungo',
+    'infanzia', 'eventoImportante', 'segreto', 'peggiorMomento', 'migliorMomento',
+    'relazioni'];
+  const o = {};
+  keys.forEach(k => { o[k] = ''; });
+  return o;
 }
 
 /* Colma eventuali campi mancanti se il personaggio arriva da una versione precedente dell'app */
@@ -151,6 +167,16 @@ function ensureShape(c) {
   if (typeof c.boostRowsShown !== 'number') {
     const piene = (c.boostRows || []).filter(rowHasContent).length;
     c.boostRowsShown = clamp(Math.max(1, piene), 1, BOOST_ROWS_MAX);
+  }
+  // background: assicura tutte le chiavi e recupera i vecchi campi di Note
+  const dbg = defaultBg();
+  if (!c.bg) c.bg = {};
+  Object.keys(dbg).forEach(k => { if (c.bg[k] === undefined) c.bg[k] = ''; });
+  if (c.note.morale && !c.bg.morale) { c.bg.morale = c.note.morale; c.note.morale = ''; }
+  if (c.note.background && !c.bg.infanzia) { c.bg.infanzia = c.note.background; c.note.background = ''; }
+  if (c.note.aspetto) {
+    c.note.libere = (c.note.libere ? c.note.libere + '\n\n' : '') + 'Aspetto: ' + c.note.aspetto;
+    c.note.aspetto = '';
   }
   // rinomina i vecchi nomi predefiniti delle locazioni in quelli ufficiali
   const slotRenames = { 'Testa': 'Capo', 'Torso': 'Busto', 'Braccio Destro': 'Braccio Dx',
@@ -670,9 +696,7 @@ function renderInventario(c) {
 /* ---------------------------------------------------------------- note */
 
 function renderNote(c) {
-  $('#n-aspetto').value = c.note.aspetto;
-  $('#n-morale').value = c.note.morale;
-  $('#n-background').value = c.note.background;
+  $$('[data-bg]').forEach(el => { el.value = c.bg[el.dataset.bg] || ''; });
   $('#n-libere').value = c.note.libere;
 }
 
@@ -1227,13 +1251,18 @@ function wireStaticEvents() {
     touchActive();
   });
 
-  // ---- note ----
-  ['aspetto', 'morale', 'background', 'libere'].forEach(key => {
-    $('#n-' + key).addEventListener('input', () => {
-      const c = getActive(); if (!c) return;
-      c.note[key] = $('#n-' + key).value;
-      touchActive();
-    });
+  // ---- background ----
+  $('[data-panel="note"]').addEventListener('input', e => {
+    const el = e.target.closest('[data-bg]');
+    if (!el) return;
+    const c = getActive(); if (!c) return;
+    c.bg[el.dataset.bg] = el.value;
+    touchActive();
+  });
+  $('#n-libere').addEventListener('input', () => {
+    const c = getActive(); if (!c) return;
+    c.note.libere = $('#n-libere').value;
+    touchActive();
   });
 
   // ---- barre in gioco ----
