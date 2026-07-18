@@ -1144,7 +1144,7 @@ function exportCharacter(c) {
 
 /* ------------------------------------------------------- aggiornamenti app */
 
-const RELEASES_API = 'https://api.github.com/repos/mauromameliarchitetto-afk/MinimalSystem-ManualediGioco/releases/latest';
+const RELEASES_API = 'https://api.github.com/repos/mauromameliarchitetto-afk/MinimalSystem-ManualediGioco/releases?per_page=20';
 let updateUrl = null;
 
 function isNativeApp() {
@@ -1167,12 +1167,18 @@ function checkForUpdate() {
   if (!isNativeApp() || typeof APP_VERSION === 'undefined' || !APP_VERSION) return;
   fetch(RELEASES_API)
     .then(r => r.json())
-    .then(rel => {
-      const m = /^apk-v(\d+(?:\.\d+)*)$/.exec(rel.tag_name || '');
-      if (!m || cmpVersions(m[1], APP_VERSION) <= 0) return;
-      const apk = (rel.assets || []).find(a => a.name && a.name.endsWith('.apk'));
-      updateUrl = apk ? apk.browser_download_url : rel.html_url;
-      $('#update-banner-text').textContent = `Nuova versione disponibile (v${m[1]})`;
+    .then(rels => {
+      // cerca la release Android (apk-v…) più recente, ignorando le altre
+      let best = null, bestVer = null;
+      (Array.isArray(rels) ? rels : []).forEach(rel => {
+        if (rel.draft || rel.prerelease) return;
+        const m = /^apk-v(\d+(?:\.\d+)*)$/.exec(rel.tag_name || '');
+        if (m && (bestVer === null || cmpVersions(m[1], bestVer) > 0)) { best = rel; bestVer = m[1]; }
+      });
+      if (!best || cmpVersions(bestVer, APP_VERSION) <= 0) return;
+      const apk = (best.assets || []).find(a => a.name && a.name.endsWith('.apk'));
+      updateUrl = apk ? apk.browser_download_url : best.html_url;
+      $('#update-banner-text').textContent = `Nuova versione disponibile (v${bestVer})`;
       $('#update-banner').classList.remove('hidden');
     })
     .catch(() => { /* offline o API non raggiungibile: nessun avviso */ });
