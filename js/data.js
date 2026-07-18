@@ -6,8 +6,6 @@
    invece di indovinare un valore.
    ========================================================================== */
 
-// tecnicheMax/abilitaMax: righe di Tecniche/Abilità come da schede retro
-// ufficiali: Guerriero 12+4 · Eclettico (intermedio) 8+8 · Mago 4+12
 const BUILDS = {
   guerriero: {
     key: 'guerriero',
@@ -17,8 +15,6 @@ const BUILDS = {
     mpMult: 2,
     dotazione: '2 Tecniche',
     prIniziali: 10,
-    tecnicheMax: 12,
-    abilitaMax: 4,
     swappable: false
   },
   eclettico: {
@@ -29,8 +25,6 @@ const BUILDS = {
     mpMultOptions: [5, 7],
     dotazione: '1 Tecnica + 1 Abilità magica',
     prIniziali: 8,
-    tecnicheMax: 8,
-    abilitaMax: 8,
     swappable: true
   },
   mago: {
@@ -41,14 +35,37 @@ const BUILDS = {
     mpMult: 9,
     dotazione: '2 Abilità magiche',
     prIniziali: 10,
-    tecnicheMax: 4,
-    abilitaMax: 12,
     swappable: false
   }
 };
 
 // Righe della tabella Boost compilabile del retro scheda (uguale per tutte le build)
 const BOOST_ROWS_MAX = 6;
+
+// Sblocco di Tecniche e Abilità per build e livello (tabella limiti di livello):
+// Lv 1 dotazione iniziale · Lv 4/12/20 acquisizione di classe
+// (Guerriero 2 Tec · Eclettico 1+1 · Mago 2 Ab) · Lv 8/16 tutte le classi 1 Tec + 1 Ab.
+// Ai Lv 8/16 l'Eclettico può scegliere 2 Tec, 2 Ab o 1+1; 2 apprendimenti dello
+// stesso tipo possono livellare una Tecnica/Abilità già appresa (Eclettico ai
+// Lv 8/16, Guerriero e Mago ai Lv 12/20) — scelte lasciate al giocatore.
+const TECAB_CLASS_LEVELS = [4, 12, 20];
+const TECAB_ALL_LEVELS = [8, 16];
+function tecAbSbloccate(buildKey, lv) {
+  let tec = 0, ab = 0;
+  if (buildKey === 'guerriero') tec += 2;
+  else if (buildKey === 'mago') ab += 2;
+  else { tec += 1; ab += 1; }
+  const classi = TECAB_CLASS_LEVELS.filter(l => lv >= l).length;
+  if (buildKey === 'guerriero') tec += 2 * classi;
+  else if (buildKey === 'mago') ab += 2 * classi;
+  else { tec += classi; ab += classi; }
+  const tutte = TECAB_ALL_LEVELS.filter(l => lv >= l).length;
+  tec += tutte; ab += tutte;
+  return { tec, ab };
+}
+function prossimoSblocco(lv) {
+  return TECAB_CLASS_LEVELS.concat(TECAB_ALL_LEVELS).sort((a, b) => a - b).find(l => l > lv) || null;
+}
 
 // 9 caratteristiche primarie — pool 40 punti, minimo 2 ciascuna
 const PRIMARY_STATS = [

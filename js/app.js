@@ -527,15 +527,19 @@ function renderSlots(c) {
     </div>`).join('');
 }
 function editTableRows(id, rows, dataAttr, fields) {
+  if (!rows.length) {
+    $(id).innerHTML = `<tr><td colspan="${fields.length}" class="helper-text" style="padding:10px 8px;">Nessuna sbloccata a questo livello.</td></tr>`;
+    return;
+  }
   $(id).innerHTML = rows.map((r, i) => `
     <tr>${fields.map(f => `
       <td class="${f === fields[0] ? 'col-wide' : 'col-narrow'}"><input type="text" value="${escapeHtml(r[f] || '')}" data-${dataAttr}="${f}" data-idx="${i}"></td>`).join('')}
     </tr>`).join('');
 }
-/* Il retro della scheda dipende dalla build (schede retro ufficiali):
-   Guerriero 12 Tecniche + 4 Abilità · Eclettico 8+8 · Mago 4+12.
-   Le righe già compilate oltre il limite (es. dopo un cambio di build)
-   restano visibili. */
+/* Le righe di Tecniche e Abilità si sbloccano con i level-up (dotazione
+   iniziale + acquisizioni ai Lv 4/8/12/16/20 secondo la build). Le righe
+   già compilate oltre il limite (es. dopo un cambio di build o una
+   concessione del Narratore) restano visibili. */
 function rowHasContent(r) {
   return Object.values(r).some(v => String(v || '') !== '' && v !== 0);
 }
@@ -548,16 +552,18 @@ function buildRows(rows, max, makeRow) {
   return rows.slice(0, visible);
 }
 function renderTecniche(c) {
-  const b = BUILDS[c.build];
-  editTableRows('#tecniche-table', buildRows(c.tecniche, b.tecnicheMax, makeTecnicaRow), 'tecnica',
+  const un = tecAbSbloccate(c.build, c.livello);
+  const max = tecAbSbloccate(c.build, 20);
+  editTableRows('#tecniche-table', buildRows(c.tecniche, un.tec, makeTecnicaRow), 'tecnica',
     ['nome', 'bonus', 'malus', 'durata', 'utilizzi', 'lv']);
-  $('#tecniche-count').textContent = `${b.label}: ${b.tecnicheMax}`;
+  $('#tecniche-count').textContent = `${un.tec} / ${max.tec}`;
 }
 function renderAbilita(c) {
-  const b = BUILDS[c.build];
-  editTableRows('#abilita-table', buildRows(c.abilita, b.abilitaMax, makeAbilitaRow), 'abilita',
+  const un = tecAbSbloccate(c.build, c.livello);
+  const max = tecAbSbloccate(c.build, 20);
+  editTableRows('#abilita-table', buildRows(c.abilita, un.ab, makeAbilitaRow), 'abilita',
     ['nome', 'bonus', 'costo', 'durata', 'utilizzi', 'lv']);
-  $('#abilita-count').textContent = `${b.label}: ${b.abilitaMax}`;
+  $('#abilita-count').textContent = `${un.ab} / ${max.ab}`;
 }
 function renderBoostRows(c) {
   editTableRows('#boostrows-table', buildRows(c.boostRows, BOOST_ROWS_MAX, makeBoostRow), 'boostrow',
@@ -565,8 +571,12 @@ function renderBoostRows(c) {
 }
 function renderRetroNote(c) {
   const b = BUILDS[c.build];
+  const un = tecAbSbloccate(c.build, c.livello);
+  const max = tecAbSbloccate(c.build, 20);
+  const next = prossimoSblocco(c.livello);
   $('#retro-build-note').textContent =
-    `Retro scheda ${b.label}: ${b.tecnicheMax} Tecniche e ${b.abilitaMax} Abilità, come da scheda ufficiale.`;
+    `${b.label} · Lv ${c.livello}: ${un.tec} Tecniche e ${un.ab} Abilità sbloccate (al Lv 20: ${max.tec}+${max.ab}).`
+    + (next ? ` Prossimo apprendimento al Lv ${next}.` : ' Tutti gli apprendimenti sbloccati.');
 }
 
 function renderBoost(c) {
@@ -907,6 +917,9 @@ function wireStaticEvents() {
     $('#hud-lv').textContent = c.livello;
     $('#sheet-sub').textContent = `${BUILDS[c.build].label} · Livello ${c.livello}`;
     highlightCurrentLevel(c);
+    renderRetroNote(c);
+    renderTecniche(c);
+    renderAbilita(c);
     touchActive();
   });
   $('#f-ap-disponibili').addEventListener('input', () => setField('apDisponibili', Number($('#f-ap-disponibili').value) || 0));
