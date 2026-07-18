@@ -43,7 +43,7 @@
       <button class="cm-item" data-menu-tab="tratti">Tratti</button>
       <button class="cm-item" data-menu-tab="livelli">Livelli</button>
       <button class="cm-item" data-menu-tab="retro">Equip. &amp; Poteri</button>
-      <button class="cm-item" data-menu-tab="note">Note</button>
+      <button class="cm-item" data-menu-tab="note">Background</button>
     </nav>
 
     <div class="cover-content">
@@ -88,7 +88,7 @@
       <button class="tab-btn" data-tab="tratti">Tratti</button>
       <button class="tab-btn" data-tab="livelli">Livelli</button>
       <button class="tab-btn" data-tab="retro">Equip. &amp; Poteri</button>
-      <button class="tab-btn" data-tab="note">Note</button>
+      <button class="tab-btn" data-tab="note">Background</button>
     </nav>
 
     <div class="sheet-body">
@@ -423,16 +423,73 @@
         <button class="btn btn-ghost btn-sm" id="inv-add" style="align-self:flex-start;">+ Aggiungi oggetto</button>
       </div>
 
-      <!-- ---- NOTE / BACKGROUND ---- -->
+      <!-- ---- BACKGROUND ---- -->
       <div class="tab-panel" data-panel="note">
-        <div class="section-title"><span class="dot neutral"></span>Aspetto e comportamento</div>
-        <div class="field"><textarea id="n-aspetto" placeholder="Altezza, peso, età, capelli, occhi, comportamento generale..."></textarea></div>
+        <p class="helper-text">Il testo grigio in ogni campo è un consiglio di compilazione: sparisce appena scrivi qualcosa di tuo.</p>
 
-        <div class="section-title"><span class="dot neutral"></span>Morale e legami</div>
-        <div class="field"><textarea id="n-morale" placeholder="Bussola morale, legami con persone/luoghi/oggetti, difetti..."></textarea></div>
+        <div class="section-title"><span class="dot neutral"></span>Dati generali</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field-row">
+            <div class="field"><label>Data di nascita</label><input type="text" data-bg="nascitaData" placeholder="Quando è nato/a"></div>
+            <div class="field"><label>Luogo di nascita</label><input type="text" data-bg="nascitaLuogo" placeholder="Dove è nato/a e com'è quel luogo"></div>
+          </div>
+          <div class="field"><label>Origini</label><input type="text" data-bg="origini" placeholder="Radici familiari, culturali o etniche"></div>
+          <div class="field"><label>Descrizione in una frase</label><input type="text" data-bg="frase" placeholder="Una frase che lo/la riassume, es. «Meglio sporcarsi le mani che restare a guardare!»"></div>
+        </div></div>
 
-        <div class="section-title"><span class="dot neutral"></span>Background</div>
-        <div class="field"><textarea id="n-background" placeholder="Storia del personaggio..." style="min-height:140px;"></textarea></div>
+        <div class="section-title"><span class="dot neutral"></span>Aspetto</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field-row">
+            <div class="field"><label>Altezza</label><input type="text" data-bg="altezza" placeholder="es. 1,70"></div>
+            <div class="field"><label>Peso</label><input type="text" data-bg="peso" placeholder="es. 68 kg"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Colore della pelle</label><input type="text" data-bg="pelle" placeholder="es. carnagione olivastra"></div>
+            <div class="field"><label>Acconciatura</label><input type="text" data-bg="acconciatura" placeholder="Taglio, colore, come porta i capelli"></div>
+          </div>
+          <div class="field"><label>Colore degli occhi</label><textarea data-bg="occhi" placeholder="Colore o particolarità degli occhi (anche impianti e innesti)"></textarea></div>
+          <div class="field"><label>Segni particolari</label><textarea data-bg="segni" placeholder="Cicatrici, tatuaggi, innesti, marchi..."></textarea></div>
+          <div class="field"><label>Tipo di corporatura</label><textarea data-bg="corporatura" placeholder="Fisico e costituzione, es. muscoloso e asciutto per l'addestramento"></textarea></div>
+          <div class="field"><label>Postura</label><textarea data-bg="postura" placeholder="Come si tiene e si muove: cosa comunica il suo corpo"></textarea></div>
+          <div class="field"><label>Vestiario</label><textarea data-bg="vestiario" placeholder="Come si veste di solito: colori, capi e dettagli ricorrenti"></textarea></div>
+          <div class="field"><label>Qualcosa che porta sempre con sé</label><textarea data-bg="oggetto" placeholder="Un oggetto da cui non si separa mai, e perché conta per lui/lei"></textarea></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Vita</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field"><label>Incompetenze</label><textarea data-bg="incompetenze" placeholder="Cosa non sa fare: lacune e limiti"></textarea></div>
+          <div class="field"><label>Debolezze</label><textarea data-bg="debolezze" placeholder="Punti deboli fisici o mentali, dipendenze e il loro prezzo"></textarea></div>
+          <div class="field"><label>Hobby</label><textarea data-bg="hobby" placeholder="Passatempi e attività fuori dall'avventura"></textarea></div>
+          <div class="field"><label>Abitudini</label><textarea data-bg="abitudini" placeholder="Routine e piccoli rituali quotidiani"></textarea></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Atteggiamento</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field"><label>Personalità</label><textarea data-bg="personalita" placeholder="Com'è di carattere e come si comporta con gli altri"></textarea></div>
+          <div class="field"><label>Morale</label><textarea data-bg="morale" placeholder="La sua bussola morale: cosa è giusto per lui/lei, che codice segue"></textarea></div>
+          <div class="field"><label>Autocontrollo</label><textarea data-bg="autocontrollo" placeholder="Come reagisce sotto pressione e nel pericolo"></textarea></div>
+          <div class="field"><label>Motivazione</label><textarea data-bg="motivazione" placeholder="Cosa lo/la spinge ad agire"></textarea></div>
+          <div class="field"><label>Scoraggiamento</label><textarea data-bg="scoraggiamento" placeholder="Cosa lo/la abbatte e come reagisce allo sconforto"></textarea></div>
+          <div class="field"><label>Livello di sicurezza</label><textarea data-bg="sicurezza" placeholder="Quanta fiducia ha in sé: quella che mostra e quella vera"></textarea></div>
+          <div class="field"><label>Filosofia</label><textarea data-bg="filosofia" placeholder="La sua visione del mondo in poche righe"></textarea></div>
+          <div class="field"><label>Paura più grande / Fobia</label><textarea data-bg="paura" placeholder="Cosa teme più di ogni altra cosa"></textarea></div>
+          <div class="field"><label>Obiettivo a breve termine</label><textarea data-bg="obiettivoBreve" placeholder="Cosa vuole ottenere adesso"></textarea></div>
+          <div class="field"><label>Obiettivo a lungo termine</label><textarea data-bg="obiettivoLungo" placeholder="Il traguardo della sua vita"></textarea></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Passato</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field"><label>Infanzia</label><textarea data-bg="infanzia" placeholder="Dove e come è cresciuto/a: famiglia, ambiente, primi valori"></textarea></div>
+          <div class="field"><label>Evento passato importante</label><textarea data-bg="eventoImportante" placeholder="Uno o più eventi che l'hanno segnato/a profondamente"></textarea></div>
+          <div class="field"><label>Segreto</label><textarea data-bg="segreto" placeholder="Cosa nasconde a tutti, e perché"></textarea></div>
+          <div class="field"><label>Peggior momento</label><textarea data-bg="peggiorMomento" placeholder="Il giorno più difficile della sua vita"></textarea></div>
+          <div class="field"><label>Miglior momento</label><textarea data-bg="migliorMomento" placeholder="Il ricordo più felice"></textarea></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Relazioni</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad">
+          <div class="field"><label>Familiari, amici, conoscenti</label><textarea data-bg="relazioni" style="min-height:110px;" placeholder="Per ogni relazione importante indica: Nome · Relazione (che rapporto li lega) · Descrizione (com'è fatto/a)"></textarea></div>
+        </div></div>
 
         <div class="section-title"><span class="dot neutral"></span>Note libere</div>
         <div class="field"><textarea id="n-libere" placeholder="Qualsiasi altra annotazione di gioco..."></textarea></div>
