@@ -72,6 +72,7 @@
   <section id="view-sheet" class="view hidden">
     <div class="sheet-header">
       <button class="btn btn-icon btn-ghost" data-nav="list" aria-label="Torna alla lista">←</button>
+      <div class="header-avatar hidden" id="header-avatar"></div>
       <div class="who">
         <input type="text" id="f-nome" class="name-input" placeholder="Nome personaggio" maxlength="40">
         <div class="sub" id="sheet-sub">—</div>
@@ -182,7 +183,7 @@
       <!-- ---- PRIMARIE ---- -->
       <div class="tab-panel" data-panel="primarie">
         <div class="section-title"><span class="dot"></span>Diagramma della scheda</div>
-        <p class="helper-text">Il fronte della scheda ufficiale, compilabile: tocca un cerchio e scrivi il valore. Comprende le 9 primarie (pool 40), le terziarie CAR · STILE · FOR (pool 5), LV, Q.I., i valori in uso e i P.R. Tutto resta sincronizzato con le altre schede.</p>
+        <p class="helper-text">Il fronte della scheda ufficiale, compilabile: tocca un cerchio e scrivi il valore. Le 7 caratteristiche (pool 40 con HP/MP base qui sotto), le terziarie CAR · STILE · FOR (pool 5), LV e Q.I. Nei cerchi HP e MP va il <em>massimo</em> (valore iniziale dal moltiplicatore + incrementi dei level-up); in USO i punti <em>spesi</em> per danni subiti o abilità usate — i correnti si aggiornano da soli. Tutto resta sincronizzato con le altre schede.</p>
         <div class="box"><div class="box-bar bicolor"></div><div class="box-pad">
           <div class="diagram-wrap" id="stat-diagram">
             <svg viewBox="0 0 320 430" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -411,6 +412,16 @@
 
       <!-- ---- NOTE / BACKGROUND ---- -->
       <div class="tab-panel" data-panel="note">
+        <div class="section-title"><span class="dot neutral"></span>Volto del personaggio</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad portrait-pad">
+          <div class="portrait-frame" id="portrait-frame"><span class="portrait-placeholder" id="portrait-placeholder">Nessuna immagine</span></div>
+          <div class="portrait-actions">
+            <input type="file" id="portrait-file" accept="image/*" class="hidden">
+            <button class="btn btn-ghost btn-sm" id="portrait-load">Carica immagine</button>
+            <button class="btn btn-ghost btn-sm hidden" id="portrait-remove">✕ Rimuovi</button>
+          </div>
+        </div></div>
+
         <div class="section-title"><span class="dot neutral"></span>Aspetto e comportamento</div>
         <div class="field"><textarea id="n-aspetto" placeholder="Altezza, peso, età, capelli, occhi, comportamento generale..."></textarea></div>
 

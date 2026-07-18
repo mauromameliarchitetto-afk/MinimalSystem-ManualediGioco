@@ -122,6 +122,7 @@ function newCharacter(nome) {
     boostRowsShown: 1,
     boost: defaultBoost(),
     inventario: [],
+    portrait: null,
     note: { aspetto: '', morale: '', background: '', libere: '' }
   };
 }
@@ -230,8 +231,9 @@ function renderCharList() {
   wrap.innerHTML = sorted.map(c => {
     const b = BUILDS[c.build];
     const initial = (c.nome || '?').trim().charAt(0).toUpperCase() || '?';
+    const portraitStyle = c.portrait ? ` style="background-image:url(${c.portrait})"` : '';
     return `<div class="char-card" data-id="${c.id}">
-      <div class="avatar ${axisClass(c.build)}">${initial}</div>
+      <div class="avatar ${axisClass(c.build)}${c.portrait ? ' has-portrait' : ''}"${portraitStyle}>${initial}</div>
       <div class="info">
         <div class="name">${escapeHtml(c.nome || 'Senza nome')}</div>
         <div class="meta">${b.label} · Lv ${c.livello || 1}</div>
@@ -251,6 +253,9 @@ function escapeHtml(s) {
 function renderHeader(c) {
   $('#f-nome').value = c.nome;
   $('#sheet-sub').textContent = `${BUILDS[c.build].label} · Livello ${c.livello}`;
+  const av = $('#header-avatar');
+  av.classList.toggle('hidden', !c.portrait);
+  av.style.backgroundImage = c.portrait ? `url(${c.portrait})` : '';
 }
 
 /* ------------------------------------------------------------- build UI */
@@ -389,10 +394,10 @@ const DIAGRAM_SPEC = [
   { key: 't:carisma', x: 120, y: 255, w: 11 },
   { key: 't:stile',   x: 200, y: 255, w: 11 },
   { key: 't:fortuna', x: 160, y: 295, w: 11 },
-  { key: 'p:hp',    x: 90,  y: 345, w: 13 },
-  { key: 'hpcur',   x: 70,  y: 368, w: 9 },
-  { key: 'p:mp',    x: 230, y: 345, w: 13 },
-  { key: 'mpcur',   x: 250, y: 368, w: 9 },
+  { key: 'hpmax',   x: 90,  y: 345, w: 13 },
+  { key: 'hpuso',   x: 70,  y: 368, w: 9 },
+  { key: 'mpmax',   x: 230, y: 345, w: 13 },
+  { key: 'mpuso',   x: 250, y: 368, w: 9 },
   { key: 'prcur',   x: 160, y: 385, w: 11 }
 ];
 
@@ -407,8 +412,12 @@ function diagramValue(c, key) {
   if (key.startsWith('t:')) return c.tertiary[key.slice(2)];
   if (key === 'lv') return c.livello;
   if (key === 'qi') return c.qi;
-  if (key === 'hpcur') return c.hpCur;
-  if (key === 'mpcur') return c.mpCur;
+  // HP/MP: valore massimo (iniziale da moltiplicatore + incrementi da level-up)
+  if (key === 'hpmax') return c.hpMaxTracked;
+  if (key === 'mpmax') return c.mpMaxTracked;
+  // USO: punti spesi (danni subiti / abilità usate) = max - correnti
+  if (key === 'hpuso') return Math.max(0, (c.hpMaxTracked || 0) - (c.hpCur || 0));
+  if (key === 'mpuso') return Math.max(0, (c.mpMaxTracked || 0) - (c.mpCur || 0));
   if (key === 'prcur') return c.prCur;
   return null;
 }
@@ -664,6 +673,41 @@ function renderNote(c) {
   $('#n-morale').value = c.note.morale;
   $('#n-background').value = c.note.background;
   $('#n-libere').value = c.note.libere;
+  renderPortrait(c);
+}
+
+function renderPortrait(c) {
+  const frame = $('#portrait-frame');
+  frame.style.backgroundImage = c.portrait ? `url(${c.portrait})` : '';
+  $('#portrait-placeholder').classList.toggle('hidden', !!c.portrait);
+  $('#portrait-remove').classList.toggle('hidden', !c.portrait);
+  $('#portrait-load').textContent = c.portrait ? 'Cambia immagine' : 'Carica immagine';
+}
+
+/* Ridimensiona l'immagine scelta (max 512px, JPEG) per stare nei limiti
+   dello storage locale, poi la salva come data-URL nel personaggio. */
+function loadPortraitFile(file) {
+  const c = getActive(); if (!c || !file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 512;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      c.portrait = canvas.toDataURL('image/jpeg', 0.85);
+      renderPortrait(c);
+      renderHeader(c);
+      touchActive();
+      toast('Immagine salvata');
+    };
+    img.onerror = () => toast('Immagine non valida');
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 /* ----------------------------------------------------------- full render */
@@ -859,11 +903,19 @@ function wireStaticEvents() {
     } else if (key === 'qi') {
       c.qi = isNaN(raw) ? null : raw;
       renderQi(c);
-    } else if (key === 'hpcur') {
-      c.hpCur = clamp(isNaN(raw) ? 0 : raw, 0, c.hpMaxTracked || 0);
+    } else if (key === 'hpmax') {
+      c.hpMaxTracked = Math.max(0, isNaN(raw) ? 0 : raw);
       updatePlayBars(c);
-    } else if (key === 'mpcur') {
-      c.mpCur = clamp(isNaN(raw) ? 0 : raw, 0, c.mpMaxTracked || 0);
+    } else if (key === 'mpmax') {
+      c.mpMaxTracked = Math.max(0, isNaN(raw) ? 0 : raw);
+      updatePlayBars(c);
+    } else if (key === 'hpuso') {
+      const max = c.hpMaxTracked || 0;
+      c.hpCur = clamp(max - (isNaN(raw) ? 0 : raw), 0, max);
+      updatePlayBars(c);
+    } else if (key === 'mpuso') {
+      const max = c.mpMaxTracked || 0;
+      c.mpCur = clamp(max - (isNaN(raw) ? 0 : raw), 0, max);
       updatePlayBars(c);
     } else if (key === 'prcur') {
       c.prCur = clamp(isNaN(raw) ? 0 : raw, 0, c.prMaxTracked || 0);
@@ -1155,6 +1207,20 @@ function wireStaticEvents() {
     const c = getActive(); if (!c) return;
     const idx = Number(input.dataset.idx), field = input.dataset.inv;
     c.inventario[idx][field] = input.value;
+    touchActive();
+  });
+
+  // ---- volto del personaggio ----
+  $('#portrait-load').addEventListener('click', () => $('#portrait-file').click());
+  $('#portrait-file').addEventListener('change', e => {
+    loadPortraitFile(e.target.files[0]);
+    e.target.value = '';
+  });
+  $('#portrait-remove').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    c.portrait = null;
+    renderPortrait(c);
+    renderHeader(c);
     touchActive();
   });
 
