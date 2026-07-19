@@ -860,6 +860,10 @@ function init() {
   showView('cover');
   wireStaticEvents();
   registerServiceWorker();
+  // conferma al plugin OTA che il bundle avviato funziona (altrimenti
+  // dopo un timeout tornerebbe automaticamente alla versione precedente)
+  const up = otaPlugin();
+  if (up && up.notifyAppReady) up.notifyAppReady().catch(() => {});
   checkForUpdate();
 }
 
@@ -1612,14 +1616,21 @@ function cmpVersions(a, b) {
   return 0;
 }
 
+function otaPlugin() {
+  return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorUpdater) || null;
+}
+
 /* Solo nell'app nativa: confronta la versione installata (APP_VERSION,
-   scritta dalla build) con l'ultima release su GitHub e, se c'è di meglio,
-   mostra il banner con il bottone di download. */
+   scritta dalla build) con l'ultima release Android su GitHub.
+   Se esiste una versione più recente prova l'aggiornamento OTA in
+   background (scarica bundle.zip nella memoria interna e lo applica
+   subito, senza download visibili né installazioni); se l'OTA non è
+   disponibile o fallisce, mostra il banner col download dell'APK. */
 function checkForUpdate() {
   if (!isNativeApp() || typeof APP_VERSION === 'undefined' || !APP_VERSION) return;
   fetch(RELEASES_API)
     .then(r => r.json())
-    .then(rels => {
+    .then(async rels => {
       // cerca la release Android (apk-v…) più recente, ignorando le altre
       let best = null, bestVer = null;
       (Array.isArray(rels) ? rels : []).forEach(rel => {
@@ -1628,6 +1639,22 @@ function checkForUpdate() {
         if (m && (bestVer === null || cmpVersions(m[1], bestVer) > 0)) { best = rel; bestVer = m[1]; }
       });
       if (!best || cmpVersions(bestVer, APP_VERSION) <= 0) return;
+
+      // 1) tentativo OTA silenzioso
+      const up = otaPlugin();
+      const zip = (best.assets || []).find(a => a.name === 'bundle.zip');
+      if (up && zip) {
+        try {
+          toast(`Aggiornamento alla v${bestVer} in corso…`);
+          const bundle = await up.download({ url: zip.browser_download_url, version: bestVer });
+          await up.set(bundle); // applica e ricarica subito la nuova versione
+          return;
+        } catch (e) {
+          console.error('OTA non riuscito, ripiego su APK', e);
+        }
+      }
+
+      // 2) ripiego: banner con download manuale dell'APK
       const apk = (best.assets || []).find(a => a.name && a.name.endsWith('.apk'));
       updateUrl = apk ? apk.browser_download_url : best.html_url;
       $('#update-banner-text').textContent = `Nuova versione disponibile (v${bestVer})`;
