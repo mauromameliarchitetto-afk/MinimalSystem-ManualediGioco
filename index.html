@@ -190,8 +190,8 @@
           <p class="helper-text" style="margin:0;">Copia la scheda negli appunti (senza l'immagine del volto): incollala nella chat col Master, che la importerà nella sua Area Master. Ricopiala dopo ogni aggiornamento importante.</p>
         </div></div>
 
-        <div class="section-title"><span class="dot"></span>Build</div>
-        <p class="helper-text">La build determina i moltiplicatori di HP/MP, la dotazione iniziale e i P.R. di partenza.</p>
+        <div class="section-title"><span class="dot"></span>Classe</div>
+        <p class="helper-text" id="build-helper">La classe determina i moltiplicatori di HP/MP, la dotazione iniziale e i P.R. di partenza.</p>
         <div class="build-grid" id="build-grid"></div>
 
         <div class="section-title"><span class="dot neutral"></span>Bellezza</div>
@@ -559,6 +559,17 @@
     <div class="list-scroll" id="charview-body"></div>
   </section>
 
+</div>
+
+<div id="class-confirm" class="hidden">
+  <div class="cc-box">
+    <div class="cc-title">Conferma classe</div>
+    <p id="class-confirm-text">Sei sicuro di voler scegliere questa classe?</p>
+    <div class="cc-actions">
+      <button class="btn btn-primary" id="class-yes">Sì</button>
+      <button class="btn btn-ghost" id="class-no">No</button>
+    </div>
+  </div>
 </div>
 
 <div id="portrait-lightbox" class="hidden">
