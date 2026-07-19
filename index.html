@@ -162,11 +162,15 @@
       <div class="tab-panel" data-panel="identita">
         <div class="section-title"><span class="dot neutral"></span>Volto del personaggio</div>
         <div class="box"><div class="box-bar"></div><div class="box-pad portrait-pad">
-          <div class="portrait-frame" id="portrait-frame"><span class="portrait-placeholder" id="portrait-placeholder">Nessuna immagine</span></div>
+          <div class="portrait-frame" id="portrait-frame" role="button" aria-label="Volto del personaggio"><span class="portrait-placeholder" id="portrait-placeholder">Nessuna immagine<br>tocca per caricare</span></div>
           <div class="portrait-actions">
+            <div class="field"><label>Nome del personaggio</label><input type="text" id="f-nome2" placeholder="Nome e Cognome" maxlength="40"></div>
             <input type="file" id="portrait-file" accept="image/*" class="hidden">
-            <button class="btn btn-ghost btn-sm" id="portrait-load">Carica immagine</button>
-            <button class="btn btn-ghost btn-sm hidden" id="portrait-remove">✕ Rimuovi</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-ghost btn-sm" id="portrait-load">Carica immagine</button>
+              <button class="btn btn-ghost btn-sm hidden" id="portrait-remove">✕ Rimuovi</button>
+            </div>
+            <p class="helper-text" style="margin:0;">Tocca l'immagine per ingrandirla.</p>
           </div>
         </div></div>
 
@@ -555,6 +559,11 @@
     <div class="list-scroll" id="charview-body"></div>
   </section>
 
+</div>
+
+<div id="portrait-lightbox" class="hidden">
+  <button id="pl-close" aria-label="Chiudi">✕</button>
+  <img id="pl-img" alt="Volto del personaggio">
 </div>
 
 <div id="toast"></div>

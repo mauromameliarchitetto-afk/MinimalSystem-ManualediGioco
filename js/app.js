@@ -729,6 +729,7 @@ function renderPortrait(c) {
   $('#portrait-placeholder').classList.toggle('hidden', !!c.portrait);
   $('#portrait-remove').classList.toggle('hidden', !c.portrait);
   $('#portrait-load').textContent = c.portrait ? 'Cambia immagine' : 'Carica immagine';
+  $('#f-nome2').value = c.nome || '';
 }
 
 /* Ridimensiona l'immagine scelta (max 512px, JPEG) per stare nei limiti
@@ -939,10 +940,11 @@ function wireStaticEvents() {
     if (btn) showTab(btn.dataset.tab);
   });
 
-  // ---- header nome ----
+  // ---- header nome (sincronizzato col campo in Identità) ----
   $('#f-nome').addEventListener('input', () => {
     const c = getActive(); if (!c) return;
     c.nome = $('#f-nome').value;
+    $('#f-nome2').value = c.nome;
     touchActive();
   });
 
@@ -1339,6 +1341,29 @@ function wireStaticEvents() {
   });
 
   // ---- volto del personaggio ----
+  $('#portrait-frame').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    if (c.portrait) {
+      $('#pl-img').src = c.portrait;
+      $('#portrait-lightbox').classList.remove('hidden');
+    } else {
+      $('#portrait-file').click();
+    }
+  });
+  const closeLightbox = () => $('#portrait-lightbox').classList.add('hidden');
+  $('#pl-close').addEventListener('click', closeLightbox);
+  $('#portrait-lightbox').addEventListener('click', e => {
+    if (e.target.id === 'portrait-lightbox') closeLightbox();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeLightbox();
+  });
+  $('#f-nome2').addEventListener('input', () => {
+    const c = getActive(); if (!c) return;
+    c.nome = $('#f-nome2').value;
+    $('#f-nome').value = c.nome;
+    touchActive();
+  });
   $('#portrait-load').addEventListener('click', () => $('#portrait-file').click());
   $('#portrait-file').addEventListener('change', e => {
     loadPortraitFile(e.target.files[0]);
