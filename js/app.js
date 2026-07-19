@@ -490,11 +490,11 @@ const DIAGRAM_SPEC = [
   { key: 't:stile',   x: 200, y: 255, w: 11 },
   { key: 't:fortuna', x: 160, y: 295, w: 11 },
   { key: 'hprim',   x: 90,  y: 345, w: 13 },
-  { key: 'hpuso',   x: 70,  y: 368, w: 9 },
-  { key: 'hpko',    x: 112, y: 368, w: 9, ro: true },
+  { key: 'hpko',    x: 70,  y: 368, w: 9, ro: true },
+  { key: 'hpuso',   x: 112, y: 368, w: 9 },
   { key: 'mprim',   x: 230, y: 345, w: 13 },
-  { key: 'mpuso',   x: 250, y: 368, w: 9 },
-  { key: 'mpko',    x: 208, y: 368, w: 9, ro: true },
+  { key: 'mpko',    x: 250, y: 368, w: 9, ro: true },
+  { key: 'mpuso',   x: 208, y: 368, w: 9 },
   { key: 'prcur',   x: 160, y: 385, w: 11 }
 ];
 
