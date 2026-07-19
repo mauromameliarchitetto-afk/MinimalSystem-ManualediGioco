@@ -499,6 +499,7 @@ input,select,textarea{font-family:var(--font-body);}
 }
 .dg-input::-webkit-outer-spin-button,.dg-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
 .dg-input:focus{outline:none;color:var(--fisico-forte);}
+.dg-input.dg-ro{color:var(--testo-secondario-dark-2);pointer-events:none;}
 @media (max-width:379px){.dg-input{font-size:12px;}}
 
 /* ---------- Point buy ---------- */

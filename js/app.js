@@ -415,15 +415,23 @@ function updateDerived(c) {
   $('#hud-lv').textContent = c.livello;
 
   if (!c.buildConfirmed) {
-    // classe non ancora confermata: i massimali seguono automaticamente
-    // il moltiplicatore della classe selezionata (base × mult)
+    // classe non ancora confermata: i massimali seguono automaticamente il
+    // moltiplicatore della classe selezionata (base × mult), ma i punti già
+    // spesi (USO) vengono preservati attraverso i ricalcoli
+    const hpSpent = Math.max(0, (c.hpMaxTracked ?? hpMax) - (c.hpCur ?? (c.hpMaxTracked ?? hpMax)));
+    const mpSpent = Math.max(0, (c.mpMaxTracked ?? mpMax) - (c.mpCur ?? (c.mpMaxTracked ?? mpMax)));
+    const prMaxNew = BUILDS[c.build].prIniziali;
+    const prSpent = Math.max(0, (c.prMaxTracked ?? prMaxNew) - (c.prCur ?? (c.prMaxTracked ?? prMaxNew)));
+    const ppMaxOld = (c.hpMaxTracked ?? hpMax) / 2 + (c.mpMaxTracked ?? mpMax) / 2;
+    const ppSpent = Math.max(0, ppMaxOld - (c.ppCur ?? ppMaxOld));
     c.hpMaxTracked = hpMax;
     c.mpMaxTracked = mpMax;
-    c.prMaxTracked = BUILDS[c.build].prIniziali;
-    c.hpCur = hpMax;
-    c.mpCur = mpMax;
-    c.prCur = c.prMaxTracked;
-    c.ppCur = null; // ricalcolato come massimo in updatePlayBars
+    c.prMaxTracked = prMaxNew;
+    c.hpCur = clamp(hpMax - hpSpent, 0, hpMax);
+    c.mpCur = clamp(mpMax - mpSpent, 0, mpMax);
+    c.prCur = clamp(prMaxNew - prSpent, 0, prMaxNew);
+    const ppMaxNew = hpMax / 2 + mpMax / 2;
+    c.ppCur = clamp(ppMaxNew - ppSpent, 0, ppMaxNew);
   } else {
     // classe confermata: i massimali sono ufficializzati e crescono
     // solo con i level-up (seed al primo uso se mancanti)
@@ -483,14 +491,16 @@ const DIAGRAM_SPEC = [
   { key: 't:fortuna', x: 160, y: 295, w: 11 },
   { key: 'hpmax',   x: 90,  y: 345, w: 13 },
   { key: 'hpuso',   x: 70,  y: 368, w: 9 },
+  { key: 'hpko',    x: 112, y: 368, w: 9, ro: true },
   { key: 'mpmax',   x: 230, y: 345, w: 13 },
   { key: 'mpuso',   x: 250, y: 368, w: 9 },
+  { key: 'mpko',    x: 208, y: 368, w: 9, ro: true },
   { key: 'prcur',   x: 160, y: 385, w: 11 }
 ];
 
 function initDiagram() {
   $('#dg-inputs').innerHTML = DIAGRAM_SPEC.map(f =>
-    `<input type="number" class="dg-input" data-dg="${f.key}" style="left:${(f.x / 320 * 100).toFixed(2)}%;top:${(f.y / 430 * 100).toFixed(2)}%;width:${f.w}%;">`
+    `<input type="number" class="dg-input${f.ro ? ' dg-ro' : ''}" data-dg="${f.key}" ${f.ro ? 'readonly tabindex="-1"' : ''} style="left:${(f.x / 320 * 100).toFixed(2)}%;top:${(f.y / 430 * 100).toFixed(2)}%;width:${f.w}%;">`
   ).join('');
 }
 
@@ -505,6 +515,9 @@ function diagramValue(c, key) {
   // USO: punti spesi (danni subiti / abilità usate) = max - correnti
   if (key === 'hpuso') return Math.max(0, (c.hpMaxTracked || 0) - (c.hpCur || 0));
   if (key === 'mpuso') return Math.max(0, (c.mpMaxTracked || 0) - (c.mpCur || 0));
+  // K.O.: soglia di cedimento = 10% del massimo (calcolo automatico)
+  if (key === 'hpko') return Math.ceil((c.hpMaxTracked || 0) * 0.1);
+  if (key === 'mpko') return Math.ceil((c.mpMaxTracked || 0) * 0.1);
   if (key === 'prcur') return c.prCur;
   return null;
 }
