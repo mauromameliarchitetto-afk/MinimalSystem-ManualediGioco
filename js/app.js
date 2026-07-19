@@ -7,9 +7,13 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const STORAGE_KEY = 'ms_characters_v1';
 const ACTIVE_KEY  = 'ms_active_id_v1';
+const STORIES_KEY = 'ms_stories_v1';
 
 let characters = [];
 let activeId = null;
+let stories = [];
+let activeStoryId = null;
+let viewingCharId = null;
 
 /* ---------------------------------------------------------------- storage */
 
@@ -21,7 +25,25 @@ function loadAll() {
     console.error('Errore lettura storage', e);
     characters = [];
   }
+  try {
+    const rawS = localStorage.getItem(STORIES_KEY);
+    stories = rawS ? JSON.parse(rawS) : [];
+  } catch (e) {
+    console.error('Errore lettura storie', e);
+    stories = [];
+  }
   activeId = localStorage.getItem(ACTIVE_KEY) || null;
+}
+function saveStories() {
+  try {
+    localStorage.setItem(STORIES_KEY, JSON.stringify(stories));
+  } catch (e) {
+    console.error('Errore scrittura storie', e);
+    toast('Salvataggio non riuscito');
+  }
+}
+function getActiveStory() {
+  return stories.find(s => s.id === activeStoryId) || null;
 }
 function saveAll() {
   try {
@@ -99,6 +121,7 @@ function newCharacter(nome) {
     razza: '',
     eta: '',
     ruolo: '',
+    storia: '',
     build: 'guerriero',
     eclecticoHpMult: 7,
     primary: defaultPrimary(),
@@ -745,6 +768,7 @@ function renderSheet() {
   $('#f-razza').value = c.razza;
   $('#f-eta').value = c.eta;
   $('#f-ruolo').value = c.ruolo;
+  $('#f-storia').value = c.storia;
   $('#f-bellezza-manuale').value = c.bellezzaManuale !== null ? c.bellezzaManuale : '';
   $('#bellezza-result').textContent = c.bellezzaTirata !== null ? c.bellezzaTirata : '—';
   renderPrimaryStats(c);
@@ -795,6 +819,7 @@ function wireStaticEvents() {
   $$('[data-nav]').forEach(b => b.addEventListener('click', () => {
     const target = b.dataset.nav;
     if (target === 'list') renderCharList();
+    if (target === 'master') renderMasterArea();
     showView(target);
   }));
   $('#btn-char-menu').addEventListener('click', charMenu);
@@ -832,7 +857,70 @@ function wireStaticEvents() {
     closeCoverMenu();
     if (item.dataset.menuNav === 'list') { renderCharList(); showView('list'); return; }
     if (item.dataset.menuNav === 'new') { createCharacterFlow(); return; }
+    if (item.dataset.menuNav === 'master') { renderMasterArea(); showView('master'); return; }
     if (item.dataset.menuTab) openSheetAtTab(item.dataset.menuTab);
+  });
+
+  // ---- Area Master ----
+  $('#btn-create-story').addEventListener('click', () => {
+    const nome = $('#new-story-name').value.trim();
+    const pass = $('#new-story-pass').value;
+    if (!nome) { toast('Dai un nome alla storia'); return; }
+    if (!pass) { toast('Imposta una password'); return; }
+    stories.push({ id: uid(), nome, password: pass, characters: [], createdAt: Date.now() });
+    saveStories();
+    $('#new-story-name').value = '';
+    $('#new-story-pass').value = '';
+    renderMasterArea();
+    toast('Storia creata');
+  });
+  $('#story-list').addEventListener('click', e => {
+    const card = e.target.closest('[data-storyid]');
+    if (!card) return;
+    const s = stories.find(x => x.id === card.dataset.storyid);
+    if (!s) return;
+    const pass = prompt(`Password per "${s.nome}":`);
+    if (pass === null) return;
+    if (pass !== s.password) { toast('Password errata'); return; }
+    openStory(s.id);
+  });
+  $('#btn-del-story').addEventListener('click', () => {
+    const s = getActiveStory(); if (!s) return;
+    if (!confirm(`Eliminare la storia "${s.nome}" e i ${s.characters.length} personaggi importati? L'azione non è reversibile.`)) return;
+    stories = stories.filter(x => x.id !== s.id);
+    activeStoryId = null;
+    saveStories();
+    renderMasterArea();
+    showView('master');
+    toast('Storia eliminata');
+  });
+  $('#btn-import-char').addEventListener('click', () => {
+    const text = $('#import-json').value.trim();
+    if (!text) { toast('Incolla prima la scheda del giocatore'); return; }
+    importCharacterFromText(text);
+    $('#import-json').value = '';
+  });
+  $('#story-chars').addEventListener('click', e => {
+    const card = e.target.closest('[data-viewchar]');
+    if (!card) return;
+    const s = getActiveStory(); if (!s) return;
+    const c = s.characters.find(x => x.id === card.dataset.viewchar);
+    if (c) renderCharView(c);
+  });
+  $('#btn-back-story').addEventListener('click', () => {
+    renderStory();
+    showView('story');
+  });
+  $('#btn-del-charview').addEventListener('click', () => {
+    const s = getActiveStory(); if (!s || !viewingCharId) return;
+    const c = s.characters.find(x => x.id === viewingCharId);
+    if (!confirm(`Rimuovere "${(c && c.nome) || 'questo personaggio'}" dalla storia?`)) return;
+    s.characters = s.characters.filter(x => x.id !== viewingCharId);
+    viewingCharId = null;
+    saveStories();
+    renderStory();
+    showView('story');
+    toast('Rimosso dalla storia');
   });
 
   // ---- lista personaggi (delegation) ----
@@ -862,6 +950,19 @@ function wireStaticEvents() {
   $('#f-razza').addEventListener('input', () => setField('razza', $('#f-razza').value));
   $('#f-eta').addEventListener('input', () => setField('eta', $('#f-eta').value));
   $('#f-ruolo').addEventListener('input', () => setField('ruolo', $('#f-ruolo').value));
+  $('#f-storia').addEventListener('input', () => setField('storia', $('#f-storia').value));
+  $('#btn-share-master').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const copy = JSON.parse(JSON.stringify(c));
+    delete copy.portrait; // troppo pesante per la chat
+    const text = JSON.stringify(copy);
+    const done = () => toast('Scheda copiata: incollala nella chat col Master');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  });
   $('#f-bellezza-manuale').addEventListener('input', () => {
     const v = $('#f-bellezza-manuale').value;
     setField('bellezzaManuale', v === '' ? null : Number(v));
@@ -1310,6 +1411,17 @@ function wireEditTable(sel, dataAttr, field) {
   });
 }
 
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) { toast('Copia non riuscita'); }
+  ta.remove();
+}
+
 function setField(key, value) {
   const c = getActive(); if (!c) return;
   c[key] = value;
@@ -1419,6 +1531,147 @@ function checkForUpdate() {
       $('#update-banner').classList.remove('hidden');
     })
     .catch(() => { /* offline o API non raggiungibile: nessun avviso */ });
+}
+
+/* --------------------------------------------------- Area Master e storie */
+
+function renderMasterArea() {
+  const wrap = $('#story-list');
+  if (!stories.length) {
+    wrap.innerHTML = `<div class="helper-text" style="padding:6px 2px 2px;">Nessuna storia ancora: creane una qui sotto.</div>`;
+    return;
+  }
+  wrap.innerHTML = stories.map(s => `
+    <div class="char-card" data-storyid="${s.id}">
+      <div class="avatar bicolor">📖</div>
+      <div class="info">
+        <div class="name">${escapeHtml(s.nome)}</div>
+        <div class="meta">${s.characters.length} personagg${s.characters.length === 1 ? 'io' : 'i'} · protetta da password</div>
+      </div>
+    </div>`).join('');
+}
+
+function openStory(id) {
+  activeStoryId = id;
+  renderStory();
+  showView('story');
+}
+
+function renderStory() {
+  const s = getActiveStory(); if (!s) return;
+  $('#story-title').textContent = s.nome;
+  $('#story-count').textContent = s.characters.length;
+  const wrap = $('#story-chars');
+  if (!s.characters.length) {
+    wrap.innerHTML = `<div class="empty-state">Nessun personaggio ancora.<br>Fatti inviare le schede dai giocatori e incollale qui sopra.</div>`;
+    return;
+  }
+  const sorted = [...s.characters].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  wrap.innerHTML = sorted.map(c => {
+    const b = BUILDS[c.build] || BUILDS.guerriero;
+    const initial = (c.nome || '?').trim().charAt(0).toUpperCase() || '?';
+    return `<div class="char-card" data-viewchar="${c.id}">
+      <div class="avatar ${axisClass(c.build in BUILDS ? c.build : 'guerriero')}">${initial}</div>
+      <div class="info">
+        <div class="name">${escapeHtml(c.nome || 'Senza nome')}</div>
+        <div class="meta">${b.label} · Lv ${c.livello || 1}${c.storia ? ' · ' + escapeHtml(c.storia) : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function importCharacterFromText(text) {
+  const s = getActiveStory(); if (!s) return;
+  let c;
+  try {
+    c = JSON.parse(text);
+  } catch (e) {
+    toast('Testo non valido: incolla la scheda copiata dal giocatore');
+    return;
+  }
+  if (!c || typeof c !== 'object' || !c.id || !c.primary) {
+    toast('Questo testo non è una scheda di Minimal System');
+    return;
+  }
+  ensureShape(c);
+  const idx = s.characters.findIndex(x => x.id === c.id);
+  if (idx >= 0) { s.characters[idx] = c; toast(`Aggiornato: ${c.nome || 'personaggio'}`); }
+  else { s.characters.push(c); toast(`Importato: ${c.nome || 'personaggio'}`); }
+  saveStories();
+  renderStory();
+}
+
+/* Scheda in sola lettura per l'analisi del Master */
+function renderCharView(c) {
+  viewingCharId = c.id;
+  $('#charview-title').textContent = c.nome || 'Senza nome';
+  const b = BUILDS[c.build] || BUILDS.guerriero;
+  const dice = v => diceForValue(Number(v) || 0);
+  const kvRows = pairs => pairs.filter(p => String(p[1] ?? '').trim() !== '')
+    .map(p => `<tr><td class="field" style="white-space:nowrap;color:var(--testo-secondario-dark);">${p[0]}</td><td>${escapeHtml(String(p[1]))}</td></tr>`).join('');
+  const section = (title, inner) => inner
+    ? `<div class="section-title" style="margin-top:14px;"><span class="dot neutral"></span>${title}</div>${inner}` : '';
+  const table = rows => rows ? `<div class="table-scroll"><table class="data-table"><tbody>${rows}</tbody></table></div>` : '';
+
+  const primarie = PRIMARY_STATS.map(st => `<tr><td class="field">${st.label}</td><td class="num">${Number(c.primary[st.key]) || 0}</td></tr>`).join('');
+  const terziarie = TERTIARY_STATS.map(st => `<tr><td class="field">${st.label}</td><td class="num">${Number(c.tertiary[st.key]) || 0}</td></tr>`).join('');
+
+  let tratti = '';
+  Object.keys(TRAIT_LISTS).forEach(k => {
+    const own = (c.shownTraits[k] || []).map(n => [n, c.traits[k][n] || 0]);
+    (c.customTraits[k] || []).forEach(t => { if (t.name) own.push([t.name, t.value || 0]); });
+    if (own.length) {
+      tratti += `<tr><td colspan="3" style="color:var(--testo-secondario-dark);text-transform:uppercase;font-size:10px;">${TRAIT_LIST_LABELS[k]}</td></tr>`
+        + own.map(([n, v]) => `<tr><td>${escapeHtml(n)}</td><td class="num">${v}</td><td class="num">${dice(v)}</td></tr>`).join('');
+    }
+  });
+
+  const slots = (c.slots || []).filter(s2 => s2.item || s2.atk || s2.dif || s2.bonus || s2.dur)
+    .map(s2 => `<tr><td class="field">${escapeHtml(s2.name)}</td><td>${escapeHtml(s2.item || '—')}</td><td class="num">${s2.atk}/${s2.dif}/${s2.bonus}/${s2.dur}</td></tr>`).join('');
+
+  const rowTable = (rows, fields) => (rows || []).filter(rowHasContent)
+    .map(r => `<tr>${fields.map(f => `<td>${escapeHtml(String(r[f] || ''))}</td>`).join('')}</tr>`).join('');
+  const tecniche = rowTable(c.tecniche, ['nome', 'bonus', 'malus', 'durata', 'utilizzi', 'lv']);
+  const abilita = rowTable(c.abilita, ['nome', 'bonus', 'costo', 'durata', 'utilizzi', 'lv']);
+  const boosts = rowTable(c.boostRows, ['bonus', 'range', 'pp', 'costo', 'limite', 'lv']);
+
+  const BG_LABELS = {
+    nascitaData: 'Data di nascita', nascitaLuogo: 'Luogo di nascita', origini: 'Origini', frase: 'In una frase',
+    altezza: 'Altezza', peso: 'Peso', pelle: 'Pelle', acconciatura: 'Acconciatura', occhi: 'Occhi', segni: 'Segni particolari',
+    corporatura: 'Corporatura', postura: 'Postura', vestiario: 'Vestiario', oggetto: 'Porta sempre con sé',
+    incompetenze: 'Incompetenze', debolezze: 'Debolezze', hobby: 'Hobby', abitudini: 'Abitudini',
+    personalita: 'Personalità', morale: 'Morale', autocontrollo: 'Autocontrollo', motivazione: 'Motivazione',
+    scoraggiamento: 'Scoraggiamento', sicurezza: 'Sicurezza', filosofia: 'Filosofia', paura: 'Paura più grande',
+    obiettivoBreve: 'Obiettivo breve', obiettivoLungo: 'Obiettivo lungo',
+    infanzia: 'Infanzia', eventoImportante: 'Evento importante', segreto: 'Segreto',
+    peggiorMomento: 'Peggior momento', migliorMomento: 'Miglior momento', relazioni: 'Relazioni'
+  };
+  const bg = kvRows(Object.keys(BG_LABELS).map(k => [BG_LABELS[k], (c.bg || {})[k]]));
+
+  $('#charview-body').innerHTML = `
+    ${section('Identità', table(kvRows([
+      ['Storia', c.storia], ['Build', b.label], ['Livello', c.livello],
+      ['Razza', c.razza], ['Età', c.eta], ['Ruolo', c.ruolo],
+      ['Bellezza', c.bellezzaManuale !== null && c.bellezzaManuale !== undefined && c.bellezzaManuale !== '' ? c.bellezzaManuale : c.bellezzaTirata],
+      ['Q.I.', c.qi], ['AP disponibili', c.apDisponibili]
+    ])))}
+    ${section('Risorse', table(kvRows([
+      ['HP', `${c.hpCur ?? '—'} / ${c.hpMaxTracked ?? '—'}`],
+      ['MP', `${c.mpCur ?? '—'} / ${c.mpMaxTracked ?? '—'}`],
+      ['PP', c.ppCur], ['P.R.', `${c.prCur ?? '—'} / ${c.prMaxTracked ?? '—'}`]
+    ])))}
+    ${section('Caratteristiche primarie', table(primarie))}
+    ${section('Terziarie', table(terziarie))}
+    ${section('Tratti', tratti ? table(tratti) : '')}
+    ${section('Equipaggiamento (Oggetto · Atk/Dif/Bonus/Durab)', slots ? table(slots) : '')}
+    ${section('Tecniche (Nome · Bonus · Malus · Durata · Utilizzi · Lv)', tecniche ? table(tecniche) : '')}
+    ${section('Abilità (Nome · Bonus · Costo · Durata · Utilizzi · Lv)', abilita ? table(abilita) : '')}
+    ${section('Boost (Bonus · Range · PP · Costo · Limite · Lv)', boosts ? table(boosts) : '')}
+    ${section('Background', bg ? table(bg) : '')}
+    ${section('Note libere', c.note && c.note.libere ? `<div class="box-lore">${escapeHtml(c.note.libere)}</div>` : '')}
+    <div class="helper-text" style="margin-top:14px;">Scheda in sola lettura, importata dal giocatore${c.updatedAt ? ' · ultimo aggiornamento ' + new Date(c.updatedAt).toLocaleString('it-IT') : ''}.</div>
+  `;
+  showView('charview');
 }
 
 /* ------------------------------------------------------------ service worker */
