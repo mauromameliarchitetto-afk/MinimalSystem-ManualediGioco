@@ -133,6 +133,7 @@ function newCharacter(nome) {
     qi: null,
     qiProgresso: 0,
     livello: 1,
+    livelloAP: 1,
     apDisponibili: 0,
     ledger: [],
     traits: defaultTraits(),
@@ -175,8 +176,12 @@ function ensureShape(c) {
   // i personaggi creati prima dell'introduzione della conferma di classe
   // mantengono la loro classe come già confermata (regola: non modificabile)
   const hadBuildConfirmed = c.buildConfirmed !== undefined;
+  const hadLivelloAP = c.livelloAP !== undefined;
   Object.keys(d).forEach(k => { if (c[k] === undefined) c[k] = d[k]; });
   if (!hadBuildConfirmed) c.buildConfirmed = true;
+  // i personaggi esistenti non ricevono AP retroattivi: il conteggio
+  // automatico parte dal livello attuale
+  if (!hadLivelloAP) c.livelloAP = c.livello || 1;
   // migrazione: i tratti già valorizzati diventano automaticamente "posseduti"
   Object.keys(TRAIT_LISTS).forEach(k => {
     if (!c.traits[k]) c.traits[k] = {};
@@ -413,6 +418,7 @@ function updateDerived(c) {
 
   $('#hud-build').textContent = BUILDS[c.build].label;
   $('#hud-lv').textContent = c.livello;
+  $('#derived-ap').textContent = Number(c.apDisponibili) || 0;
 
   if (!c.buildConfirmed) {
     // classe non ancora confermata: i massimali seguono automaticamente il
@@ -630,6 +636,75 @@ function traitRowHtml(listKey, name, value, isCustom, idx) {
 
 /* --------------------------------------------------------------- livelli */
 
+/* AP guadagnati raggiungendo un livello (tabella limiti di livello) */
+function apForLevel(lv) {
+  const r = LEVEL_TABLE.find(x => x.lv === lv);
+  return r ? r.ap : 0;
+}
+
+function refreshApUI(c) {
+  $('#f-ap-disponibili').value = c.apDisponibili;
+  const t = $('#derived-ap');
+  if (t) t.textContent = c.apDisponibili;
+  renderLedger(c);
+}
+
+/* Accredita (o storna) automaticamente gli AP dei livelli attraversati.
+   c.livelloAP è l'ultimo livello per cui gli AP sono già stati conteggiati. */
+function creditLevelAP(c) {
+  const from = typeof c.livelloAP === 'number' ? c.livelloAP : c.livello;
+  const to = c.livello;
+  if (to === from) return;
+  let delta = 0;
+  if (to > from) { for (let l = from + 1; l <= to; l++) delta += apForLevel(l); }
+  else { for (let l = from; l > to; l--) delta -= apForLevel(l); }
+  c.livelloAP = to;
+  if (!delta) return;
+  c.apDisponibili = (Number(c.apDisponibili) || 0) + delta;
+  c.ledger.push({
+    id: uid(),
+    desc: to > from ? `Level up Lv ${from} → ${to}` : `Livello ridotto Lv ${from} → ${to}`,
+    amt: delta,
+    gain: true,
+    ts: Date.now()
+  });
+  refreshApUI(c);
+  toast(delta > 0 ? `+${delta} AP disponibili (Lv ${from} → ${to})` : `${delta} AP (Lv ${from} → ${to})`);
+  touchActive();
+}
+
+/* Cambia un attributo primario. Dopo la conferma della classe gli attributi
+   (esclusi HP/MP base) si comprano con gli AP secondo i costi di crescita:
+   la spesa è automatica, la riduzione rimborsa, e senza AP il cambio è
+   bloccato. Restituisce il valore applicato o null se bloccato. */
+function changePrimary(c, key, newVal) {
+  const oldVal = Number(c.primary[key]) || 0;
+  newVal = Math.floor(Number(newVal));
+  if (isNaN(newVal) || newVal < PRIMARY_MIN) newVal = PRIMARY_MIN;
+  if (newVal === oldVal) return newVal;
+  if (c.buildConfirmed && key !== 'hp' && key !== 'mp') {
+    let cost = 0;
+    if (newVal > oldVal) { for (let n = oldVal + 1; n <= newVal; n++) cost += primaryApCostForPoint(n); }
+    else { for (let n = oldVal; n > newVal; n--) cost -= primaryApCostForPoint(n); }
+    const disponibili = Number(c.apDisponibili) || 0;
+    if (cost > 0 && cost > disponibili) {
+      toast(`AP insufficienti: servono ${cost} AP (disponibili ${disponibili})`);
+      return null;
+    }
+    const stat = PRIMARY_STATS.find(s => s.key === key);
+    c.apDisponibili = disponibili - cost;
+    c.ledger.push({
+      id: uid(),
+      desc: `${newVal > oldVal ? '+' : ''}${newVal - oldVal} ${stat ? stat.label : key} (→ ${newVal})`,
+      amt: cost,
+      ts: Date.now()
+    });
+    refreshApUI(c);
+  }
+  c.primary[key] = newVal;
+  return newVal;
+}
+
 function renderLevelTable() {
   $('#level-table-body').innerHTML = LEVEL_TABLE.map(r =>
     `<tr data-lv="${r.lv}"><td class="num">${r.lv}</td><td class="num">${r.ap}</td><td>${r.perk}</td><td>${r.note || ''}</td></tr>`
@@ -641,12 +716,16 @@ function highlightCurrentLevel(c) {
 function renderLedger(c) {
   const wrap = $('#ledger-list');
   if (!c.ledger.length) { wrap.innerHTML = `<div class="helper-text">Nessun movimento registrato.</div>`; return; }
-  wrap.innerHTML = [...c.ledger].reverse().map(item => `
+  wrap.innerHTML = [...c.ledger].reverse().map(item => {
+    // effetto sul disponibile: i guadagni (gain) lo aumentano, le spese lo riducono
+    const delta = item.gain ? (Number(item.amt) || 0) : -(Number(item.amt) || 0);
+    return `
     <div class="ledger-item" data-ledgerid="${item.id}">
       <span>${escapeHtml(item.desc || 'Movimento')}</span>
-      <span class="amt ${item.amt >= 0 ? 'pos' : 'neg'}">${item.amt >= 0 ? '+' : ''}${item.amt} AP</span>
+      <span class="amt ${delta >= 0 ? 'pos' : 'neg'}">${delta >= 0 ? '+' : ''}${delta} AP</span>
       <button class="btn btn-icon btn-sm btn-ghost" data-delledger="${item.id}" title="Rimuovi">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 function renderTertiaryCostTable() {
   $('#tertiary-cost-table').innerHTML = Object.entries(TERTIARY_AP_TABLE)
@@ -1089,10 +1168,10 @@ function wireStaticEvents() {
     const raw = Math.floor(Number(inp.value));
     if (key.startsWith('p:')) {
       const k = key.slice(2);
-      const v = isNaN(raw) ? PRIMARY_MIN : Math.max(PRIMARY_MIN, raw);
-      c.primary[k] = v;
+      const applied = changePrimary(c, k, raw);
+      if (applied === null) { inp.value = c.primary[k]; return; } // AP insufficienti
       const st = $(`#primary-stats input[data-pstat-input="${k}"]`);
-      if (st) st.value = v;
+      if (st) st.value = applied;
       updatePrimaryRemaining(c);
       updateDerived(c);
     } else if (key.startsWith('t:')) {
@@ -1144,8 +1223,9 @@ function wireStaticEvents() {
     const key = btn.dataset.pstat, dir = Number(btn.dataset.dir);
     const next = Number(c.primary[key]) + dir;
     if (next < PRIMARY_MIN) return;
-    c.primary[key] = next;
-    $(`#primary-stats input[data-pstat-input="${key}"]`).value = next;
+    const applied = changePrimary(c, key, next);
+    if (applied === null) return; // AP insufficienti
+    $(`#primary-stats input[data-pstat-input="${key}"]`).value = applied;
     updatePrimaryRemaining(c);
     updateDerived(c);
     touchActive();
@@ -1155,10 +1235,8 @@ function wireStaticEvents() {
     if (!input) return;
     const c = getActive(); if (!c) return;
     const key = input.dataset.pstatInput;
-    let v = Math.floor(Number(input.value));
-    if (isNaN(v)) v = PRIMARY_MIN;
-    if (v < PRIMARY_MIN) v = PRIMARY_MIN;
-    c.primary[key] = v;
+    const applied = changePrimary(c, key, input.value);
+    if (applied === null) { input.value = c.primary[key]; return; } // AP insufficienti
     updatePrimaryRemaining(c);
     updateDerived(c);
     touchActive();
@@ -1299,7 +1377,22 @@ function wireStaticEvents() {
     renderDiagram(c);
     touchActive();
   });
-  $('#f-ap-disponibili').addEventListener('input', () => setField('apDisponibili', Number($('#f-ap-disponibili').value) || 0));
+  // a modifica conclusa (blur), accredita gli AP dei livelli attraversati
+  $('#f-livello').addEventListener('change', () => {
+    const c = getActive(); if (!c) return;
+    creditLevelAP(c);
+  });
+  $('#stat-diagram').addEventListener('change', e => {
+    const inp = e.target.closest('[data-dg="lv"]');
+    if (!inp) return;
+    const c = getActive(); if (!c) return;
+    creditLevelAP(c);
+  });
+  $('#f-ap-disponibili').addEventListener('input', () => {
+    setField('apDisponibili', Number($('#f-ap-disponibili').value) || 0);
+    const c = getActive();
+    if (c) $('#derived-ap').textContent = Number(c.apDisponibili) || 0;
+  });
 
   $('#ledger-add').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
@@ -1321,9 +1414,12 @@ function wireStaticEvents() {
     const id = del.dataset.delledger;
     const item = c.ledger.find(i => i.id === id);
     c.ledger = c.ledger.filter(i => i.id !== id);
-    if (item) c.apDisponibili = (Number(c.apDisponibili) || 0) + item.amt;
-    $('#f-ap-disponibili').value = c.apDisponibili;
-    renderLedger(c);
+    if (item) {
+      // annulla l'effetto del movimento: storna i guadagni, rimborsa le spese
+      const delta = item.gain ? (Number(item.amt) || 0) : -(Number(item.amt) || 0);
+      c.apDisponibili = (Number(c.apDisponibili) || 0) - delta;
+    }
+    refreshApUI(c);
     touchActive();
   });
 
