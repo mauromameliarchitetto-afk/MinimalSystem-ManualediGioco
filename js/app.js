@@ -489,10 +489,10 @@ const DIAGRAM_SPEC = [
   { key: 't:carisma', x: 120, y: 255, w: 11 },
   { key: 't:stile',   x: 200, y: 255, w: 11 },
   { key: 't:fortuna', x: 160, y: 295, w: 11 },
-  { key: 'hpmax',   x: 90,  y: 345, w: 13 },
+  { key: 'hprim',   x: 90,  y: 345, w: 13 },
   { key: 'hpuso',   x: 70,  y: 368, w: 9 },
   { key: 'hpko',    x: 112, y: 368, w: 9, ro: true },
-  { key: 'mpmax',   x: 230, y: 345, w: 13 },
+  { key: 'mprim',   x: 230, y: 345, w: 13 },
   { key: 'mpuso',   x: 250, y: 368, w: 9 },
   { key: 'mpko',    x: 208, y: 368, w: 9, ro: true },
   { key: 'prcur',   x: 160, y: 385, w: 11 }
@@ -509,9 +509,10 @@ function diagramValue(c, key) {
   if (key.startsWith('t:')) return c.tertiary[key.slice(2)];
   if (key === 'lv') return c.livello;
   if (key === 'qi') return c.qi;
-  // HP/MP: valore massimo (iniziale da moltiplicatore + incrementi da level-up)
-  if (key === 'hpmax') return c.hpMaxTracked;
-  if (key === 'mpmax') return c.mpMaxTracked;
+  // HP/MP: punti rimanenti — partono dal massimo (moltiplicatore + level-up)
+  // e si riducono in base a quanto scritto in USO
+  if (key === 'hprim') return c.hpCur;
+  if (key === 'mprim') return c.mpCur;
   // USO: punti spesi (danni subiti / abilità usate) = max - correnti
   if (key === 'hpuso') return Math.max(0, (c.hpMaxTracked || 0) - (c.hpCur || 0));
   if (key === 'mpuso') return Math.max(0, (c.mpMaxTracked || 0) - (c.mpCur || 0));
@@ -1110,11 +1111,11 @@ function wireStaticEvents() {
     } else if (key === 'qi') {
       c.qi = isNaN(raw) ? null : raw;
       renderQi(c);
-    } else if (key === 'hpmax') {
-      c.hpMaxTracked = Math.max(0, isNaN(raw) ? 0 : raw);
+    } else if (key === 'hprim') {
+      c.hpCur = clamp(isNaN(raw) ? 0 : raw, 0, c.hpMaxTracked || 0);
       updatePlayBars(c);
-    } else if (key === 'mpmax') {
-      c.mpMaxTracked = Math.max(0, isNaN(raw) ? 0 : raw);
+    } else if (key === 'mprim') {
+      c.mpCur = clamp(isNaN(raw) ? 0 : raw, 0, c.mpMaxTracked || 0);
       updatePlayBars(c);
     } else if (key === 'hpuso') {
       const max = c.hpMaxTracked || 0;
