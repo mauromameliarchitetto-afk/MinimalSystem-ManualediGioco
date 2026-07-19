@@ -123,6 +123,7 @@ function newCharacter(nome) {
     ruolo: '',
     storia: '',
     build: 'guerriero',
+    buildConfirmed: false,
     eclecticoHpMult: 7,
     primary: defaultPrimary(),
     tertiary: defaultTertiary(),
@@ -171,7 +172,11 @@ function defaultBg() {
 function ensureShape(c) {
   const d = newCharacter();
   const hadShown = c.shownTraits !== undefined;
+  // i personaggi creati prima dell'introduzione della conferma di classe
+  // mantengono la loro classe come già confermata (regola: non modificabile)
+  const hadBuildConfirmed = c.buildConfirmed !== undefined;
   Object.keys(d).forEach(k => { if (c[k] === undefined) c[k] = d[k]; });
+  if (!hadBuildConfirmed) c.buildConfirmed = true;
   // migrazione: i tratti già valorizzati diventano automaticamente "posseduti"
   Object.keys(TRAIT_LISTS).forEach(k => {
     if (!c.traits[k]) c.traits[k] = {};
@@ -311,32 +316,51 @@ function renderHeader(c) {
 /* ------------------------------------------------------------- build UI */
 
 const BUILD_KEYS = ['guerriero', 'eclettico', 'mago'];
+let pendingBuild = null;
+
+/* Aggiorna tutte le viste che dipendono dalla classe selezionata */
+function refreshAfterBuildChange(c) {
+  renderBuildGrid(c);
+  updateDerived(c);
+  renderHeader(c);
+  renderRetroNote(c);
+  renderTecniche(c);
+  renderAbilita(c);
+  touchActive();
+}
 
 function renderBuildGrid(c) {
   const grid = $('#build-grid');
   grid.innerHTML = BUILD_KEYS.map(key => {
     const b = BUILDS[key];
     const selected = c.build === key;
+    const locked = c.buildConfirmed && !selected;
     const selClass = b.axis === 'magic' ? 'magic-sel' : (b.axis === 'bicolor' ? 'bicolor-sel' : '');
     let statsHtml, swapHtml = '';
     if (key === 'eclettico') {
       const hpM = c.eclecticoHpMult === 5 ? 5 : 7;
       const mpM = hpM === 7 ? 5 : 7;
       statsHtml = `<b>×${hpM}</b> HP · <b>×${mpM}</b> MP`;
-      swapHtml = `<div class="swap-row">
-        <button class="btn btn-sm ${hpM === 7 ? 'btn-primary' : 'btn-ghost'}" data-swap="7" data-buildkey="eclettico">HP×7 / MP×5</button>
-        <button class="btn btn-sm ${hpM === 5 ? 'btn-primary' : 'btn-ghost'}" data-swap="5" data-buildkey="eclettico">HP×5 / MP×7</button>
-      </div>`;
+      if (!c.buildConfirmed) {
+        swapHtml = `<div class="swap-row">
+          <button class="btn btn-sm ${hpM === 7 ? 'btn-primary' : 'btn-ghost'}" data-swap="7" data-buildkey="eclettico">HP×7 / MP×5</button>
+          <button class="btn btn-sm ${hpM === 5 ? 'btn-primary' : 'btn-ghost'}" data-swap="5" data-buildkey="eclettico">HP×5 / MP×7</button>
+        </div>`;
+      }
     } else {
       statsHtml = `<b>×${b.hpMult}</b> HP · <b>×${b.mpMult}</b> MP`;
     }
-    return `<div class="build-card ${selected ? 'selected ' + selClass : ''}" data-buildcard="${key}">
-      <div class="bc-top"><span class="bc-name">${b.label}</span><span class="bc-radio"></span></div>
+    const badge = c.buildConfirmed && selected ? `<span class="chip physical" style="margin-left:8px;">Confermata</span>` : '';
+    return `<div class="build-card ${selected ? 'selected ' + selClass : ''} ${locked ? 'locked' : ''}" data-buildcard="${key}">
+      <div class="bc-top"><span class="bc-name">${b.label}${badge}</span><span class="bc-radio"></span></div>
       <div class="bc-stats">${statsHtml}</div>
       <div class="bc-meta">Dotazione: ${b.dotazione} · P.R. iniziali: ${b.prIniziali}</div>
       ${key === 'eclettico' ? swapHtml : ''}
     </div>`;
   }).join('');
+  $('#build-helper').textContent = c.buildConfirmed
+    ? 'Classe confermata: non può più essere cambiata. I massimali HP/MP sono ufficializzati e crescono solo con i level-up.'
+    : 'Scegli la classe: i massimali HP/MP in scheda seguono il moltiplicatore selezionato. Alla scelta ti verrà chiesta una conferma — dopo il Sì la classe non si può più cambiare.';
 }
 
 /* ------------------------------------------------------------ primarie */
@@ -390,13 +414,26 @@ function updateDerived(c) {
   $('#hud-build').textContent = BUILDS[c.build].label;
   $('#hud-lv').textContent = c.livello;
 
-  // seed tracked max values on first use
-  if (c.hpMaxTracked === null) c.hpMaxTracked = hpMax;
-  if (c.mpMaxTracked === null) c.mpMaxTracked = mpMax;
-  if (c.prMaxTracked === null) c.prMaxTracked = BUILDS[c.build].prIniziali;
-  if (c.hpCur === null) c.hpCur = c.hpMaxTracked;
-  if (c.mpCur === null) c.mpCur = c.mpMaxTracked;
-  if (c.prCur === null) c.prCur = c.prMaxTracked;
+  if (!c.buildConfirmed) {
+    // classe non ancora confermata: i massimali seguono automaticamente
+    // il moltiplicatore della classe selezionata (base × mult)
+    c.hpMaxTracked = hpMax;
+    c.mpMaxTracked = mpMax;
+    c.prMaxTracked = BUILDS[c.build].prIniziali;
+    c.hpCur = hpMax;
+    c.mpCur = mpMax;
+    c.prCur = c.prMaxTracked;
+    c.ppCur = null; // ricalcolato come massimo in updatePlayBars
+  } else {
+    // classe confermata: i massimali sono ufficializzati e crescono
+    // solo con i level-up (seed al primo uso se mancanti)
+    if (c.hpMaxTracked === null) c.hpMaxTracked = hpMax;
+    if (c.mpMaxTracked === null) c.mpMaxTracked = mpMax;
+    if (c.prMaxTracked === null) c.prMaxTracked = BUILDS[c.build].prIniziali;
+    if (c.hpCur === null) c.hpCur = c.hpMaxTracked;
+    if (c.mpCur === null) c.mpCur = c.mpMaxTracked;
+    if (c.prCur === null) c.prCur = c.prMaxTracked;
+  }
 
   updatePlayBars(c);
 }
@@ -981,20 +1018,47 @@ function wireStaticEvents() {
     const swap = e.target.closest('[data-swap]');
     const card = e.target.closest('[data-buildcard]');
     const c = getActive(); if (!c) return;
+    if (!swap && !card) return;
+    if (c.buildConfirmed) {
+      toast('Classe già confermata: non può essere cambiata');
+      return;
+    }
+    pendingBuild = { build: c.build, eclMult: c.eclecticoHpMult };
     if (swap) {
       e.stopPropagation();
       c.eclecticoHpMult = Number(swap.dataset.swap);
       c.build = 'eclettico';
-    } else if (card) {
+    } else {
       c.build = card.dataset.buildcard;
       if (c.build === 'eclettico' && !c.eclecticoHpMult) c.eclecticoHpMult = 7;
-    } else { return; }
-    renderBuildGrid(c);
-    updateDerived(c);
-    renderHeader(c);
-    renderRetroNote(c);
-    renderTecniche(c);
-    renderAbilita(c);
+    }
+    refreshAfterBuildChange(c);
+    // chiede conferma della scelta
+    const b = BUILDS[c.build];
+    const variante = c.build === 'eclettico' ? ` (HP×${currentHpMult(c)} / MP×${currentMpMult(c)})` : '';
+    $('#class-confirm-text').textContent = `Sei sicuro di voler scegliere la classe ${b.label}${variante}? Dopo la conferma non potrà più essere cambiata.`;
+    $('#class-confirm').classList.remove('hidden');
+  });
+  $('#class-yes').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    $('#class-confirm').classList.add('hidden');
+    c.buildConfirmed = true;
+    pendingBuild = null;
+    // ufficializza i moltiplicatori sui valori presenti in scheda
+    refreshAfterBuildChange(c);
+    toast(`Classe confermata: ${BUILDS[c.build].label}`);
+    touchActive();
+  });
+  $('#class-no').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    $('#class-confirm').classList.add('hidden');
+    // torna alla scelta: ripristina la selezione precedente
+    if (pendingBuild) {
+      c.build = pendingBuild.build;
+      c.eclecticoHpMult = pendingBuild.eclMult;
+      pendingBuild = null;
+    }
+    refreshAfterBuildChange(c);
     touchActive();
   });
 
