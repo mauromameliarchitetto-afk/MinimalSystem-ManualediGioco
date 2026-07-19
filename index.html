@@ -266,7 +266,7 @@
       <!-- ---- PRIMARIE ---- -->
       <div class="tab-panel" data-panel="primarie">
         <div class="section-title"><span class="dot neutral"></span>Caratteristiche primarie · 40 punti</div>
-        <p class="helper-text">Minimo 2 per caratteristica. HP e MP qui sono i valori <em>base</em>: il totale reale si ottiene moltiplicandoli per i moltiplicatori della build (sotto).</p>
+        <p class="helper-text">Minimo 2 per caratteristica. HP e MP qui sono i valori <em>base</em>: il totale reale si ottiene moltiplicandoli per i moltiplicatori della build (sotto). Dopo la conferma della classe, aumentare un attributo spende automaticamente gli AP guadagnati con i level-up (costi di crescita ufficiali); ridurlo li rimborsa.</p>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
           <div class="pointbuy-header">
             <span class="label">Punti rimanenti</span>
@@ -282,6 +282,7 @@
           <div class="hud-tile magic"><div class="ht-label">MP max (base×mult)</div><div class="ht-value" id="derived-mpmax">0</div><div class="ht-sub" id="derived-mpmax-sub"></div></div>
           <div class="hud-tile"><div class="ht-label">PP</div><div class="ht-value" id="derived-pp">0</div><div class="ht-sub">(HPmax÷2)+(MPmax÷2)</div></div>
           <div class="hud-tile"><div class="ht-label">P.R. iniziali</div><div class="ht-value" id="derived-pr">0</div><div class="ht-sub">da build</div></div>
+          <div class="hud-tile"><div class="ht-label">AP disponibili</div><div class="ht-value" id="derived-ap">0</div><div class="ht-sub">dai level-up · si spendono sugli attributi</div></div>
         </div>
         <button class="btn btn-ghost btn-sm" id="btn-sync-derived" style="align-self:flex-start;">Sincronizza in "In gioco"</button>
 
