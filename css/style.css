@@ -414,6 +414,61 @@ input,select,textarea{font-family:var(--font-body);}
 .swap-row{display:flex;align-items:center;gap:10px;margin-top:4px;}
 .swap-row .btn-sm{flex:none;}
 
+/* ---------- Le regole ---------- */
+.rule-section{margin-bottom:10px;}
+.rule-title{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:var(--antracite-2);border:1px solid var(--bordo-scuro);border-radius:var(--radius);
+  color:var(--testo-primario-dark);
+  font-family:var(--font-title);font-weight:700;font-size:14px;
+  text-transform:uppercase;letter-spacing:.06em;
+  padding:13px 14px;cursor:pointer;text-align:left;
+}
+.rule-title .arrow{color:var(--testo-secondario-dark);transition:transform .15s ease;}
+.rule-section.open .rule-title .arrow{transform:rotate(90deg);}
+.rule-body{
+  display:none;
+  background:rgba(255,255,255,0.02);
+  border:1px solid var(--bordo-scuro);border-top:none;
+  border-radius:0 0 var(--radius) var(--radius);
+  padding:12px 14px;
+  font-size:13px;line-height:1.65;color:var(--testo-secondario-dark-2);
+  white-space:pre-wrap;
+  overflow-wrap:break-word;
+}
+.rule-section.open .rule-body{display:block;}
+.rule-section.open .rule-title{border-radius:var(--radius) var(--radius) 0 0;}
+
+/* ---------- Premesse di gioco ---------- */
+.prem-row{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:9px 10px;background:var(--antracite-1);
+  border:1px solid var(--bordo-scuro);border-radius:var(--radius-sm);
+  margin-bottom:8px;
+}
+.prem-row input[type=checkbox]{width:18px;height:18px;margin-top:1px;accent-color:var(--fisico-forte);flex:none;}
+.prem-row .pr-main{flex:1;min-width:0;}
+.prem-row .pr-title{font-family:var(--font-title);font-weight:600;font-size:13.5px;}
+.prem-row .pr-text{font-size:12.5px;color:var(--testo-secondario-dark-2);line-height:1.55;margin-top:4px;white-space:pre-wrap;}
+.prem-row .btn-del{flex:none;opacity:.6;}
+#prem-popup{
+  position:fixed;inset:0;z-index:85;
+  background:rgba(8,9,11,0.85);
+  display:flex;align-items:center;justify-content:center;
+  padding:20px 14px;
+}
+#prem-popup .pp-box{
+  background:var(--antracite-2);
+  border:1px solid var(--bordo-scuro);
+  border-radius:var(--radius);
+  padding:16px;
+  width:100%;max-width:420px;
+  max-height:86vh;overflow-y:auto;
+  display:flex;flex-direction:column;gap:10px;
+}
+#prem-popup .pp-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+#prem-popup .pp-list{display:flex;flex-direction:column;}
+
 /* ---------- Volto del personaggio ---------- */
 .portrait-pad{display:flex;align-items:flex-start;gap:14px;}
 .portrait-frame{
