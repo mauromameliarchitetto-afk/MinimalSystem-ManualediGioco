@@ -537,7 +537,7 @@ input,select,textarea{font-family:var(--font-body);}
 /* ---------- Form fields generic ---------- */
 .field{display:flex;flex-direction:column;gap:6px;min-width:0;}
 .field label{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--testo-secondario-dark);}
-.field input[type=text],.field input[type=number],.field textarea,.field select{
+.field input[type=text],.field input[type=number],.field input[type=password],.field textarea,.field select{
   background:var(--antracite-1);
   border:1px solid var(--bordo-scuro);
   border-radius:var(--radius-sm);
