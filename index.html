@@ -32,9 +32,10 @@
     </button>
     <nav class="cover-menu hidden" id="cover-menu" aria-label="Indice">
       <div class="cm-label">Indice</div>
+      <button class="cm-item" data-menu-nav="rules">Le regole</button>
       <button class="cm-item" data-menu-nav="list">I tuoi personaggi</button>
       <button class="cm-item" data-menu-nav="new">Crea nuovo personaggio</button>
-      <button class="cm-item" data-menu-nav="master">Area Master</button>
+      <button class="cm-item" data-menu-nav="master">Area del Narratore</button>
       <div class="cm-sep"></div>
       <div class="cm-label">Scheda personaggio</div>
       <button class="cm-item" data-menu-tab="gioco">In gioco</button>
@@ -243,9 +244,12 @@
 
         <div class="section-title"><span class="dot neutral"></span>Storia</div>
         <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field"><label>Storia a cui partecipa</label><input type="text" id="f-storia" placeholder="Il nome della storia concordato col Master"></div>
-          <button class="btn btn-ghost btn-sm" id="btn-share-master" style="align-self:flex-start;">📋 Copia per il Master</button>
-          <p class="helper-text" style="margin:0;">Copia la scheda negli appunti (senza l'immagine del volto): incollala nella chat col Master, che la importerà nella sua Area Master. Ricopiala dopo ogni aggiornamento importante.</p>
+          <div class="field"><label>Storia a cui partecipa</label><input type="text" id="f-storia" placeholder="Il nome della storia concordato col Narratore"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" id="btn-share-master">📋 Copia per il Narratore</button>
+            <button class="btn btn-ghost btn-sm" id="btn-premesse">📜 Premesse della storia</button>
+          </div>
+          <p class="helper-text" style="margin:0;">Copia la scheda negli appunti (senza l'immagine del volto): incollala nella chat col Narratore, che la importerà nella sua Area. Ricopiala dopo ogni aggiornamento importante.</p>
         </div></div>
 
         <div class="section-title"><span class="dot"></span>Classe</div>
@@ -511,15 +515,25 @@
     </div>
   </section>
 
+  <!-- ============ LE REGOLE ============ -->
+  <section id="view-rules" class="view hidden">
+    <div class="topbar">
+      <button class="btn btn-icon btn-ghost" data-nav="cover" aria-label="Indietro">←</button>
+      <h1>Le regole</h1>
+      <span style="width:40px;"></span>
+    </div>
+    <div class="list-scroll" id="rules-body"></div>
+  </section>
+
   <!-- ============ AREA MASTER ============ -->
   <section id="view-master" class="view hidden">
     <div class="topbar">
       <button class="btn btn-icon btn-ghost" data-nav="cover" aria-label="Indietro">←</button>
-      <h1>Area Master</h1>
+      <h1>Area del Narratore</h1>
       <span style="width:40px;"></span>
     </div>
     <div class="list-scroll">
-      <p class="helper-text">Ogni storia raccoglie i personaggi che i giocatori ti inviano ed è protetta dalla sua password. I giocatori vedono solo i propri personaggi sul loro dispositivo.</p>
+      <p class="helper-text">Ogni storia raccoglie i personaggi che i giocatori ti inviano ed è protetta dalla sua password. I giocatori vedono solo i propri personaggi sul loro dispositivo. Qui puoi anche scrivere le premesse di gioco della storia e condividerle con un invito.</p>
       <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Le tue storie</div>
       <div id="story-list"></div>
       <div class="section-title" style="margin-top:14px;"><span class="dot"></span>Nuova storia</div>
@@ -541,9 +555,20 @@
     <div class="list-scroll">
       <div class="section-title"><span class="dot"></span>Importa personaggio</div>
       <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:10px;">
-        <div class="field"><textarea id="import-json" style="min-height:90px;font-family:var(--font-mono);font-size:11px;" placeholder="Incolla qui il testo che il giocatore ha copiato con «Copia per il Master»..."></textarea></div>
+        <div class="field"><textarea id="import-json" style="min-height:90px;font-family:var(--font-mono);font-size:11px;" placeholder="Incolla qui il testo che il giocatore ha copiato con «Copia per il Narratore»..."></textarea></div>
         <button class="btn btn-primary btn-sm" id="btn-import-char" style="align-self:flex-start;">Importa</button>
         <p class="helper-text" style="margin:0;">Se il personaggio è già presente viene aggiornato alla versione incollata.</p>
+      </div></div>
+      <div class="section-title" style="margin-top:14px;"><span class="dot neutral"></span>Premesse di gioco <span class="chip" style="margin-left:auto;" id="prem-count">0</span></div>
+      <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:10px;">
+        <p class="helper-text" style="margin:0;">Scrivi le premesse della storia; la spunta decide quali sono visibili ai giocatori. Poi «Copia invito»: i giocatori lo incollano nel popup Premesse della loro scheda.</p>
+        <div id="prem-list"></div>
+        <div class="field"><label>Titolo premessa</label><input type="text" id="prem-title" placeholder="es. Niente resurrezioni"></div>
+        <div class="field"><label>Testo</label><textarea id="prem-text" placeholder="La premessa, come la leggeranno i giocatori..."></textarea></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" id="prem-add">+ Aggiungi premessa</button>
+          <button class="btn btn-primary btn-sm" id="btn-share-premesse">📋 Copia invito premesse</button>
+        </div>
       </div></div>
       <div class="section-title" style="margin-top:14px;"><span class="dot neutral"></span>Personaggi <span class="chip" style="margin-left:auto;" id="story-count">0</span></div>
       <div id="story-chars"></div>
@@ -573,6 +598,19 @@
   </div>
 </div>
 
+<div id="prem-popup" class="hidden">
+  <div class="pp-box">
+    <div class="pp-head">
+      <div class="cc-title">Premesse di gioco</div>
+      <button class="btn btn-icon btn-ghost" id="prem-popup-close" aria-label="Chiudi">✕</button>
+    </div>
+    <p class="helper-text" id="prem-popup-story">—</p>
+    <div class="pp-list" id="prem-popup-list"></div>
+    <div class="field"><label>Invito del Narratore</label><textarea id="prem-import" style="min-height:60px;font-family:var(--font-mono);font-size:11px;" placeholder="Incolla qui l'invito ricevuto dal Narratore..."></textarea></div>
+    <button class="btn btn-ghost btn-sm" id="prem-import-btn" style="align-self:flex-start;">Importa invito</button>
+  </div>
+</div>
+
 <div id="portrait-lightbox" class="hidden">
   <button id="pl-close" aria-label="Chiudi">✕</button>
   <img id="pl-img" alt="Volto del personaggio">
@@ -581,6 +619,7 @@
 <div id="toast"></div>
 
 <script src="js/version.js"></script>
+<script src="js/rules.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 </body>

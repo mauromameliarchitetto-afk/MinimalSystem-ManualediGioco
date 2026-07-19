@@ -955,6 +955,7 @@ function wireStaticEvents() {
     const target = b.dataset.nav;
     if (target === 'list') renderCharList();
     if (target === 'master') renderMasterArea();
+    if (target === 'rules') renderRules();
     showView(target);
   }));
   $('#btn-char-menu').addEventListener('click', charMenu);
@@ -990,6 +991,7 @@ function wireStaticEvents() {
     const item = e.target.closest('.cm-item');
     if (!item) return;
     closeCoverMenu();
+    if (item.dataset.menuNav === 'rules') { renderRules(); showView('rules'); return; }
     if (item.dataset.menuNav === 'list') { renderCharList(); showView('list'); return; }
     if (item.dataset.menuNav === 'new') { createCharacterFlow(); return; }
     if (item.dataset.menuNav === 'master') { renderMasterArea(); showView('master'); return; }
@@ -1035,6 +1037,75 @@ function wireStaticEvents() {
     importCharacterFromText(text);
     $('#import-json').value = '';
   });
+  // ---- premesse di gioco (lato Narratore) ----
+  $('#prem-add').addEventListener('click', () => {
+    const s = getActiveStory(); if (!s) return;
+    const titolo = $('#prem-title').value.trim();
+    const testo = $('#prem-text').value.trim();
+    if (!titolo) { toast('Dai un titolo alla premessa'); return; }
+    if (!Array.isArray(s.premesse)) s.premesse = [];
+    s.premesse.push({ id: uid(), titolo, testo, attiva: true });
+    $('#prem-title').value = '';
+    $('#prem-text').value = '';
+    saveStories();
+    renderPremList();
+    toast('Premessa aggiunta');
+  });
+  $('#prem-list').addEventListener('change', e => {
+    const cb = e.target.closest('[data-premtoggle]');
+    if (!cb) return;
+    const s = getActiveStory(); if (!s) return;
+    const p = (s.premesse || []).find(x => x.id === cb.dataset.premtoggle);
+    if (p) { p.attiva = cb.checked; saveStories(); }
+  });
+  $('#prem-list').addEventListener('click', e => {
+    const del = e.target.closest('[data-premdel]');
+    if (!del) return;
+    const s = getActiveStory(); if (!s) return;
+    if (!confirm('Eliminare questa premessa?')) return;
+    s.premesse = (s.premesse || []).filter(x => x.id !== del.dataset.premdel);
+    saveStories();
+    renderPremList();
+  });
+  $('#btn-share-premesse').addEventListener('click', () => {
+    const s = getActiveStory(); if (!s) return;
+    const attive = (s.premesse || []).filter(p => p.attiva)
+      .map(p => ({ id: p.id, titolo: p.titolo, testo: p.testo }));
+    if (!attive.length) { toast('Nessuna premessa con la spunta attiva'); return; }
+    const text = JSON.stringify({ type: 'premesse', storia: s.nome, premesse: attive });
+    const done = () => toast('Invito copiato: incollalo nella chat coi giocatori');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  });
+
+  // ---- premesse di gioco (lato giocatore) ----
+  $('#btn-premesse').addEventListener('click', () => {
+    renderPremPopup();
+    $('#prem-popup').classList.remove('hidden');
+  });
+  $('#prem-popup-close').addEventListener('click', () => $('#prem-popup').classList.add('hidden'));
+  $('#prem-popup').addEventListener('click', e => {
+    if (e.target.id === 'prem-popup') $('#prem-popup').classList.add('hidden');
+  });
+  $('#prem-popup-list').addEventListener('change', e => {
+    const cb = e.target.closest('[data-premshow]');
+    if (!cb) return;
+    const c = getActive(); if (!c) return;
+    const storia = (c.storia || '').trim();
+    const map = loadPremesse();
+    const p = (map[storia] || []).find(x => x.id === cb.dataset.premshow);
+    if (p) { p.attiva = cb.checked; savePremesse(map); renderPremPopup(); }
+  });
+  $('#prem-import-btn').addEventListener('click', () => {
+    const text = $('#prem-import').value.trim();
+    if (!text) { toast('Incolla prima l\'invito del Narratore'); return; }
+    importPremesseInvito(text);
+    $('#prem-import').value = '';
+  });
+
   $('#story-chars').addEventListener('click', e => {
     const card = e.target.closest('[data-viewchar]');
     if (!card) return;
@@ -1092,7 +1163,7 @@ function wireStaticEvents() {
     const copy = JSON.parse(JSON.stringify(c));
     delete copy.portrait; // troppo pesante per la chat
     const text = JSON.stringify(copy);
-    const done = () => toast('Scheda copiata: incollala nella chat col Master');
+    const done = () => toast('Scheda copiata: incollala nella chat col Narratore');
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
     } else {
@@ -1377,14 +1448,29 @@ function wireStaticEvents() {
     renderDiagram(c);
     touchActive();
   });
-  // a modifica conclusa (blur), accredita gli AP dei livelli attraversati
+  // accredita gli AP dei livelli attraversati: subito al blur, e comunque
+  // poco dopo l'ultima cifra digitata (alcune tastiere mobili non emettono
+  // l'evento change in modo affidabile)
+  let livelloCreditTimer = null;
+  const scheduleLevelCredit = () => {
+    clearTimeout(livelloCreditTimer);
+    livelloCreditTimer = setTimeout(() => {
+      const c = getActive(); if (c) creditLevelAP(c);
+    }, 700);
+  };
+  $('#f-livello').addEventListener('input', scheduleLevelCredit);
   $('#f-livello').addEventListener('change', () => {
+    clearTimeout(livelloCreditTimer);
     const c = getActive(); if (!c) return;
     creditLevelAP(c);
+  });
+  $('#stat-diagram').addEventListener('input', e => {
+    if (e.target.closest('[data-dg="lv"]')) scheduleLevelCredit();
   });
   $('#stat-diagram').addEventListener('change', e => {
     const inp = e.target.closest('[data-dg="lv"]');
     if (!inp) return;
+    clearTimeout(livelloCreditTimer);
     const c = getActive(); if (!c) return;
     creditLevelAP(c);
   });
@@ -1759,6 +1845,96 @@ function checkForUpdate() {
     .catch(() => { /* offline o API non raggiungibile: nessun avviso */ });
 }
 
+/* ------------------------------------------------------------- Le regole */
+
+let rulesRendered = false;
+function renderRules() {
+  if (rulesRendered) return;
+  rulesRendered = true;
+  $('#rules-body').innerHTML =
+    `<p class="helper-text">Il Manuale di Gioco in forma testuale. Tocca un capitolo per aprirlo.</p>` +
+    RULES_SECTIONS.map((s, i) => `
+      <div class="rule-section" data-rule="${i}">
+        <button class="rule-title">${escapeHtml(s.t)} <span class="arrow">›</span></button>
+        <div class="rule-body">${escapeHtml(s.b)}</div>
+      </div>`).join('');
+  $('#rules-body').addEventListener('click', e => {
+    const t = e.target.closest('.rule-title');
+    if (!t) return;
+    t.closest('.rule-section').classList.toggle('open');
+  });
+}
+
+/* ------------------------------------------------------ premesse di gioco */
+
+const PREMESSE_KEY = 'ms_premesse_v1';
+
+function loadPremesse() {
+  try { return JSON.parse(localStorage.getItem(PREMESSE_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+function savePremesse(map) {
+  try { localStorage.setItem(PREMESSE_KEY, JSON.stringify(map)); }
+  catch (e) { toast('Salvataggio non riuscito'); }
+}
+
+/* Lato Narratore: elenco premesse della storia, con spunta = visibile ai giocatori */
+function renderPremList() {
+  const s = getActiveStory(); if (!s) return;
+  if (!Array.isArray(s.premesse)) s.premesse = [];
+  $('#prem-count').textContent = s.premesse.length;
+  $('#prem-list').innerHTML = s.premesse.length ? s.premesse.map(p => `
+    <div class="prem-row">
+      <input type="checkbox" data-premtoggle="${p.id}" ${p.attiva ? 'checked' : ''} title="Visibile ai giocatori">
+      <div class="pr-main">
+        <div class="pr-title">${escapeHtml(p.titolo)}</div>
+        <div class="pr-text">${escapeHtml(p.testo)}</div>
+      </div>
+      <button class="btn btn-icon btn-sm btn-ghost btn-del" data-premdel="${p.id}" title="Elimina">✕</button>
+    </div>`).join('')
+    : `<div class="helper-text">Nessuna premessa ancora.</div>`;
+}
+
+/* Lato giocatore: popup con le premesse importate per la storia del personaggio */
+function renderPremPopup() {
+  const c = getActive(); if (!c) return;
+  const storia = (c.storia || '').trim();
+  $('#prem-popup-story').textContent = storia
+    ? `Storia: ${storia}. Spunta una premessa per leggerla; l'elenco arriva dall'invito del Narratore.`
+    : 'Imposta prima il nome della storia nel campo qui sopra, poi incolla l\'invito del Narratore.';
+  const map = loadPremesse();
+  const list = map[storia] || [];
+  $('#prem-popup-list').innerHTML = list.length ? list.map(p => `
+    <div class="prem-row">
+      <input type="checkbox" data-premshow="${p.id}" ${p.attiva ? 'checked' : ''}>
+      <div class="pr-main">
+        <div class="pr-title">${escapeHtml(p.titolo)}</div>
+        ${p.attiva ? `<div class="pr-text">${escapeHtml(p.testo)}</div>` : ''}
+      </div>
+    </div>`).join('')
+    : `<div class="helper-text" style="padding:4px 0 8px;">Nessuna premessa per questa storia: incolla l'invito del Narratore qui sotto.</div>`;
+}
+
+function importPremesseInvito(text) {
+  const c = getActive(); if (!c) return;
+  let data;
+  try { data = JSON.parse(text); } catch (e) { toast('Invito non valido'); return; }
+  if (!data || data.type !== 'premesse' || !Array.isArray(data.premesse)) { toast('Questo testo non è un invito premesse'); return; }
+  const storia = (data.storia || c.storia || '').trim();
+  if (!storia) { toast('L\'invito non indica la storia'); return; }
+  if (!(c.storia || '').trim()) { c.storia = storia; $('#f-storia').value = storia; touchActive(); }
+  const map = loadPremesse();
+  const existing = map[storia] || [];
+  // sostituisce l'elenco mantenendo lo stato di lettura del giocatore
+  map[storia] = data.premesse.map(p => {
+    const prev = existing.find(x => x.id === p.id);
+    return { id: p.id, titolo: p.titolo || '', testo: p.testo || '', attiva: prev ? !!prev.attiva : false };
+  });
+  savePremesse(map);
+  renderPremPopup();
+  toast(`Premesse aggiornate (${map[storia].length}) per «${storia}»`);
+}
+
 /* --------------------------------------------------- Area Master e storie */
 
 function renderMasterArea() {
@@ -1787,6 +1963,7 @@ function renderStory() {
   const s = getActiveStory(); if (!s) return;
   $('#story-title').textContent = s.nome;
   $('#story-count').textContent = s.characters.length;
+  renderPremList();
   const wrap = $('#story-chars');
   if (!s.characters.length) {
     wrap.innerHTML = `<div class="empty-state">Nessun personaggio ancora.<br>Fatti inviare le schede dai giocatori e incollale qui sopra.</div>`;
