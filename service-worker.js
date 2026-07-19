@@ -1,4 +1,4 @@
-const CACHE_NAME = 'minimal-system-v25';
+const CACHE_NAME = 'minimal-system-v26';
 const APP_SHELL = [
   './',
   './index.html',
