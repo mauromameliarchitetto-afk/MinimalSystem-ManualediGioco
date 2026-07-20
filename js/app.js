@@ -502,7 +502,7 @@ function updatePrimaryRemaining(c) {
   const note = $('#primary-ap-note');
   note.classList.toggle('hidden', !c.buildConfirmed);
   if (c.buildConfirmed) {
-    note.textContent = `Classe confermata: FOR/MIRA/VEL/F.MEN/DEX/DIF/D.MEN ora crescono spendendo AP (disponibili: ${Number(c.apDisponibili) || 0}) — HP e MP restano gratuiti. "Punti rimanenti" resta solo indicativo del totale assegnato.`;
+    note.textContent = `Classe confermata: ogni attributo (HP, MP inclusi) ora cresce spendendo AP secondo i costi ufficiali di crescita (AP disponibili: ${Number(c.apDisponibili) || 0}). "Punti rimanenti" resta solo indicativo del totale assegnato in fase di creazione.`;
   }
 }
 
@@ -797,19 +797,21 @@ function creditLevelAP(c) {
   touchActive();
 }
 
-/* Cambia un attributo primario. Dopo la conferma della classe gli attributi
-   (esclusi HP/MP base) si comprano con gli AP secondo i costi di crescita:
-   la spesa è automatica, la riduzione rimborsa, e senza AP il cambio è
+/* Cambia un attributo primario. Dopo la conferma della classe ogni attributo
+   si compra con gli AP secondo i costi di crescita ufficiali (HP e MP hanno
+   le loro tabelle dedicate, gli altri attributi la tabella generica): la
+   spesa è automatica, la riduzione rimborsa, e senza AP il cambio è
    bloccato. Restituisce il valore applicato o null se bloccato. */
 function changePrimary(c, key, newVal) {
   const oldVal = Number(c.primary[key]) || 0;
   newVal = Math.floor(Number(newVal));
   if (isNaN(newVal) || newVal < PRIMARY_MIN) newVal = PRIMARY_MIN;
   if (newVal === oldVal) return newVal;
-  if (c.buildConfirmed && key !== 'hp' && key !== 'mp') {
+  if (c.buildConfirmed) {
+    const costFn = key === 'hp' ? hpApCostForPoint : key === 'mp' ? mpApCostForPoint : primaryApCostForPoint;
     let cost = 0;
-    if (newVal > oldVal) { for (let n = oldVal + 1; n <= newVal; n++) cost += primaryApCostForPoint(n); }
-    else { for (let n = oldVal; n > newVal; n--) cost -= primaryApCostForPoint(n); }
+    if (newVal > oldVal) { for (let n = oldVal + 1; n <= newVal; n++) cost += costFn(n); }
+    else { for (let n = oldVal; n > newVal; n--) cost -= costFn(n); }
     const disponibili = Number(c.apDisponibili) || 0;
     if (cost > 0 && cost > disponibili) {
       toast(`AP insufficienti: servono ${cost} AP (disponibili ${disponibili})`);
