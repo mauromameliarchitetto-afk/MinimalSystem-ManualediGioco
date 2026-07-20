@@ -173,15 +173,15 @@ function touchActive() {
 /* Retro scheda: solo locazioni di armatura (le armi sono sul fronte) */
 function defaultSlots() {
   return ['Capo', 'Busto', 'Braccio Sx', 'Braccio Dx', 'Gamba Sx', 'Gamba Dx']
-    .map(name => ({ name, kind: 'armatura', size: '', quality: '', atk: 0, dif: 0, bonus: 0, dur: 0 }));
+    .map(name => ({ name, kind: 'armatura', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 }));
 }
 /* Fronte scheda: 1 scudo + 3 armi */
 function defaultWeaponSlots() {
   return [
-    { name: 'Scudo', kind: 'scudo', size: '', quality: '', atk: 0, dif: 0, bonus: 0, dur: 0 },
-    { name: 'Arma 1', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: 0, dur: 0 },
-    { name: 'Arma 2', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: 0, dur: 0 },
-    { name: 'Arma 3', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: 0, dur: 0 }
+    { name: 'Scudo', kind: 'scudo', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 },
+    { name: 'Arma 1', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 },
+    { name: 'Arma 2', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 },
+    { name: 'Arma 3', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 }
   ];
 }
 /* Se taglia/qualità sono entrambe scelte, riporta atk/dif/dur nel range
@@ -964,8 +964,11 @@ function equipCardHtml(s, i, namePlaceholder) {
       <div class="slot-fields">
         ${rangeField('Atk', 'atk')}
         ${rangeField('Dif', 'dif')}
-        <div class="sf"><label>Bonus</label><input type="number" value="${s.bonus}" data-slotfield="bonus" data-idx="${i}"></div>
         ${rangeField('Durabilità', 'dur')}
+      </div>
+      <div class="field slot-bonus">
+        <label>Bonus</label>
+        <input type="text" value="${escapeHtml(s.bonus || '')}" data-slotfield="bonus" data-idx="${i}" placeholder="es. +2 a Tagliare · +1d6 a Forza">
       </div>
     </div>`;
 }
@@ -2045,7 +2048,8 @@ function wireEquipGrid(sel, getSlots, doRender) {
       touchActive();
     } else if (fieldInput) {
       const idx = Number(fieldInput.dataset.idx), field = fieldInput.dataset.slotfield;
-      slots[idx][field] = Number(fieldInput.value) || 0;
+      // il Bonus è testo libero (es. "+2 a Tagliare"), gli altri campi sono i cursori numerici
+      slots[idx][field] = field === 'bonus' ? fieldInput.value : (Number(fieldInput.value) || 0);
       const out = fieldInput.parentElement.querySelector('.sf-val');
       if (out) out.textContent = slots[idx][field];
       touchActive();
@@ -2651,7 +2655,7 @@ function renderCharView(c) {
     const sz = t && t.sizes.find(sz2 => sz2.key === s2.size);
     const q = EQUIP_QUALITIES.find(q2 => q2.key === s2.quality);
     const desc = [t && t.label, sz && sz.label, q && q.label].filter(Boolean).join(' · ') || '—';
-    return `<tr><td class="field">${escapeHtml(s2.name)}</td><td>${escapeHtml(desc)}</td><td class="num">${s2.atk}/${s2.dif}/${s2.bonus}/${s2.dur}</td></tr>`;
+    return `<tr><td class="field">${escapeHtml(s2.name)}</td><td>${escapeHtml(desc)}</td><td class="num">${s2.atk}/${s2.dif}/${s2.dur}</td><td>${escapeHtml(s2.bonus || '—')}</td></tr>`;
   };
   const slots = (c.slots || []).filter(s2 => s2.size || s2.atk || s2.dif || s2.bonus || s2.dur).map(equipRow).join('');
   const weaponSlots = (c.weaponSlots || []).filter(s2 => s2.size || s2.atk || s2.dif || s2.bonus || s2.dur).map(equipRow).join('');
@@ -2690,8 +2694,8 @@ function renderCharView(c) {
     ${section('Caratteristiche primarie', table(primarie))}
     ${section('Terziarie', table(terziarie))}
     ${section('Tratti', tratti ? table(tratti) : '')}
-    ${section('Armatura (Locazione · Atk/Dif/Bonus/Durabilità)', slots ? table(slots) : '')}
-    ${section('Scudo e armi (Atk/Dif/Bonus/Durabilità)', weaponSlots ? table(weaponSlots) : '')}
+    ${section('Armatura (Locazione · Atk/Dif/Durabilità · Bonus)', slots ? table(slots) : '')}
+    ${section('Scudo e armi (Atk/Dif/Durabilità · Bonus)', weaponSlots ? table(weaponSlots) : '')}
     ${section('Tecniche (Nome · Bonus · Malus · Durata · Utilizzi · Lv)', tecniche ? table(tecniche) : '')}
     ${section('Abilità (Nome · Bonus · Costo · Durata · Utilizzi · Lv)', abilita ? table(abilita) : '')}
     ${section('Boost (Bonus · Range · PP · Costo · Limite · Lv)', boosts ? table(boosts) : '')}
