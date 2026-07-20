@@ -853,9 +853,9 @@ function renderTertiaryCostTable() {
    Posizionati sul bordo dell'anello evitando testo ed etichette e le linee
    di collegamento. */
 const DIAGRAM_PM_SPEC = [
-  { key: 'carisma', label: 'Carisma', px: 120, py: 227,    mx: 120, my: 283 },
-  { key: 'stile',   label: 'Stile',   px: 200, py: 227,    mx: 200, my: 283 },
-  { key: 'fortuna', label: 'Fortuna', px: 160, py: 314,    mx: 160, my: 341 }
+  { key: 'carisma', label: 'Carisma', px: 111.45, py: 278.49, mx: 128.55, my: 278.49 },
+  { key: 'stile',   label: 'Stile',   px: 208.55, py: 278.49, mx: 191.45, my: 278.49 },
+  { key: 'fortuna', label: 'Fortuna', px: 151.45, py: 318.49, mx: 168.55, my: 318.49 }
 ];
 
 function renderTertiaryPlusMinus(c) {

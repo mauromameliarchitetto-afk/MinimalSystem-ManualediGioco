@@ -600,18 +600,18 @@ body.pdf-lock-scroll{overflow:hidden;}
 .dg-pm-btn{
   position:absolute;
   transform:translate(-50%,-50%);
-  width:18px;height:18px;border-radius:50%;
+  width:14px;height:14px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  font-family:var(--font-title);font-weight:700;font-size:12px;line-height:1;
-  border:1.5px solid var(--bianco-artico);
+  font-family:var(--font-title);font-weight:700;font-size:10px;line-height:1;
+  border:1.2px solid var(--bianco-artico);
   background:var(--antracite-2);color:var(--bianco-artico);
   pointer-events:auto;cursor:pointer;padding:0;
-  box-shadow:0 0 0 2px var(--antracite-1);
+  box-shadow:0 0 0 1.5px var(--antracite-1);
 }
 .dg-pm-btn:active{transform:translate(-50%,-50%) scale(.9);}
 .dg-pm-plus{background:var(--fisico);border-color:var(--fisico);color:var(--antracite-1);}
 .dg-pm-minus{background:var(--antracite-2);border-color:var(--testo-secondario-dark);}
-@media (max-width:379px){.dg-pm-btn{width:16px;height:16px;font-size:11px;}}
+@media (max-width:379px){.dg-pm-btn{width:13px;height:13px;font-size:9px;}}
 
 /* ---------- Point buy ---------- */
 .pointbuy-header{
