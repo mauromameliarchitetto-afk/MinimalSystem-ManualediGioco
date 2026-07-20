@@ -837,4 +837,35 @@ table.edit-table thead th{white-space:nowrap;}
 @media (min-width:600px){
   .sheet-body{padding-left:32px;padding-right:32px;}
   .slot-fields{grid-template-columns:repeat(4,1fr);}
+
+  /* Sul web/desktop l'app resta alle dimensioni di un telefono, centrata
+     nella finestra: copertina compresa, non si ridimensiona più insieme
+     alla finestra del browser. Sotto i ~915px di altezza della finestra
+     si riduce comunque un po' (max-height), altrimenti resterebbe tagliata
+     fuori dallo schermo senza modo di raggiungerne le parti nascoste. */
+  html,body{height:100%;}
+  body{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#0a0b0d;
+  }
+  #app{
+    position:relative;
+    width:430px;
+    height:860px;
+    max-height:94vh;
+    min-height:0;
+    border-radius:26px;
+    overflow:hidden;
+    box-shadow:0 24px 70px rgba(0,0,0,.55),0 0 0 1px var(--bordo-scuro);
+  }
+  #app .view{
+    min-height:0;
+  }
+  /* i popup a schermo intero (e il toast) restano dentro la "cornice" del
+     telefono invece di coprire tutta la finestra del browser */
+  #class-confirm,#prem-popup,#portrait-lightbox,#pdf-viewer,#toast{
+    position:absolute;
+  }
 }

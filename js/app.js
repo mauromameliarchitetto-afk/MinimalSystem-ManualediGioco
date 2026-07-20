@@ -2184,8 +2184,15 @@ async function publishStoryOnline(s) {
     id: s.id, nome: s.nome, titolo: s.premessa.titolo || s.nome,
     filename: s.premessa.filename || 'premessa.pdf', size: s.premessa.size || 0, updatedAt: Date.now()
   };
-  const next = index.filter(x => x.id !== s.id).concat([entry]);
+  // rimuove sia eventuali voci con lo stesso id, sia quelle con lo stesso
+  // nome storia (case/spazi a parte): pubblicare la "stessa" storia da un
+  // altro dispositivo genera un id locale diverso, e senza questo secondo
+  // controllo finivano due voci per una sola storia
+  const norm = n => String(n || '').trim().toLowerCase();
+  const stalePdfIds = index.filter(x => x.id !== s.id && norm(x.nome) === norm(s.nome)).map(x => x.id);
+  const next = index.filter(x => x.id !== s.id && norm(x.nome) !== norm(s.nome)).concat([entry]);
   await ghPutFile('stories/index.json', b64FromJson(next), 'Aggiorna elenco storie pubblicate');
+  await Promise.all(stalePdfIds.map(id => ghDeleteFile(`stories/${id}.pdf`, `Rimuove PDF duplicato: ${s.nome}`).catch(() => {})));
   invalidateStoriesIndexCache();
 }
 /* Rimuove la storia dalla pubblicazione online (non tocca il PDF locale) */
@@ -2279,12 +2286,27 @@ function savePremesse(map) {
 async function renderStoriaSelect(c) {
   const sel = $('#f-storia-select');
   if (!sel) return;
-  const index = await getStoriesIndex();
+  const rawIndex = await getStoriesIndex();
   // il personaggio potrebbe essere cambiato mentre la richiesta era in corso
   if (getActive() !== c) return;
+  const index = dedupeStoriesByName(rawIndex);
   sel.innerHTML = `<option value="">— scegli dall'elenco, oppure scrivi il nome sotto —</option>` +
     index.map(entry => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.nome)}</option>`).join('');
   sel.value = (c.storiaId && index.some(x => x.id === c.storiaId)) ? c.storiaId : '';
+}
+/* Filtro difensivo: se per qualunque motivo l'indice online contenesse più
+   voci per la stessa storia (es. pubblicata da due dispositivi diversi
+   prima che publishStoryOnline() le unificasse), il menù ne mostra una
+   sola — la più recente. */
+function dedupeStoriesByName(index) {
+  const norm = n => String(n || '').trim().toLowerCase();
+  const byName = new Map();
+  index.forEach(entry => {
+    const key = norm(entry.nome);
+    const prev = byName.get(key);
+    if (!prev || (entry.updatedAt || 0) > (prev.updatedAt || 0)) byName.set(key, entry);
+  });
+  return [...byName.values()];
 }
 
 /* Lato giocatore: popup con la premessa della storia del personaggio.
