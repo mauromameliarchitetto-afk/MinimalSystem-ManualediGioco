@@ -798,19 +798,30 @@ table.edit-table thead th{white-space:nowrap;}
   color:var(--testo-primario-dark);font-family:var(--font-title);font-weight:600;
   font-size:13px;padding:2px 0 6px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em;
 }
-.slot-card .slot-item{margin-bottom:8px;}
-.slot-card .slot-item input{
-  width:100%;min-width:0;background:var(--antracite-1);border:1px solid var(--bordo-scuro);
-  border-radius:5px;color:var(--testo-primario-dark);font-size:13px;padding:7px 10px;
+.slot-picker{margin-bottom:8px;}
+.slot-picker .sp-label{
+  display:block;font-size:8.5px;text-transform:uppercase;color:var(--testo-secondario-dark);
+  letter-spacing:.04em;margin-bottom:4px;
 }
+.slot-picker .sp-row{display:flex;flex-wrap:wrap;gap:6px;}
+.slot-picker .sp-row .btn-sm{flex:1;min-width:64px;padding:7px 8px;}
 .slot-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
 .slot-fields .sf{display:flex;flex-direction:column;gap:3px;}
 .slot-fields label{font-size:8.5px;text-transform:uppercase;color:var(--testo-secondario-dark);letter-spacing:.04em;}
+.slot-fields label .sf-range{text-transform:none;letter-spacing:0;font-family:var(--font-mono);}
 .slot-fields .sf{min-width:0;}
 .slot-fields input{
   background:var(--antracite-1);border:1px solid var(--bordo-scuro);border-radius:5px;
   color:var(--testo-primario-dark);font-family:var(--font-mono);text-align:center;padding:6px 2px;font-size:13px;
   width:100%;min-width:0;
+}
+.slot-fields input[type=range]{
+  background:transparent;border:none;padding:2px 0;height:22px;accent-color:var(--fisico-forte);
+}
+.slot-fields input[type=range]:disabled{opacity:.35;}
+.slot-fields .sf-val{
+  display:block;text-align:center;font-family:var(--font-mono);font-size:12px;
+  color:var(--testo-primario-dark);
 }
 
 /* ---------- Boost table ---------- */
