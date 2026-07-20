@@ -848,6 +848,16 @@ function renderTertiaryCostTable() {
   $('#tertiary-cost-table').innerHTML = Object.entries(TERTIARY_AP_TABLE)
     .map(([val, ap]) => `<tr><td class="num">${val}</td><td class="num">${ap}</td></tr>`).join('');
 }
+/* Bottoni +/- circolari sovrapposti al diagramma, vicino agli anelli di
+   Carisma, Stile e Fortuna (coordinate viewBox 320x430, come DIAGRAM_SPEC).
+   Posizionati sul bordo dell'anello evitando testo ed etichette e le linee
+   di collegamento. */
+const DIAGRAM_PM_SPEC = [
+  { key: 'carisma', label: 'Carisma', px: 120, py: 227,    mx: 120, my: 283 },
+  { key: 'stile',   label: 'Stile',   px: 200, py: 227,    mx: 200, my: 283 },
+  { key: 'fortuna', label: 'Fortuna', px: 160, py: 314,    mx: 160, my: 341 }
+];
+
 function renderTertiaryPlusMinus(c) {
   const html = TERTIARY_STATS.map(s => {
     const pm = c.tertiaryPM[s.key];
@@ -859,7 +869,14 @@ function renderTertiaryPlusMinus(c) {
       </span>
     </div>`;
   }).join('');
-  $$('.tertiary-pm-wrap').forEach(wrap => { wrap.innerHTML = html; });
+  const diagramHtml = DIAGRAM_PM_SPEC.map(f => {
+    const pm = c.tertiaryPM[f.key];
+    return `<button class="dg-pm-btn dg-pm-minus" data-pm="${f.key}" data-pmtype="minus" style="left:${(f.mx / 320 * 100).toFixed(2)}%;top:${(f.my / 430 * 100).toFixed(2)}%;" aria-label="${f.label}: esito negativo (${pm.minus}/3)" title="${f.label} −">−</button>
+      <button class="dg-pm-btn dg-pm-plus" data-pm="${f.key}" data-pmtype="plus" style="left:${(f.px / 320 * 100).toFixed(2)}%;top:${(f.py / 430 * 100).toFixed(2)}%;" aria-label="${f.label}: esito positivo (${pm.plus}/3)" title="${f.label} +">+</button>`;
+  }).join('');
+  $$('.tertiary-pm-wrap').forEach(wrap => {
+    wrap.innerHTML = wrap.dataset.pmStyle === 'diagram' ? diagramHtml : html;
+  });
 }
 function updateGrowthCost() {
   const c = getActive(); if (!c) return;
@@ -1783,6 +1800,7 @@ function wireStaticEvents() {
       }
     }
     renderTertiaryPlusMinus(c);
+    renderDiagram(c);
     touchActive();
   }));
 
