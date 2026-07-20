@@ -275,6 +275,55 @@ function defaultBg() {
   return o;
 }
 
+/* Riduce un gruppo di valori (primarie, terziarie o tratti) fino a rientrare
+   nel pool consentito, partendo dai valori più alti e scendendo di 1 alla
+   volta senza mai andare sotto il minimo di ciascuno. Serve a riparare le
+   schede salvate prima dell'introduzione del tetto sui punti di creazione,
+   quando lo sforamento era ancora possibile. */
+function clampPointBuyToPool(entries, pool) {
+  let sum = entries.reduce((s, e) => s + e.get(), 0);
+  if (sum <= pool) return;
+  const order = [...entries].sort((a, b) => b.get() - a.get());
+  let guard = 0;
+  while (sum > pool && order.length && guard < order.length * 10000) {
+    const e = order[guard % order.length];
+    if (e.get() > e.min) { e.set(e.get() - 1); sum--; }
+    guard++;
+  }
+}
+/* Applica la riparazione ai tre pool di creazione. Primarie e terziarie
+   vengono corrette solo al Lv1: dal Lv2 lo stesso valore alto può derivare
+   da una spesa AP legittima e non va toccato. I tratti invece si correggono
+   a qualsiasi livello, perché il loro pool include già i bonus maturati. */
+function repairPointBuyOverflow(c) {
+  if (Number(c.livello) <= 1) {
+    clampPointBuyToPool(PRIMARY_STATS.map(s => ({
+      get: () => Number(c.primary[s.key]) || 0,
+      set: v => { c.primary[s.key] = v; },
+      min: PRIMARY_MIN
+    })), PRIMARY_POOL);
+    clampPointBuyToPool(TERTIARY_STATS.map(s => ({
+      get: () => Number(c.tertiary[s.key]) || 0,
+      set: v => { c.tertiary[s.key] = v; },
+      min: TERTIARY_MIN
+    })), TERTIARY_POOL);
+  }
+  const traitEntries = [];
+  Object.keys(TRAIT_LISTS).forEach(k => {
+    TRAIT_LISTS[k].forEach(name => traitEntries.push({
+      get: () => Number(c.traits[k][name]) || 0,
+      set: v => { c.traits[k][name] = v; },
+      min: 0
+    }));
+    (c.customTraits[k] || []).forEach((t, i) => traitEntries.push({
+      get: () => Number(c.customTraits[k][i].value) || 0,
+      set: v => { c.customTraits[k][i].value = v; },
+      min: 0
+    }));
+  });
+  clampPointBuyToPool(traitEntries, traitsPool(c));
+}
+
 /* Colma eventuali campi mancanti se il personaggio arriva da una versione precedente dell'app */
 function ensureShape(c) {
   const d = newCharacter();
@@ -324,6 +373,7 @@ function ensureShape(c) {
     if (slotRenames[s.name]) s.name = slotRenames[s.name];
     if (s.item === undefined) s.item = '';
   });
+  repairPointBuyOverflow(c);
   return c;
 }
 
