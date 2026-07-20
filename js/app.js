@@ -9,6 +9,21 @@ const STORAGE_KEY = 'ms_characters_v1';
 const ACTIVE_KEY  = 'ms_active_id_v1';
 const STORIES_KEY = 'ms_stories_v1';
 
+/* Pubblicazione online delle premesse (storie scoperte in automatico dai
+   giocatori): usa il repository GitHub del progetto come "server leggero",
+   tramite la Contents API su un ramo dedicato che non tocca main e non fa
+   scattare build. Il Narratore incolla un token una sola volta (resta solo
+   sul suo dispositivo); i giocatori leggono senza alcun token, perché il
+   repository è pubblico. */
+const GH_OWNER = 'mauromameliarchitetto-afk';
+const GH_REPO = 'MinimalSystem-ManualediGioco';
+const GH_BRANCH = 'stories-data';
+const GH_API = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}`;
+const GH_TOKEN_KEY = 'ms_gh_token_v1';
+const STORIES_CACHE_KEY = 'ms_stories_index_cache_v1';
+const STORIES_CACHE_TTL = 5 * 60 * 1000;
+const PREMESSA_MAX_BYTES = 30 * 1024 * 1024;
+
 let characters = [];
 let activeId = null;
 let stories = [];
@@ -128,6 +143,7 @@ function newCharacter(nome) {
     eta: '',
     ruolo: '',
     storia: '',
+    storiaId: null,
     build: 'guerriero',
     buildConfirmed: false,
     eclecticoHpMult: 7,
@@ -917,6 +933,7 @@ function renderSheet() {
   $('#f-eta').value = c.eta;
   $('#f-ruolo').value = c.ruolo;
   $('#f-storia').value = c.storia;
+  renderStoriaSelect(c);
   $('#f-bellezza-manuale').value = c.bellezzaManuale !== null ? c.bellezzaManuale : '';
   $('#bellezza-result').textContent = c.bellezzaTirata !== null ? c.bellezzaTirata : '—';
   renderPrimaryStats(c);
@@ -1080,6 +1097,10 @@ function wireStaticEvents() {
     const s = getActiveStory(); if (!s) return;
     const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
     if (!isPdf) { toast('Seleziona un file PDF'); return; }
+    if (file.size > PREMESSA_MAX_BYTES) {
+      toast(`PDF troppo grande (${(file.size / (1024 * 1024)).toFixed(1)} MB): il limite è 30 MB`);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       s.premessa = {
@@ -1092,10 +1113,7 @@ function wireStaticEvents() {
       };
       saveStories();
       renderPremisesStory();
-      const mb = file.size / (1024 * 1024);
-      toast(mb > 4
-        ? `PDF caricato (${mb.toFixed(1)} MB): su alcuni telefoni un file così grande può avere problemi a essere copiato come invito`
-        : 'PDF caricato');
+      toast('PDF caricato');
     };
     reader.onerror = () => toast('Impossibile leggere il file');
     reader.readAsDataURL(file);
@@ -1106,16 +1124,45 @@ function wireStaticEvents() {
   });
   $('#premises-remove-btn').addEventListener('click', () => {
     const s = getActiveStory(); if (!s) return;
-    if (!confirm('Rimuovere il PDF caricato?')) return;
+    if (!confirm('Rimuovere il PDF caricato? Se era pubblicata, viene rimossa anche online.')) return;
+    const wasPublished = s.premessa && s.premessa.pubblicata;
     s.premessa = null;
     saveStories();
     renderPremisesStory();
+    if (wasPublished) unpublishStoryOnline(s).catch(() => {});
   });
-  $('#premises-publish-toggle').addEventListener('change', e => {
+  $('#premises-gh-token-save').addEventListener('click', () => {
+    const val = $('#premises-gh-token').value.trim();
+    setGhToken(val);
+    $('#premises-gh-token').value = '';
+    toast(val ? 'Token salvato su questo dispositivo' : 'Token rimosso');
+    renderPremisesStory();
+  });
+  $('#premises-publish-toggle').addEventListener('change', async e => {
     const s = getActiveStory(); if (!s || !s.premessa) return;
-    s.premessa.pubblicata = e.target.checked;
-    saveStories();
-    toast(s.premessa.pubblicata ? 'Premessa pubblicata' : 'Premessa nascosta ai giocatori');
+    const checked = e.target.checked;
+    const statusEl = $('#premises-online-status');
+    e.target.disabled = true;
+    try {
+      if (checked) {
+        statusEl.textContent = 'Pubblicazione in corso…';
+        await publishStoryOnline(s);
+        s.premessa.pubblicata = true;
+        toast('Premessa pubblicata: ora è visibile ai giocatori');
+      } else {
+        statusEl.textContent = 'Rimozione dalla pubblicazione…';
+        await unpublishStoryOnline(s);
+        s.premessa.pubblicata = false;
+        toast('Premessa non più pubblicata');
+      }
+    } catch (err) {
+      e.target.checked = !checked; // annulla la spunta se l'operazione fallisce
+      toast('Errore: ' + (err && err.message ? err.message : 'operazione non riuscita'));
+    } finally {
+      e.target.disabled = false;
+      saveStories();
+      renderPremisesStory();
+    }
   });
   $('#btn-share-premesse-pdf').addEventListener('click', () => {
     const s = getActiveStory(); if (!s) return;
@@ -1147,10 +1194,26 @@ function wireStaticEvents() {
   $('#prem-popup').addEventListener('click', e => {
     if (e.target.id === 'prem-popup') $('#prem-popup').classList.add('hidden');
   });
-  $('#prem-popup-list').addEventListener('click', e => {
-    if (!e.target.closest('#prem-popup-open')) return;
+  $('#prem-popup-list').addEventListener('click', async e => {
     const c = getActive(); if (!c) return;
     const storia = (c.storia || '').trim();
+    const onlineBtn = e.target.closest('#prem-popup-open-online');
+    if (onlineBtn) {
+      const original = onlineBtn.textContent;
+      onlineBtn.disabled = true;
+      onlineBtn.textContent = 'Scaricamento…';
+      const bytes = await fetchStoryPdfBytes(onlineBtn.dataset.storyid);
+      onlineBtn.disabled = false;
+      onlineBtn.textContent = original;
+      if (!bytes) { toast('Impossibile scaricare il PDF: verifica la connessione'); return; }
+      if (window.MSPdfViewer) {
+        const index = await getStoriesIndex();
+        const entry = index.find(x => x.id === onlineBtn.dataset.storyid);
+        window.MSPdfViewer.open({ bytes, title: (entry && entry.titolo) || 'Premessa', label: (c.nome || 'Giocatore') + ' · ' + storia });
+      }
+      return;
+    }
+    if (!e.target.closest('#prem-popup-open')) return;
     const p = loadPremesse()[storia];
     if (p && p.dataUrl && window.MSPdfViewer) {
       window.MSPdfViewer.open({ dataUrl: p.dataUrl, title: p.titolo || 'Premessa', label: (c.nome || 'Giocatore') + ' · ' + storia });
@@ -1214,7 +1277,32 @@ function wireStaticEvents() {
   $('#f-razza').addEventListener('input', () => setField('razza', $('#f-razza').value));
   $('#f-eta').addEventListener('input', () => setField('eta', $('#f-eta').value));
   $('#f-ruolo').addEventListener('input', () => setField('ruolo', $('#f-ruolo').value));
-  $('#f-storia').addEventListener('input', () => setField('storia', $('#f-storia').value));
+  $('#f-storia').addEventListener('input', () => {
+    const c = getActive(); if (!c) return;
+    c.storia = $('#f-storia').value;
+    // se il nome digitato non coincide più con la storia scelta dal menù, scollega l'id
+    if (c.storiaId) {
+      const opt = $('#f-storia-select').selectedOptions[0];
+      if (!opt || opt.textContent !== c.storia) c.storiaId = null;
+    }
+    touchActive();
+  });
+  $('#f-storia-select').addEventListener('change', () => {
+    const c = getActive(); if (!c) return;
+    const sel = $('#f-storia-select');
+    const opt = sel.selectedOptions[0];
+    if (!opt || !opt.value) { c.storiaId = null; touchActive(); return; }
+    c.storiaId = opt.value;
+    c.storia = opt.textContent;
+    $('#f-storia').value = c.storia;
+    touchActive();
+  });
+  $('#btn-refresh-stories').addEventListener('click', async () => {
+    const c = getActive(); if (!c) return;
+    const index = await getStoriesIndex(true);
+    await renderStoriaSelect(c);
+    toast(index.length ? `${index.length} stori${index.length === 1 ? 'a' : 'e'} pubblicat${index.length === 1 ? 'a' : 'e'}` : 'Nessuna storia pubblicata al momento');
+  });
   $('#btn-share-master').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
     const copy = JSON.parse(JSON.stringify(c));
@@ -1874,6 +1962,136 @@ window.MSSetScreenshotBlock = function (on) {
   (on ? p.enable() : p.disable()).catch(() => {});
 };
 
+/* ---------------------------------------------- pubblicazione online (GitHub) */
+
+function ghToken() { return localStorage.getItem(GH_TOKEN_KEY) || ''; }
+function setGhToken(t) {
+  if (t) localStorage.setItem(GH_TOKEN_KEY, t);
+  else localStorage.removeItem(GH_TOKEN_KEY);
+}
+function b64FromDataUrl(dataUrl) { return dataUrl.slice(dataUrl.indexOf(',') + 1); }
+function b64FromJson(obj) { return btoa(unescape(encodeURIComponent(JSON.stringify(obj, null, 1)))); }
+function jsonFromB64(b64) { return JSON.parse(decodeURIComponent(escape(atob(b64.replace(/\n/g, ''))))); }
+
+/* Chiamate autenticate (solo lato Narratore, richiedono il token) */
+async function ghRequest(path, opts) {
+  opts = opts || {};
+  const token = ghToken();
+  const headers = Object.assign({ 'Accept': 'application/vnd.github+json' }, opts.headers || {});
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return fetch(GH_API + path, Object.assign({}, opts, { headers }));
+}
+async function ghErrorMessage(res) {
+  try { const j = await res.json(); return j.message || `Errore GitHub (${res.status})`; }
+  catch (e) { return `Errore GitHub (${res.status})`; }
+}
+async function ghEnsureBranch() {
+  const check = await ghRequest(`/git/ref/heads/${GH_BRANCH}`);
+  if (check.ok) return true;
+  const mainRef = await ghRequest('/git/ref/heads/main');
+  if (!mainRef.ok) throw new Error('Impossibile leggere il ramo principale del repository');
+  const mainData = await mainRef.json();
+  const create = await ghRequest('/git/refs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ref: `refs/heads/${GH_BRANCH}`, sha: mainData.object.sha })
+  });
+  if (create.ok || create.status === 422) return true; // 422: il ramo esiste già
+  throw new Error(await ghErrorMessage(create));
+}
+async function ghGetFileSha(path) {
+  const res = await ghRequest(`/contents/${path}?ref=${GH_BRANCH}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.sha || null;
+}
+async function ghPutFile(path, base64Content, message) {
+  const sha = await ghGetFileSha(path);
+  const body = { message, content: base64Content, branch: GH_BRANCH };
+  if (sha) body.sha = sha;
+  const res = await ghRequest(`/contents/${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error(await ghErrorMessage(res));
+  return res.json();
+}
+async function ghDeleteFile(path, message) {
+  const sha = await ghGetFileSha(path);
+  if (!sha) return true;
+  const res = await ghRequest(`/contents/${path}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, sha, branch: GH_BRANCH })
+  });
+  return res.ok;
+}
+
+/* Lettura pubblica (lato giocatore): nessun token, il repository è pubblico */
+function loadStoriesIndexCache() {
+  try { return JSON.parse(localStorage.getItem(STORIES_CACHE_KEY)) || null; } catch (e) { return null; }
+}
+function saveStoriesIndexCache(data) {
+  try { localStorage.setItem(STORIES_CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), data })); } catch (e) {}
+}
+function invalidateStoriesIndexCache() {
+  try { localStorage.removeItem(STORIES_CACHE_KEY); } catch (e) {}
+}
+async function fetchStoriesIndexRemote() {
+  try {
+    const res = await fetch(`${GH_API}/contents/stories/index.json?ref=${GH_BRANCH}`, {
+      headers: { 'Accept': 'application/vnd.github+json' }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return jsonFromB64(data.content);
+  } catch (e) { return null; }
+}
+/* Elenco storie pubblicate, con cache locale (5 min) per non consumare
+   il limite di richieste anonime dell'API GitHub. force=true ignora la cache. */
+async function getStoriesIndex(force) {
+  const cache = loadStoriesIndexCache();
+  if (!force && cache && (Date.now() - cache.fetchedAt) < STORIES_CACHE_TTL) return cache.data;
+  const remote = await fetchStoriesIndexRemote();
+  if (remote) { saveStoriesIndexCache(remote); return remote; }
+  return (cache && cache.data) || [];
+}
+async function fetchStoryPdfBytes(id) {
+  const res = await fetch(`${GH_API}/contents/stories/${id}.pdf?ref=${GH_BRANCH}`, {
+    headers: { 'Accept': 'application/vnd.github.raw+json' }
+  });
+  if (!res.ok) return null;
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+/* Pubblica/aggiorna la premessa di una storia: carica il PDF e aggiorna
+   l'indice condiviso, così ogni giocatore la vede in automatico. */
+async function publishStoryOnline(s) {
+  if (!s.premessa || !s.premessa.dataUrl) throw new Error('Carica prima un PDF');
+  if (!ghToken()) throw new Error('Inserisci prima il token GitHub');
+  await ghEnsureBranch();
+  const base64 = b64FromDataUrl(s.premessa.dataUrl);
+  await ghPutFile(`stories/${s.id}.pdf`, base64, `Pubblica premessa: ${s.nome}`);
+  const index = (await fetchStoriesIndexRemote()) || [];
+  const entry = {
+    id: s.id, nome: s.nome, titolo: s.premessa.titolo || s.nome,
+    filename: s.premessa.filename || 'premessa.pdf', size: s.premessa.size || 0, updatedAt: Date.now()
+  };
+  const next = index.filter(x => x.id !== s.id).concat([entry]);
+  await ghPutFile('stories/index.json', b64FromJson(next), 'Aggiorna elenco storie pubblicate');
+  invalidateStoriesIndexCache();
+}
+/* Rimuove la storia dalla pubblicazione online (non tocca il PDF locale) */
+async function unpublishStoryOnline(s) {
+  if (!ghToken()) return;
+  await ghDeleteFile(`stories/${s.id}.pdf`, `Rimuove premessa pubblicata: ${s.nome}`).catch(() => {});
+  const index = (await fetchStoriesIndexRemote()) || [];
+  const next = index.filter(x => x.id !== s.id);
+  await ghPutFile('stories/index.json', b64FromJson(next), 'Aggiorna elenco storie pubblicate').catch(() => {});
+  invalidateStoriesIndexCache();
+}
+
 /* Solo nell'app nativa: confronta la versione installata (APP_VERSION,
    scritta dalla build) con l'ultima release Android su GitHub.
    Se esiste una versione più recente prova l'aggiornamento OTA in
@@ -1950,15 +2168,49 @@ function savePremesse(map) {
   catch (e) { toast('Salvataggio non riuscito'); }
 }
 
-/* Lato giocatore: popup con la premessa in PDF importata per la storia del personaggio */
-function renderPremPopup() {
+/* Menù a tendina "Storie pubblicate" in Identità: elenco scaricato dal
+   repository (nessun token richiesto, il repository è pubblico). */
+async function renderStoriaSelect(c) {
+  const sel = $('#f-storia-select');
+  if (!sel) return;
+  const index = await getStoriesIndex();
+  // il personaggio potrebbe essere cambiato mentre la richiesta era in corso
+  if (getActive() !== c) return;
+  sel.innerHTML = `<option value="">— scegli dall'elenco, oppure scrivi il nome sotto —</option>` +
+    index.map(entry => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.nome)}</option>`).join('');
+  sel.value = (c.storiaId && index.some(x => x.id === c.storiaId)) ? c.storiaId : '';
+}
+
+/* Lato giocatore: popup con la premessa della storia del personaggio.
+   Se la storia è stata scelta dal menù (storiaId), il PDF si scarica al
+   volo dal repository pubblico; altrimenti si usa l'eventuale invito
+   incollato in passato (fallback locale, offline). */
+async function renderPremPopup() {
   const c = getActive(); if (!c) return;
   const storia = (c.storia || '').trim();
   $('#prem-popup-story').textContent = storia
     ? `Storia: ${storia}`
-    : 'Imposta prima il nome della storia in Identità, poi incolla l\'invito del Narratore.';
+    : 'Scegli una storia in Identità (dal menù o scrivendone il nome), poi torna qui.';
+  const wrap = $('#prem-popup-list');
+  if (c.storiaId) {
+    wrap.innerHTML = `<div class="helper-text" style="padding:4px 0 8px;">Verifica in corso…</div>`;
+    const index = await getStoriesIndex();
+    if (getActive() !== c) return;
+    const entry = index.find(x => x.id === c.storiaId);
+    if (entry) {
+      wrap.innerHTML = `
+        <div class="prem-row">
+          <div class="pr-main">
+            <div class="pr-title">${escapeHtml(entry.titolo || entry.nome)}</div>
+            <div class="pr-text">${escapeHtml(entry.filename || '')}</div>
+          </div>
+          <button class="btn btn-primary btn-sm" id="prem-popup-open-online" data-storyid="${escapeHtml(entry.id)}">Apri PDF</button>
+        </div>`;
+      return;
+    }
+  }
   const p = loadPremesse()[storia];
-  $('#prem-popup-list').innerHTML = (p && p.dataUrl) ? `
+  wrap.innerHTML = (p && p.dataUrl) ? `
     <div class="prem-row">
       <div class="pr-main">
         <div class="pr-title">${escapeHtml(p.titolo || p.filename || 'Premessa')}</div>
@@ -1966,7 +2218,7 @@ function renderPremPopup() {
       </div>
       <button class="btn btn-primary btn-sm" id="prem-popup-open">Apri PDF</button>
     </div>`
-    : `<div class="helper-text" style="padding:4px 0 8px;">Nessuna premessa per questa storia: incolla l'invito del Narratore qui sotto.</div>`;
+    : `<div class="helper-text" style="padding:4px 0 8px;">Nessuna premessa per questa storia: scegli una storia pubblicata dal menù in Identità, oppure incolla qui sotto l'invito del Narratore.</div>`;
 }
 
 function importPremesseInvito(text) {
@@ -2045,6 +2297,16 @@ function renderPremisesStory() {
     ? `<div class="pr-title">${escapeHtml(s.premessa.filename || 'premessa.pdf')}</div>
        <div class="pr-text">${Math.round((s.premessa.size || 0) / 1024)} KB · caricato ${new Date(s.premessa.uploadedAt).toLocaleString('it-IT')}</div>`
     : `<div class="helper-text" style="margin:0;">Nessun PDF caricato.</div>`;
+  const hasToken = !!ghToken();
+  $('#premises-gh-token').placeholder = hasToken
+    ? 'Token già salvato — lascia vuoto e salva per rimuoverlo, o incollane uno nuovo per sostituirlo'
+    : 'Token con permesso Contents: lettura e scrittura su questo repository';
+  $('#premises-gh-token-save').textContent = hasToken ? 'Aggiorna token' : 'Salva token';
+  const statusEl = $('#premises-online-status');
+  if (!hasToken) statusEl.textContent = 'Serve un token GitHub per pubblicare online.';
+  else if (has && s.premessa.pubblicata) statusEl.textContent = 'Online: pubblicata, visibile a tutti i giocatori.';
+  else if (has) statusEl.textContent = 'Online: non ancora pubblicata.';
+  else statusEl.textContent = 'Carica un PDF per poterlo pubblicare.';
 }
 
 function renderStory() {
