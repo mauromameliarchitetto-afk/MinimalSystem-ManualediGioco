@@ -36,6 +36,7 @@
       <button class="cm-item" data-menu-nav="list">I tuoi personaggi</button>
       <button class="cm-item" data-menu-nav="new">Crea nuovo personaggio</button>
       <button class="cm-item" data-menu-nav="master">Area del Narratore</button>
+      <button class="cm-item" data-menu-nav="premises">Premesse di gioco</button>
       <div class="cm-sep"></div>
       <div class="cm-label">Scheda personaggio</div>
       <button class="cm-item" data-menu-tab="gioco">In gioco</button>
@@ -539,7 +540,7 @@
       <span style="width:40px;"></span>
     </div>
     <div class="list-scroll">
-      <p class="helper-text">Ogni storia raccoglie i personaggi che i giocatori ti inviano ed è protetta dalla sua password. I giocatori vedono solo i propri personaggi sul loro dispositivo. Qui puoi anche scrivere le premesse di gioco della storia e condividerle con un invito.</p>
+      <p class="helper-text">Ogni storia raccoglie i personaggi che i giocatori ti inviano ed è protetta dalla sua password. I giocatori vedono solo i propri personaggi sul loro dispositivo. La premessa in PDF si carica da "Premesse di gioco" nell'indice.</p>
       <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Le tue storie</div>
       <div id="story-list"></div>
       <div class="section-title" style="margin-top:14px;"><span class="dot"></span>Nuova storia</div>
@@ -565,19 +566,51 @@
         <button class="btn btn-primary btn-sm" id="btn-import-char" style="align-self:flex-start;">Importa</button>
         <p class="helper-text" style="margin:0;">Se il personaggio è già presente viene aggiornato alla versione incollata.</p>
       </div></div>
-      <div class="section-title" style="margin-top:14px;"><span class="dot neutral"></span>Premesse di gioco <span class="chip" style="margin-left:auto;" id="prem-count">0</span></div>
-      <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:10px;">
-        <p class="helper-text" style="margin:0;">Scrivi le premesse della storia; la spunta decide quali sono visibili ai giocatori. Poi «Copia invito»: i giocatori lo incollano nel popup Premesse della loro scheda.</p>
-        <div id="prem-list"></div>
-        <div class="field"><label>Titolo premessa</label><input type="text" id="prem-title" placeholder="es. Niente resurrezioni"></div>
-        <div class="field"><label>Testo</label><textarea id="prem-text" placeholder="La premessa, come la leggeranno i giocatori..."></textarea></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-ghost btn-sm" id="prem-add">+ Aggiungi premessa</button>
-          <button class="btn btn-primary btn-sm" id="btn-share-premesse">📋 Copia invito premesse</button>
-        </div>
-      </div></div>
+      <p class="helper-text" style="margin-top:14px;">La premessa in PDF di questa storia si carica e si condivide da "Premesse di gioco" nell'indice (☰ in copertina).</p>
       <div class="section-title" style="margin-top:14px;"><span class="dot neutral"></span>Personaggi <span class="chip" style="margin-left:auto;" id="story-count">0</span></div>
       <div id="story-chars"></div>
+    </div>
+  </section>
+
+  <!-- ============ PREMESSE DI GIOCO — elenco storie ============ -->
+  <section id="view-premises" class="view hidden">
+    <div class="topbar">
+      <button class="btn btn-icon btn-ghost" data-nav="cover" aria-label="Indietro">←</button>
+      <h1>Premesse di gioco</h1>
+      <span style="width:40px;"></span>
+    </div>
+    <div class="list-scroll">
+      <p class="helper-text">Ogni storia ha una premessa in PDF, leggibile dentro l'app da te e dai giocatori. Apri una storia (serve la sua password) per caricarla o sostituirla. Le storie si creano da "Area del Narratore".</p>
+      <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Le tue storie</div>
+      <div id="premises-story-list"></div>
+    </div>
+  </section>
+
+  <!-- ============ PREMESSE DI GIOCO — storia ============ -->
+  <section id="view-premises-story" class="view hidden">
+    <div class="topbar">
+      <button class="btn btn-icon btn-ghost" data-nav="premises" aria-label="Indietro">←</button>
+      <h1 id="premises-story-title">Storia</h1>
+      <span style="width:40px;"></span>
+    </div>
+    <div class="list-scroll">
+      <div class="section-title"><span class="dot neutral"></span>Premessa in PDF</div>
+      <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:10px;">
+        <p class="helper-text" style="margin:0;">Carica il PDF della premessa, dagli un nome, poi attiva "Pubblica ai giocatori" e condividi l'invito. Mentre lo si legge nell'app, gli screenshot sono bloccati su Android; sul link web viene mostrata solo una filigrana come deterrente.</p>
+        <div class="field"><label>Nome della giocata</label><input type="text" id="premises-title" placeholder="es. Sessione 3 — L'assedio"></div>
+        <div id="premises-file-info"><div class="helper-text" style="margin:0;">Nessun PDF caricato.</div></div>
+        <input type="file" id="premises-pdf-input" accept="application/pdf" class="hidden">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" id="premises-upload-btn">📄 Carica PDF</button>
+          <button class="btn btn-ghost btn-sm hidden" id="premises-open-btn">👁 Anteprima</button>
+          <button class="btn btn-ghost btn-sm hidden" id="premises-remove-btn">✕ Rimuovi</button>
+        </div>
+        <label class="row-between" style="cursor:pointer;">
+          <span class="helper-text" style="margin:0;">Pubblica ai giocatori (visibile nell'invito)</span>
+          <input type="checkbox" id="premises-publish-toggle">
+        </label>
+        <button class="btn btn-primary btn-sm" id="btn-share-premesse-pdf" style="align-self:flex-start;">📋 Copia invito premessa</button>
+      </div></div>
     </div>
   </section>
 
@@ -622,11 +655,24 @@
   <img id="pl-img" alt="Volto del personaggio">
 </div>
 
+<div id="pdf-viewer" class="hidden">
+  <div class="pdfv-head">
+    <div class="pdfv-title" id="pdf-viewer-title">Premessa</div>
+    <span class="pdfv-status" id="pdf-viewer-status"></span>
+    <button class="btn btn-icon btn-ghost" id="pdf-viewer-close" aria-label="Chiudi">✕</button>
+  </div>
+  <div class="pdfv-body" id="pdf-viewer-body">
+    <div class="pdfv-pages" id="pdf-viewer-pages"></div>
+    <div class="pdfv-watermark" id="pdf-viewer-watermark"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="js/version.js"></script>
 <script src="js/rules.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
+<script type="module" src="js/pdfviewer.js"></script>
 </body>
 </html>

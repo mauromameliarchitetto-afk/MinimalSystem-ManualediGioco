@@ -28,6 +28,12 @@ function loadAll() {
   try {
     const rawS = localStorage.getItem(STORIES_KEY);
     stories = rawS ? JSON.parse(rawS) : [];
+    // migrazione: le premesse a testo con spunte sono state sostituite da
+    // un'unica premessa in PDF per storia
+    stories.forEach(s => {
+      if (s.premesse !== undefined) delete s.premesse;
+      if (s.premessa === undefined) s.premessa = null;
+    });
   } catch (e) {
     console.error('Errore lettura storie', e);
     stories = [];
@@ -967,6 +973,7 @@ function wireStaticEvents() {
     if (target === 'list') renderCharList();
     if (target === 'master') renderMasterArea();
     if (target === 'rules') renderRules();
+    if (target === 'premises') renderPremisesArea();
     showView(target);
   }));
   $('#btn-char-menu').addEventListener('click', charMenu);
@@ -1006,6 +1013,7 @@ function wireStaticEvents() {
     if (item.dataset.menuNav === 'list') { renderCharList(); showView('list'); return; }
     if (item.dataset.menuNav === 'new') { createCharacterFlow(); return; }
     if (item.dataset.menuNav === 'master') { renderMasterArea(); showView('master'); return; }
+    if (item.dataset.menuNav === 'premises') { renderPremisesArea(); showView('premises'); return; }
     if (item.dataset.menuTab) openSheetAtTab(item.dataset.menuTab);
   });
 
@@ -1015,7 +1023,7 @@ function wireStaticEvents() {
     const pass = $('#new-story-pass').value;
     if (!nome) { toast('Dai un nome alla storia'); return; }
     if (!pass) { toast('Imposta una password'); return; }
-    stories.push({ id: uid(), nome, password: pass, characters: [], createdAt: Date.now() });
+    stories.push({ id: uid(), nome, password: pass, characters: [], premessa: null, createdAt: Date.now() });
     saveStories();
     $('#new-story-name').value = '';
     $('#new-story-pass').value = '';
@@ -1049,47 +1057,85 @@ function wireStaticEvents() {
     $('#import-json').value = '';
   });
   // ---- premesse di gioco (lato Narratore) ----
-  $('#prem-add').addEventListener('click', () => {
-    const s = getActiveStory(); if (!s) return;
-    const titolo = $('#prem-title').value.trim();
-    const testo = $('#prem-text').value.trim();
-    if (!titolo) { toast('Dai un titolo alla premessa'); return; }
-    if (!Array.isArray(s.premesse)) s.premesse = [];
-    s.premesse.push({ id: uid(), titolo, testo, attiva: true });
-    $('#prem-title').value = '';
-    $('#prem-text').value = '';
+  $('#premises-story-list').addEventListener('click', e => {
+    const card = e.target.closest('[data-premstoryid]');
+    if (!card) return;
+    const s = stories.find(x => x.id === card.dataset.premstoryid);
+    if (!s) return;
+    const pass = prompt(`Password per "${s.nome}":`);
+    if (pass === null) return;
+    if (pass !== s.password) { toast('Password errata'); return; }
+    openPremisesStory(s.id);
+  });
+  $('#premises-title').addEventListener('input', () => {
+    const s = getActiveStory(); if (!s || !s.premessa) return;
+    s.premessa.titolo = $('#premises-title').value;
     saveStories();
-    renderPremList();
-    toast('Premessa aggiunta');
   });
-  $('#prem-list').addEventListener('change', e => {
-    const cb = e.target.closest('[data-premtoggle]');
-    if (!cb) return;
+  $('#premises-upload-btn').addEventListener('click', () => $('#premises-pdf-input').click());
+  $('#premises-pdf-input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
     const s = getActiveStory(); if (!s) return;
-    const p = (s.premesse || []).find(x => x.id === cb.dataset.premtoggle);
-    if (p) { p.attiva = cb.checked; saveStories(); }
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if (!isPdf) { toast('Seleziona un file PDF'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      s.premessa = {
+        titolo: ($('#premises-title').value || '').trim() || file.name.replace(/\.pdf$/i, ''),
+        filename: file.name,
+        dataUrl: reader.result,
+        size: file.size,
+        pubblicata: false,
+        uploadedAt: Date.now()
+      };
+      saveStories();
+      renderPremisesStory();
+      const mb = file.size / (1024 * 1024);
+      toast(mb > 4
+        ? `PDF caricato (${mb.toFixed(1)} MB): su alcuni telefoni un file così grande può avere problemi a essere copiato come invito`
+        : 'PDF caricato');
+    };
+    reader.onerror = () => toast('Impossibile leggere il file');
+    reader.readAsDataURL(file);
   });
-  $('#prem-list').addEventListener('click', e => {
-    const del = e.target.closest('[data-premdel]');
-    if (!del) return;
+  $('#premises-open-btn').addEventListener('click', () => {
+    const s = getActiveStory(); if (!s || !s.premessa || !s.premessa.dataUrl) return;
+    if (window.MSPdfViewer) window.MSPdfViewer.open({ dataUrl: s.premessa.dataUrl, title: s.premessa.titolo || s.nome, label: 'Narratore · ' + s.nome });
+  });
+  $('#premises-remove-btn').addEventListener('click', () => {
     const s = getActiveStory(); if (!s) return;
-    if (!confirm('Eliminare questa premessa?')) return;
-    s.premesse = (s.premesse || []).filter(x => x.id !== del.dataset.premdel);
+    if (!confirm('Rimuovere il PDF caricato?')) return;
+    s.premessa = null;
     saveStories();
-    renderPremList();
+    renderPremisesStory();
   });
-  $('#btn-share-premesse').addEventListener('click', () => {
+  $('#premises-publish-toggle').addEventListener('change', e => {
+    const s = getActiveStory(); if (!s || !s.premessa) return;
+    s.premessa.pubblicata = e.target.checked;
+    saveStories();
+    toast(s.premessa.pubblicata ? 'Premessa pubblicata' : 'Premessa nascosta ai giocatori');
+  });
+  $('#btn-share-premesse-pdf').addEventListener('click', () => {
     const s = getActiveStory(); if (!s) return;
-    const attive = (s.premesse || []).filter(p => p.attiva)
-      .map(p => ({ id: p.id, titolo: p.titolo, testo: p.testo }));
-    if (!attive.length) { toast('Nessuna premessa con la spunta attiva'); return; }
-    const text = JSON.stringify({ type: 'premesse', storia: s.nome, premesse: attive });
-    const done = () => toast('Invito copiato: incollalo nella chat coi giocatori');
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
-    } else {
-      fallbackCopy(text, done);
-    }
+    if (!s.premessa || !s.premessa.dataUrl) { toast('Carica prima un PDF'); return; }
+    if (!s.premessa.pubblicata) { toast('Attiva "Pubblica ai giocatori" prima di condividere'); return; }
+    const text = JSON.stringify({
+      type: 'premessa_pdf', storia: s.nome,
+      titolo: s.premessa.titolo, filename: s.premessa.filename, dataUrl: s.premessa.dataUrl
+    });
+    const proceed = () => {
+      const done = () => toast('Invito copiato: incollalo nella chat coi giocatori');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+      } else {
+        fallbackCopy(text, done);
+      }
+    };
+    const mb = text.length / (1024 * 1024);
+    if (mb > 4 && !confirm(`L'invito è pesante (~${mb.toFixed(1)} MB): su alcuni telefoni copia/incolla può non funzionare. Continuare comunque?`)) return;
+    proceed();
   });
 
   // ---- premesse di gioco (lato giocatore) ----
@@ -1101,14 +1147,14 @@ function wireStaticEvents() {
   $('#prem-popup').addEventListener('click', e => {
     if (e.target.id === 'prem-popup') $('#prem-popup').classList.add('hidden');
   });
-  $('#prem-popup-list').addEventListener('change', e => {
-    const cb = e.target.closest('[data-premshow]');
-    if (!cb) return;
+  $('#prem-popup-list').addEventListener('click', e => {
+    if (!e.target.closest('#prem-popup-open')) return;
     const c = getActive(); if (!c) return;
     const storia = (c.storia || '').trim();
-    const map = loadPremesse();
-    const p = (map[storia] || []).find(x => x.id === cb.dataset.premshow);
-    if (p) { p.attiva = cb.checked; savePremesse(map); renderPremPopup(); }
+    const p = loadPremesse()[storia];
+    if (p && p.dataUrl && window.MSPdfViewer) {
+      window.MSPdfViewer.open({ dataUrl: p.dataUrl, title: p.titolo || 'Premessa', label: (c.nome || 'Giocatore') + ' · ' + storia });
+    }
   });
   $('#prem-import-btn').addEventListener('click', () => {
     const text = $('#prem-import').value.trim();
@@ -1814,6 +1860,20 @@ function otaPlugin() {
   return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorUpdater) || null;
 }
 
+/* Blocco screenshot reale (FLAG_SECURE) durante la lettura di una premessa
+   in PDF: disponibile solo nell'app Android nativa. Chiamata dal
+   visualizzatore PDF (js/pdfviewer.js) all'apertura/chiusura. Sul web non
+   esiste un modo per impedire davvero uno screenshot: lì il visualizzatore
+   applica solo una filigrana come deterrente. */
+function privacyScreenPlugin() {
+  return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PrivacyScreen) || null;
+}
+window.MSSetScreenshotBlock = function (on) {
+  const p = privacyScreenPlugin();
+  if (!p) return;
+  (on ? p.enable() : p.disable()).catch(() => {});
+};
+
 /* Solo nell'app nativa: confronta la versione installata (APP_VERSION,
    scritta dalla build) con l'ultima release Android su GitHub.
    Se esiste una versione più recente prova l'aggiornamento OTA in
@@ -1890,40 +1950,22 @@ function savePremesse(map) {
   catch (e) { toast('Salvataggio non riuscito'); }
 }
 
-/* Lato Narratore: elenco premesse della storia, con spunta = visibile ai giocatori */
-function renderPremList() {
-  const s = getActiveStory(); if (!s) return;
-  if (!Array.isArray(s.premesse)) s.premesse = [];
-  $('#prem-count').textContent = s.premesse.length;
-  $('#prem-list').innerHTML = s.premesse.length ? s.premesse.map(p => `
-    <div class="prem-row">
-      <input type="checkbox" data-premtoggle="${p.id}" ${p.attiva ? 'checked' : ''} title="Visibile ai giocatori">
-      <div class="pr-main">
-        <div class="pr-title">${escapeHtml(p.titolo)}</div>
-        <div class="pr-text">${escapeHtml(p.testo)}</div>
-      </div>
-      <button class="btn btn-icon btn-sm btn-ghost btn-del" data-premdel="${p.id}" title="Elimina">✕</button>
-    </div>`).join('')
-    : `<div class="helper-text">Nessuna premessa ancora.</div>`;
-}
-
-/* Lato giocatore: popup con le premesse importate per la storia del personaggio */
+/* Lato giocatore: popup con la premessa in PDF importata per la storia del personaggio */
 function renderPremPopup() {
   const c = getActive(); if (!c) return;
   const storia = (c.storia || '').trim();
   $('#prem-popup-story').textContent = storia
-    ? `Storia: ${storia}. Spunta una premessa per leggerla; l'elenco arriva dall'invito del Narratore.`
-    : 'Imposta prima il nome della storia nel campo qui sopra, poi incolla l\'invito del Narratore.';
-  const map = loadPremesse();
-  const list = map[storia] || [];
-  $('#prem-popup-list').innerHTML = list.length ? list.map(p => `
+    ? `Storia: ${storia}`
+    : 'Imposta prima il nome della storia in Identità, poi incolla l\'invito del Narratore.';
+  const p = loadPremesse()[storia];
+  $('#prem-popup-list').innerHTML = (p && p.dataUrl) ? `
     <div class="prem-row">
-      <input type="checkbox" data-premshow="${p.id}" ${p.attiva ? 'checked' : ''}>
       <div class="pr-main">
-        <div class="pr-title">${escapeHtml(p.titolo)}</div>
-        ${p.attiva ? `<div class="pr-text">${escapeHtml(p.testo)}</div>` : ''}
+        <div class="pr-title">${escapeHtml(p.titolo || p.filename || 'Premessa')}</div>
+        <div class="pr-text">${escapeHtml(p.filename || '')}</div>
       </div>
-    </div>`).join('')
+      <button class="btn btn-primary btn-sm" id="prem-popup-open">Apri PDF</button>
+    </div>`
     : `<div class="helper-text" style="padding:4px 0 8px;">Nessuna premessa per questa storia: incolla l'invito del Narratore qui sotto.</div>`;
 }
 
@@ -1931,20 +1973,15 @@ function importPremesseInvito(text) {
   const c = getActive(); if (!c) return;
   let data;
   try { data = JSON.parse(text); } catch (e) { toast('Invito non valido'); return; }
-  if (!data || data.type !== 'premesse' || !Array.isArray(data.premesse)) { toast('Questo testo non è un invito premesse'); return; }
+  if (!data || data.type !== 'premessa_pdf' || !data.dataUrl) { toast('Questo testo non è un invito premessa'); return; }
   const storia = (data.storia || c.storia || '').trim();
   if (!storia) { toast('L\'invito non indica la storia'); return; }
   if (!(c.storia || '').trim()) { c.storia = storia; $('#f-storia').value = storia; touchActive(); }
   const map = loadPremesse();
-  const existing = map[storia] || [];
-  // sostituisce l'elenco mantenendo lo stato di lettura del giocatore
-  map[storia] = data.premesse.map(p => {
-    const prev = existing.find(x => x.id === p.id);
-    return { id: p.id, titolo: p.titolo || '', testo: p.testo || '', attiva: prev ? !!prev.attiva : false };
-  });
+  map[storia] = { titolo: data.titolo || '', filename: data.filename || '', dataUrl: data.dataUrl, importedAt: Date.now() };
   savePremesse(map);
   renderPremPopup();
-  toast(`Premesse aggiornate (${map[storia].length}) per «${storia}»`);
+  toast(`Premessa importata per «${storia}»`);
 }
 
 /* --------------------------------------------------- Area Master e storie */
@@ -1971,11 +2008,49 @@ function openStory(id) {
   showView('story');
 }
 
+/* Lato Narratore: elenco storie per caricare/sostituire la premessa in PDF */
+function renderPremisesArea() {
+  const wrap = $('#premises-story-list');
+  if (!stories.length) {
+    wrap.innerHTML = `<div class="helper-text" style="padding:6px 2px 2px;">Nessuna storia ancora: creane una in "Area del Narratore", poi torna qui per caricare la premessa in PDF.</div>`;
+    return;
+  }
+  wrap.innerHTML = stories.map(s => {
+    const has = !!(s.premessa && s.premessa.dataUrl);
+    const stato = has ? (s.premessa.pubblicata ? 'Premessa pubblicata' : 'Premessa caricata, non pubblicata') : 'Nessuna premessa caricata';
+    return `<div class="char-card" data-premstoryid="${s.id}">
+      <div class="avatar bicolor">📄</div>
+      <div class="info">
+        <div class="name">${escapeHtml(s.nome)}</div>
+        <div class="meta">${stato}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function openPremisesStory(id) {
+  activeStoryId = id;
+  renderPremisesStory();
+  showView('premises-story');
+}
+function renderPremisesStory() {
+  const s = getActiveStory(); if (!s) return;
+  $('#premises-story-title').textContent = s.nome;
+  $('#premises-title').value = (s.premessa && s.premessa.titolo) || '';
+  const has = !!(s.premessa && s.premessa.dataUrl);
+  $('#premises-publish-toggle').checked = has && !!s.premessa.pubblicata;
+  $('#premises-publish-toggle').disabled = !has;
+  $('#premises-open-btn').classList.toggle('hidden', !has);
+  $('#premises-remove-btn').classList.toggle('hidden', !has);
+  $('#premises-file-info').innerHTML = has
+    ? `<div class="pr-title">${escapeHtml(s.premessa.filename || 'premessa.pdf')}</div>
+       <div class="pr-text">${Math.round((s.premessa.size || 0) / 1024)} KB · caricato ${new Date(s.premessa.uploadedAt).toLocaleString('it-IT')}</div>`
+    : `<div class="helper-text" style="margin:0;">Nessun PDF caricato.</div>`;
+}
+
 function renderStory() {
   const s = getActiveStory(); if (!s) return;
   $('#story-title').textContent = s.nome;
   $('#story-count').textContent = s.characters.length;
-  renderPremList();
   const wrap = $('#story-chars');
   if (!s.characters.length) {
     wrap.innerHTML = `<div class="empty-state">Nessun personaggio ancora.<br>Fatti inviare le schede dai giocatori e incollale qui sopra.</div>`;

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'minimal-system-v33';
+const CACHE_NAME = 'minimal-system-v34';
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,6 +8,9 @@ const APP_SHELL = [
   './js/rules.js',
   './js/data.js',
   './js/app.js',
+  './js/pdfviewer.js',
+  './js/vendor/pdf.min.mjs',
+  './js/vendor/pdf.worker.min.mjs',
   './img/cover.jpg',
   './icons/icon-192.png',
   './icons/icon-512.png',
