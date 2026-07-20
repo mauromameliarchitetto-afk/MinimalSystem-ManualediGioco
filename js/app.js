@@ -799,13 +799,15 @@ function creditLevelAP(c) {
   touchActive();
 }
 
-/* Cambia un attributo primario. Al Lv1 gli attributi si assegnano ancora
-   liberamente coi 40 punti di partenza (scegliere/confermare la classe non
-   chiude questa fase): il rapporto "1 punto base = 1 AP" di HP/MP vale solo
-   in questa fase, perché il punto base interagisce col moltiplicatore di
-   classe. Solo dopo il primo Lv Up ogni attributo — HP/MP compresi — si
-   compra con gli AP guadagnati a level up, secondo la stessa tabella di
-   costo generica degli altri attributi primari: la spesa è automatica, la
+/* Cambia un attributo primario in una delle due fasi previste dal manuale.
+   Fase 1 — creazione (Lv1): gli attributi si assegnano liberamente coi 40
+   punti di partenza, dove ogni punto di HP/MP vale 1 come tutti gli altri
+   (scegliere/confermare la classe non chiude questa fase). Fase 2 — dal
+   primo Lv Up in poi: ogni attributo si compra con gli AP guadagnati a
+   level up, secondo la propria tabella costi ufficiale — HP e MP hanno
+   ciascuno la propria progressione dedicata (diversa tra loro e diversa da
+   quella degli altri attributi primari, perché il loro punto base
+   interagisce col moltiplicatore di classe). La spesa è automatica, la
    riduzione rimborsa, e senza AP il cambio è bloccato. Restituisce il
    valore applicato o null se bloccato. */
 function changePrimary(c, key, newVal) {
@@ -814,7 +816,7 @@ function changePrimary(c, key, newVal) {
   if (isNaN(newVal) || newVal < PRIMARY_MIN) newVal = PRIMARY_MIN;
   if (newVal === oldVal) return newVal;
   if (Number(c.livello) > 1) {
-    const costFn = primaryApCostForPoint;
+    const costFn = key === 'hp' ? hpApCostForPoint : (key === 'mp' ? mpApCostForPoint : primaryApCostForPoint);
     let cost = 0;
     if (newVal > oldVal) { for (let n = oldVal + 1; n <= newVal; n++) cost += costFn(n); }
     else { for (let n = oldVal; n > newVal; n--) cost -= costFn(n); }
@@ -893,11 +895,17 @@ function renderTertiaryPlusMinus(c) {
     wrap.innerHTML = wrap.dataset.pmStyle === 'diagram' ? diagramHtml : html;
   });
 }
+function growthCostFnForStat(stat) {
+  if (stat === 'hp') return hpApCostForPoint;
+  if (stat === 'mp') return mpApCostForPoint;
+  return primaryApCostForPoint;
+}
 function updateGrowthCost() {
   const c = getActive(); if (!c) return;
   const cur = Number($('#growth-current').value) || 0;
   const tgt = Number($('#growth-target').value) || 0;
-  const cost = totalGrowthCost(cur, tgt, primaryApCostForPoint);
+  const stat = $('#growth-stat').value;
+  const cost = totalGrowthCost(cur, tgt, growthCostFnForStat(stat));
   $('#growth-cost-chip').textContent = `${cost} AP`;
 }
 
@@ -1785,7 +1793,7 @@ function wireStaticEvents() {
     touchActive();
   });
 
-  ['#growth-current', '#growth-target'].forEach(sel => {
+  ['#growth-current', '#growth-target', '#growth-stat'].forEach(sel => {
     $(sel).addEventListener('input', updateGrowthCost);
     $(sel).addEventListener('change', updateGrowthCost);
   });

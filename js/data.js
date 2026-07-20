@@ -167,6 +167,24 @@ function primaryApCostForPoint(n) {
   const decade = Math.floor((n - 51) / 10);
   return 15 + 5 * (decade + 1);
 }
+// HP — tabella costi dedicata (diversa dagli altri primari: il punto di HP
+// interagisce col moltiplicatore di classe, quindi il manuale gli riserva
+// una propria progressione)
+function hpApCostForPoint(n) {
+  if (n <= 100) return 1;
+  if (n <= 250) return 2;
+  if (n <= 400) return 4;
+  const decade = Math.floor((n - 401) / 100);
+  return 4 * Math.pow(2, decade + 1);
+}
+// MP — tabella costi dedicata, stessa struttura dell'HP ma con costi ×1.5
+function mpApCostForPoint(n) {
+  if (n <= 100) return 1.5;
+  if (n <= 250) return 3;
+  if (n <= 400) return 6;
+  const decade = Math.floor((n - 401) / 100);
+  return 6 * Math.pow(2, decade + 1);
+}
 function totalGrowthCost(current, target, costFn) {
   current = Math.max(0, Math.floor(current));
   target = Math.floor(target);

@@ -414,7 +414,14 @@
 
         <div class="section-title"><span class="dot neutral"></span>Calcolatore costi crescita</div>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <p class="helper-text" style="margin:0 0 8px;">Dal Lv2 in poi ogni attributo primario (HP e MP inclusi) e i P.R. crescono con la stessa tabella costi: inserisci il valore attuale e quello obiettivo per calcolare gli AP necessari.</p>
+          <p class="helper-text" style="margin:0 0 8px;">Dal Lv2 in poi ogni attributo cresce spendendo AP, ma HP, MP e gli altri attributi primari (P.R. incluso) hanno ciascuno la propria tabella costi: scegli la statistica, poi il valore attuale e quello obiettivo per calcolare gli AP necessari.</p>
+          <div class="field" style="margin-top:8px;"><label>Statistica</label>
+            <select id="growth-stat">
+              <option value="hp">HP</option>
+              <option value="mp">MP</option>
+              <option value="altro" selected>Altri attributi primari e P.R.</option>
+            </select>
+          </div>
           <div class="field-row" style="margin-top:8px;">
             <div class="field"><label>Valore attuale</label><input type="number" id="growth-current" value="0"></div>
             <div class="field"><label>Valore obiettivo</label><input type="number" id="growth-target" value="0"></div>
