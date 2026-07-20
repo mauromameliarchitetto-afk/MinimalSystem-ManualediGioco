@@ -29,13 +29,14 @@ function dataUrlToBytes(dataUrl) {
   return bytes;
 }
 
-async function open({ dataUrl, title, label }) {
+async function open({ dataUrl, bytes, title, label }) {
   const overlay = document.getElementById('pdf-viewer');
   const pagesEl = document.getElementById('pdf-viewer-pages');
   const wmEl = document.getElementById('pdf-viewer-watermark');
   const titleEl = document.getElementById('pdf-viewer-title');
   const statusEl = document.getElementById('pdf-viewer-status');
-  if (!overlay || !pagesEl || !dataUrl) return;
+  const data = bytes || (dataUrl ? dataUrlToBytes(dataUrl) : null);
+  if (!overlay || !pagesEl || !data) return;
 
   titleEl.textContent = title || 'Premessa';
   statusEl.textContent = 'Caricamento…';
@@ -50,7 +51,7 @@ async function open({ dataUrl, title, label }) {
   wmEl.style.backgroundImage = `url("${watermarkDataUri(`${label || 'Minimal System'} · ${stamp}`)}")`;
 
   try {
-    const loadingTask = pdfjsLib.getDocument({ data: dataUrlToBytes(dataUrl) });
+    const loadingTask = pdfjsLib.getDocument({ data });
     currentDoc = await loadingTask.promise;
     statusEl.textContent = `${currentDoc.numPages} pagin${currentDoc.numPages === 1 ? 'a' : 'e'}`;
     const dpr = window.devicePixelRatio || 1;
