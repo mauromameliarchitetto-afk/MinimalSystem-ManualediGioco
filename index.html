@@ -279,6 +279,12 @@
           <div id="primary-stats"></div>
         </div></div>
 
+        <div class="section-title"><span class="dot neutral"></span>Stile · Carisma · Fortuna</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad">
+          <p class="helper-text" style="margin:0 0 8px;">3 esiti "+" = +1 livello (poi il contatore si azzera). Ogni 3 "-" si toglie un "+". Base e distribuzione iniziale si impostano in "Terziarie".</p>
+          <div id="tertiary-plusminus-primary" class="tertiary-pm-wrap"></div>
+        </div></div>
+
         <div class="section-title"><span class="dot"></span>Valori derivati alla creazione</div>
         <p class="helper-text">Formula: base × moltiplicatore build. In "In gioco" HP/MP/P.R. massimi sono tracciati liberamente (crescono col Level Up) — usa "Sincronizza" per riportarli al valore qui sotto.</p>
         <div class="hud-grid">
@@ -329,13 +335,13 @@
 
       <!-- ---- TRATTI ---- -->
       <div class="tab-panel" data-panel="tratti">
-        <div class="section-title"><span class="dot neutral"></span>Capacità e Conoscenze · 15 punti</div>
+        <div class="section-title"><span class="dot neutral"></span>Capacità e Conoscenze</div>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
           <div class="pointbuy-header">
-            <span class="label">Punti rimanenti (Lv 1)</span>
+            <span class="label" id="traits-remaining-label">Punti rimanenti (Lv 1)</span>
             <span class="remaining" id="traits-remaining">15</span>
           </div>
-          <p class="helper-text" style="margin:0;">Alla creazione hai 15 punti totali da distribuire tra Conoscenze, Capacità Normali e Capacità Combattive, in base al background. Dal Lv 2 i tratti crescono con il level up.</p>
+          <p class="helper-text" style="margin:0;" id="traits-bonus-sub">15 punti dalla creazione. Dal Lv 2 la tabella limiti di livello aggiunge punti a Capacità, Capacità Combattive e Conoscenze.</p>
         </div></div>
         <p class="helper-text">Compaiono solo i tratti che possiedi. Con "+ Aggiungi tratto" scegli dalla lista del manuale (o crei un tratto personalizzato: le liste sono aperte, il manuale include "Etc..."). Il dado si aggiorna in base al valore; ✕ rimuove il tratto.</p>
         <div id="trait-lists"></div>
@@ -385,7 +391,7 @@
         <div class="table-scroll"><table class="data-table"><thead><tr><th>Valore</th><th class="num">AP</th></tr></thead><tbody id="tertiary-cost-table"></tbody></table></div>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
           <p class="helper-text">3 esiti "+" = +1 livello (poi il contatore si azzera). Ogni 3 "-" si toglie un "+".</p>
-          <div id="tertiary-plusminus"></div>
+          <div id="tertiary-plusminus" class="tertiary-pm-wrap"></div>
         </div></div>
 
         <div class="section-title"><span class="dot neutral"></span>Tabella limiti di livello</div>
