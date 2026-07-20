@@ -85,6 +85,7 @@ let activeId = null;
 let stories = [];
 let activeStoryId = null;
 let viewingCharId = null;
+let pendingLevelGrant = null; // level-up concesso dal Narratore in attesa di conferma, per il personaggio attivo
 
 /* ---------------------------------------------------------------- storage */
 
@@ -105,6 +106,7 @@ function loadAll() {
     stories.forEach(s => {
       if (s.premesse !== undefined) delete s.premesse;
       if (s.premessa === undefined) s.premessa = null;
+      if (!s.levelGrants || typeof s.levelGrants !== 'object') s.levelGrants = {};
       // migrazione: i PDF finivano dentro localStorage (dataUrl) e lo
       // saturavano subito, facendo fallire ogni salvataggio successivo —
       // ora vivono in IndexedDB; qui si recupera l'eventuale copia rimasta
@@ -428,6 +430,7 @@ function openSheetAtTab(tab) {
   renderSheet();
   showView('sheet');
   showTab(tab);
+  if (tab === 'livelli') checkLevelUpGrant();
 }
 
 /* ---------------------------------------------------------- lista schede */
@@ -836,6 +839,24 @@ function refreshApUI(c) {
   renderLedger(c);
 }
 
+/* Imposta il livello e aggiorna tutte le viste che ne dipendono (condivisa
+   fra il campo Livello, il diagramma e l'accettazione di un level-up
+   concesso dal Narratore). Non accredita gli AP né chiama touchActive: lo
+   fa il chiamante, perché il campo Livello lo fa in modo debounced. */
+function setCharacterLevel(c, newLevel) {
+  c.livello = clamp(Math.floor(Number(newLevel)) || 1, 1, 20);
+  $('#f-livello').value = c.livello;
+  $('#hud-lv').textContent = c.livello;
+  $('#sheet-sub').textContent = `${BUILDS[c.build].label} · Livello ${c.livello}`;
+  highlightCurrentLevel(c);
+  renderRetroNote(c);
+  renderTecniche(c);
+  renderAbilita(c);
+  renderDiagram(c);
+  updateTraitsRemaining(c);
+  updatePrimaryRemaining(c);
+}
+
 /* Accredita (o storna) automaticamente gli AP dei livelli attraversati.
    c.livelloAP è l'ultimo livello per cui gli AP sono già stati conteggiati. */
 function creditLevelAP(c) {
@@ -1231,7 +1252,7 @@ function wireStaticEvents() {
     const pass = $('#new-story-pass').value;
     if (!nome) { toast('Dai un nome alla storia'); return; }
     if (!pass) { toast('Imposta una password'); return; }
-    stories.push({ id: uid(), nome, password: pass, characters: [], premessa: null, createdAt: Date.now() });
+    stories.push({ id: uid(), nome, password: pass, characters: [], premessa: null, levelGrants: {}, createdAt: Date.now() });
     saveStories();
     $('#new-story-name').value = '';
     $('#new-story-pass').value = '';
@@ -1434,6 +1455,8 @@ function wireStaticEvents() {
   });
 
   $('#story-chars').addEventListener('click', e => {
+    const levelupBtn = e.target.closest('[data-levelup]');
+    if (levelupBtn) { e.stopPropagation(); grantLevelUpFlow(levelupBtn.dataset.levelup); return; }
     const card = e.target.closest('[data-viewchar]');
     if (!card) return;
     const s = getActiveStory(); if (!s) return;
@@ -1469,7 +1492,9 @@ function wireStaticEvents() {
   // ---- tabs ----
   $('#tabs').addEventListener('click', e => {
     const btn = e.target.closest('.tab-btn');
-    if (btn) showTab(btn.dataset.tab);
+    if (!btn) return;
+    showTab(btn.dataset.tab);
+    if (btn.dataset.tab === 'livelli') checkLevelUpGrant();
   });
 
   // ---- header nome (sincronizzato col campo in Identità) ----
@@ -1606,15 +1631,7 @@ function wireStaticEvents() {
       updateTertiaryRemaining(c);
       renderTertiaryPlusMinus(c);
     } else if (key === 'lv') {
-      c.livello = clamp(isNaN(raw) ? 1 : raw, 1, 20);
-      $('#f-livello').value = c.livello;
-      $('#hud-lv').textContent = c.livello;
-      $('#sheet-sub').textContent = `${BUILDS[c.build].label} · Livello ${c.livello}`;
-      highlightCurrentLevel(c);
-      renderRetroNote(c);
-      renderTecniche(c);
-      renderAbilita(c);
-      updateTraitsRemaining(c);
+      setCharacterLevel(c, isNaN(raw) ? 1 : raw);
     } else if (key === 'qi') {
       c.qi = isNaN(raw) ? null : raw;
       renderQi(c);
@@ -1815,18 +1832,18 @@ function wireStaticEvents() {
   });
 
   // ---- livelli ----
+  $('#levelup-grant-check').addEventListener('click', () => checkLevelUpGrant());
+  $('#levelup-grant-accept').addEventListener('click', () => {
+    const c = getActive(); if (!c || !pendingLevelGrant) return;
+    const target = pendingLevelGrant.level;
+    setCharacterLevel(c, target);
+    creditLevelAP(c); // accredita gli AP dei livelli attraversati e salva
+    toast(`Livello ${c.livello} applicato!`);
+    checkLevelUpGrant();
+  });
   $('#f-livello').addEventListener('input', () => {
     const c = getActive(); if (!c) return;
-    c.livello = clamp(Math.floor(Number($('#f-livello').value)) || 1, 1, 20);
-    $('#hud-lv').textContent = c.livello;
-    $('#sheet-sub').textContent = `${BUILDS[c.build].label} · Livello ${c.livello}`;
-    highlightCurrentLevel(c);
-    renderRetroNote(c);
-    renderTecniche(c);
-    renderAbilita(c);
-    renderDiagram(c);
-    updateTraitsRemaining(c);
-    updatePrimaryRemaining(c);
+    setCharacterLevel(c, $('#f-livello').value);
     touchActive();
   });
   // accredita gli AP dei livelli attraversati: subito al blur, e comunque
@@ -2263,6 +2280,12 @@ async function ghGetFileSha(path) {
   const data = await res.json();
   return data.sha || null;
 }
+async function ghGetJson(path) {
+  const res = await ghRequest(`/contents/${path}?ref=${GH_BRANCH}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  try { return jsonFromB64(data.content); } catch (e) { return null; }
+}
 async function ghPutFile(path, base64Content, message) {
   const sha = await ghGetFileSha(path);
   const body = { message, content: base64Content, branch: GH_BRANCH };
@@ -2322,6 +2345,18 @@ async function fetchStoryPdfBytes(id) {
   if (!res.ok) return null;
   return new Uint8Array(await res.arrayBuffer());
 }
+/* Level-up concessi dal Narratore per una storia: mappa id personaggio →
+   { nome, level, grantedAt }. Lettura pubblica, nessun token richiesto. */
+async function fetchStoryGrants(storyId) {
+  try {
+    const res = await fetch(`${GH_API}/contents/stories/${storyId}-grants.json?ref=${GH_BRANCH}`, {
+      headers: { 'Accept': 'application/vnd.github+json' }
+    });
+    if (!res.ok) return {};
+    const data = await res.json();
+    return jsonFromB64(data.content) || {};
+  } catch (e) { return {}; }
+}
 
 /* Pubblica/aggiorna la premessa di una storia: carica il PDF e aggiorna
    l'indice condiviso, così ogni giocatore la vede in automatico. */
@@ -2357,6 +2392,20 @@ async function unpublishStoryOnline(s) {
   const next = index.filter(x => x.id !== s.id);
   await ghPutFile('stories/index.json', b64FromJson(next), 'Aggiorna elenco storie pubblicate');
   invalidateStoriesIndexCache();
+}
+
+/* Concede il level-up a un personaggio: pubblica il livello sbloccato nel
+   file condiviso della storia. Il giocatore lo scarica in automatico e
+   decide lui quando accettarlo (Fase 2 del sistema di crescita: l'app
+   accredita comunque gli AP dei livelli attraversati come da level-up). */
+async function publishLevelGrant(s, characterId, nome, level) {
+  if (!ghToken()) throw new Error('Inserisci prima il token GitHub');
+  await ghEnsureBranch();
+  const path = `stories/${s.id}-grants.json`;
+  const grants = (await ghGetJson(path)) || {};
+  grants[characterId] = { nome, level, grantedAt: Date.now() };
+  await ghPutFile(path, b64FromJson(grants), `Concede level up: ${nome} → Lv ${level}`);
+  s.levelGrants = grants;
 }
 
 /* Solo nell'app nativa: confronta la versione installata (APP_VERSION,
@@ -2447,6 +2496,36 @@ async function renderStoriaSelect(c) {
   sel.innerHTML = `<option value="">— scegli dall'elenco, oppure scrivi il nome sotto —</option>` +
     index.map(entry => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.nome)}</option>`).join('');
   sel.value = (c.storiaId && index.some(x => x.id === c.storiaId)) ? c.storiaId : '';
+}
+
+/* Lato giocatore: controlla se il Narratore ha concesso un level-up per il
+   personaggio attivo (lettura pubblica, nessun token). Il confronto è col
+   livello attuale, non con un flag "consumato": una volta accettato, il
+   personaggio raggiunge il livello concesso e la stessa concessione non
+   risulta più "in attesa" ai controlli successivi. */
+async function checkLevelUpGrant() {
+  const c = getActive(); if (!c) return;
+  const box = $('#levelup-grant-status');
+  const btn = $('#levelup-grant-accept');
+  pendingLevelGrant = null;
+  btn.classList.add('hidden');
+  if (!c.storiaId) {
+    box.textContent = 'Scegli una storia in Identità per ricevere i level-up dal Narratore.';
+    return;
+  }
+  box.textContent = 'Verifica in corso…';
+  const grants = await fetchStoryGrants(c.storiaId);
+  if (getActive() !== c) return; // personaggio cambiato nel frattempo
+  const grant = grants[c.id];
+  const current = Number(c.livello) || 1;
+  if (grant && Number(grant.level) > current) {
+    pendingLevelGrant = grant;
+    box.textContent = `Il Narratore ha sbloccato il Livello ${grant.level}!`;
+    btn.textContent = `Sali al Livello ${grant.level}`;
+    btn.classList.remove('hidden');
+  } else {
+    box.textContent = `Nessun level-up in attesa (Livello attuale ${current}).`;
+  }
 }
 /* Filtro difensivo: se per qualunque motivo l'indice online contenesse più
    voci per la stessa storia (es. pubblicata da due dispositivi diversi
@@ -2611,14 +2690,46 @@ function renderStory() {
   wrap.innerHTML = sorted.map(c => {
     const b = BUILDS[c.build] || BUILDS.guerriero;
     const initial = (c.nome || '?').trim().charAt(0).toUpperCase() || '?';
+    const grant = (s.levelGrants || {})[c.id];
+    // "in attesa" solo finché l'ultima scheda ricevuta dal giocatore non ha
+    // ancora raggiunto il livello concesso (potrebbe averlo già accettato)
+    const pending = grant && Number(grant.level) > Number(c.livello || 1);
+    const grantChip = pending
+      ? `<span class="chip physical" title="In attesa che il giocatore accetti">Lv-up → ${grant.level}</span>` : '';
     return `<div class="char-card" data-viewchar="${c.id}">
       <div class="avatar ${axisClass(c.build in BUILDS ? c.build : 'guerriero')}">${initial}</div>
       <div class="info">
-        <div class="name">${escapeHtml(c.nome || 'Senza nome')}</div>
+        <div class="name">${escapeHtml(c.nome || 'Senza nome')} ${grantChip}</div>
         <div class="meta">${b.label} · Lv ${c.livello || 1}${c.storia ? ' · ' + escapeHtml(c.storia) : ''}</div>
       </div>
+      <button class="btn btn-icon btn-ghost" data-levelup="${c.id}" title="Concedi level up" aria-label="Concedi level up">⬆</button>
     </div>`;
   }).join('');
+}
+
+/* Lato Narratore: chiede il nuovo livello e lo pubblica online per il
+   personaggio scelto (selezione esplicita, perché i personaggi di una
+   stessa storia possono salire di livello in momenti diversi). */
+async function grantLevelUpFlow(characterId) {
+  const s = getActiveStory(); if (!s) return;
+  const c = s.characters.find(x => x.id === characterId);
+  if (!c) return;
+  if (!ghToken()) { toast('Imposta prima il token GitHub in "Premesse di gioco"'); return; }
+  const current = Number(c.livello) || 1;
+  const suggested = clamp(current + 1, 1, 20);
+  const raw = prompt(`Livello da sbloccare per ${c.nome || 'il personaggio'} (attuale ${current}):`, String(suggested));
+  if (raw === null) return;
+  const target = clamp(Math.floor(Number(raw)) || suggested, 1, 20);
+  if (target <= current) { toast('Il livello deve essere superiore a quello attuale'); return; }
+  toast('Pubblicazione in corso…');
+  try {
+    await publishLevelGrant(s, c.id, c.nome || 'Senza nome', target);
+    saveStories();
+    toast(`Level up Lv ${target} concesso a ${c.nome || 'il personaggio'}`);
+    renderStory();
+  } catch (err) {
+    toast('Pubblicazione non riuscita: ' + ((err && err.message) || 'errore'));
+  }
 }
 
 function importCharacterFromText(text) {
