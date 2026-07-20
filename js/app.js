@@ -1143,6 +1143,7 @@ function wireStaticEvents() {
     const checked = e.target.checked;
     const statusEl = $('#premises-online-status');
     e.target.disabled = true;
+    let errorText = null;
     try {
       if (checked) {
         statusEl.textContent = 'Pubblicazione in corso…';
@@ -1157,11 +1158,15 @@ function wireStaticEvents() {
       }
     } catch (err) {
       e.target.checked = !checked; // annulla la spunta se l'operazione fallisce
-      toast('Errore: ' + (err && err.message ? err.message : 'operazione non riuscita'));
+      errorText = (err && err.message) ? err.message : 'operazione non riuscita';
+      toast('Pubblicazione non riuscita');
     } finally {
       e.target.disabled = false;
       saveStories();
       renderPremisesStory();
+      // il toast sparisce in ~2s: il motivo esatto resta visibile qui sotto,
+      // così è leggibile con calma (e riportabile) invece di sparire subito
+      if (errorText) $('#premises-online-status').textContent = 'Errore: ' + errorText;
     }
   });
   $('#btn-share-premesse-pdf').addEventListener('click', () => {
@@ -1982,14 +1987,19 @@ async function ghRequest(path, opts) {
   return fetch(GH_API + path, Object.assign({}, opts, { headers }));
 }
 async function ghErrorMessage(res) {
-  try { const j = await res.json(); return j.message || `Errore GitHub (${res.status})`; }
-  catch (e) { return `Errore GitHub (${res.status})`; }
+  let detail = '';
+  try { const j = await res.json(); detail = j.message || ''; } catch (e) {}
+  if (res.status === 401) return `Token non valido o scaduto (401)${detail ? ': ' + detail : ''}`;
+  if (res.status === 403) return `Permessi del token insufficienti, o troppe richieste (403)${detail ? ': ' + detail : ''}`;
+  if (res.status === 404) return `Repository o file non trovato (404)${detail ? ': ' + detail : ''}`;
+  return detail || `Errore GitHub (${res.status})`;
 }
 async function ghEnsureBranch() {
   const check = await ghRequest(`/git/ref/heads/${GH_BRANCH}`);
   if (check.ok) return true;
+  if (check.status === 401 || check.status === 403) throw new Error(await ghErrorMessage(check));
   const mainRef = await ghRequest('/git/ref/heads/main');
-  if (!mainRef.ok) throw new Error('Impossibile leggere il ramo principale del repository');
+  if (!mainRef.ok) throw new Error(await ghErrorMessage(mainRef));
   const mainData = await mainRef.json();
   const create = await ghRequest('/git/refs', {
     method: 'POST',
@@ -2084,11 +2094,11 @@ async function publishStoryOnline(s) {
 }
 /* Rimuove la storia dalla pubblicazione online (non tocca il PDF locale) */
 async function unpublishStoryOnline(s) {
-  if (!ghToken()) return;
-  await ghDeleteFile(`stories/${s.id}.pdf`, `Rimuove premessa pubblicata: ${s.nome}`).catch(() => {});
+  if (!ghToken()) return; // mai pubblicata da questo dispositivo: niente da rimuovere online
+  await ghDeleteFile(`stories/${s.id}.pdf`, `Rimuove premessa pubblicata: ${s.nome}`);
   const index = (await fetchStoriesIndexRemote()) || [];
   const next = index.filter(x => x.id !== s.id);
-  await ghPutFile('stories/index.json', b64FromJson(next), 'Aggiorna elenco storie pubblicate').catch(() => {});
+  await ghPutFile('stories/index.json', b64FromJson(next), 'Aggiorna elenco storie pubblicate');
   invalidateStoriesIndexCache();
 }
 
@@ -2444,8 +2454,31 @@ function registerServiceWorker() {
     }).catch(() => {});
     return;
   }
+  // updateViaCache:'none' forza il browser a ricontrollare service-worker.js
+  // in rete a ogni caricamento invece di fidarsi della cache HTTP (GitHub
+  // Pages non permette di impostare gli header Cache-Control): senza questo
+  // il browser può continuare a servire per giorni un service worker vecchio
+  // senza mai accorgersi che ne esiste uno nuovo.
+  let refreshingAfterUpdate = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    // un nuovo service worker ha preso il controllo: la pagina già aperta
+    // ha ancora in memoria l'HTML/JS vecchio, va ricaricata per mostrare
+    // davvero l'aggiornamento (senza questo l'utente vede "non aggiornato"
+    // anche se il nuovo service worker è già attivo).
+    if (refreshingAfterUpdate) return;
+    refreshingAfterUpdate = true;
+    location.reload();
+  });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js').catch(err => console.error('SW error', err));
+    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' })
+      .then(reg => {
+        reg.update().catch(() => {});
+        setInterval(() => reg.update().catch(() => {}), 15 * 60 * 1000);
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update().catch(() => {});
+        });
+      })
+      .catch(err => console.error('SW error', err));
   });
 }
 
