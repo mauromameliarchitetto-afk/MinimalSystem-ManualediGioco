@@ -433,6 +433,7 @@ let pendingBuild = null;
 function refreshAfterBuildChange(c) {
   renderBuildGrid(c);
   updateDerived(c);
+  updatePrimaryRemaining(c);
   renderHeader(c);
   renderRetroNote(c);
   renderTecniche(c);
@@ -497,6 +498,12 @@ function updatePrimaryRemaining(c) {
   const el = $('#primary-remaining');
   el.textContent = remaining;
   el.className = 'remaining' + (remaining < 0 ? ' neg' : (remaining === 0 ? ' zero' : ''));
+
+  const note = $('#primary-ap-note');
+  note.classList.toggle('hidden', !c.buildConfirmed);
+  if (c.buildConfirmed) {
+    note.textContent = `Classe confermata: FOR/MIRA/VEL/F.MEN/DEX/DIF/D.MEN ora crescono spendendo AP (disponibili: ${Number(c.apDisponibili) || 0}) — HP e MP restano gratuiti. "Punti rimanenti" resta solo indicativo del totale assegnato.`;
+  }
 }
 
 function currentHpMult(c) {
@@ -1556,9 +1563,9 @@ function wireStaticEvents() {
     const c = getActive(); if (!c) return;
     const key = btn.dataset.pstat, dir = Number(btn.dataset.dir);
     const next = Number(c.primary[key]) + dir;
-    if (next < PRIMARY_MIN) return;
+    if (next < PRIMARY_MIN) { toast(`Valore minimo raggiunto (${PRIMARY_MIN})`); return; }
     const applied = changePrimary(c, key, next);
-    if (applied === null) return; // AP insufficienti
+    if (applied === null) return; // AP insufficienti (toast già mostrato da changePrimary)
     $(`#primary-stats input[data-pstat-input="${key}"]`).value = applied;
     updatePrimaryRemaining(c);
     updateDerived(c);
