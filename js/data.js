@@ -212,6 +212,28 @@ const LEVEL_TABLE = [
   { lv: 20, ap: 100,perk: '+5/+5/+5', note: 'Guerriero 2 Tec · Eclettico 1 Tec+1 Ab · Mago 2 Ab' }
 ];
 
+// Bonus di livello ai tratti (Capacità Normali / Capacità Combattive / Conoscenze):
+// dal Lv 2 ogni riga della tabella limiti di livello aggiunge punti spendibili
+// in ciascuna delle tre liste, in aggiunta ai 15 punti condivisi della creazione.
+function perkGainForLevel(lv) {
+  const r = LEVEL_TABLE.find(x => x.lv === lv);
+  if (!r) return { capacitaNormali: 0, capacitaCombattive: 0, conoscenze: 0 };
+  const parts = r.perk.split('/').map(s => parseInt(s, 10) || 0);
+  return { capacitaNormali: parts[0] || 0, capacitaCombattive: parts[1] || 0, conoscenze: parts[2] || 0 };
+}
+function traitBonusAtLevel(livello) {
+  const out = { capacitaNormali: 0, capacitaCombattive: 0, conoscenze: 0 };
+  LEVEL_TABLE.forEach(r => {
+    if (r.lv <= livello) {
+      const g = perkGainForLevel(r.lv);
+      out.capacitaNormali += g.capacitaNormali;
+      out.capacitaCombattive += g.capacitaCombattive;
+      out.conoscenze += g.conoscenze;
+    }
+  });
+  return out;
+}
+
 // Boost — meccanica ufficiale a 5 livelli fissi
 const BOOST_LEVELS = [
   { lv: 1, costo: 8,  mantenimento: '1 PP/turno', durata: '3 Turni',        range: '5 metri',  limite: '0/100' },

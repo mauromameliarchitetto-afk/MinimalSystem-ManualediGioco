@@ -612,10 +612,21 @@ function updateTraitsRemaining(c) {
     TRAIT_LISTS[k].forEach(name => { sum += Number(c.traits[k][name]) || 0; });
     (c.customTraits[k] || []).forEach(t => { sum += Number(t.value) || 0; });
   });
-  const remaining = TRAIT_POOL - sum;
+  const bonus = traitBonusAtLevel(c.livello || 1);
+  const bonusTotal = bonus.capacitaNormali + bonus.capacitaCombattive + bonus.conoscenze;
+  const pool = TRAIT_POOL + bonusTotal;
+  const remaining = pool - sum;
   const el = $('#traits-remaining');
   el.textContent = remaining;
   el.className = 'remaining' + (remaining < 0 ? ' neg' : (remaining === 0 ? ' zero' : ''));
+  const lbl = $('#traits-remaining-label');
+  if (lbl) lbl.textContent = `Punti rimanenti (Lv ${c.livello || 1})`;
+  const sub = $('#traits-bonus-sub');
+  if (sub) {
+    sub.textContent = bonusTotal
+      ? `Include +${bonusTotal} dai level-up (Capacità +${bonus.capacitaNormali} · Combattive +${bonus.capacitaCombattive} · Conoscenze +${bonus.conoscenze}), su un totale di ${pool} punti.`
+      : `15 punti dalla creazione. Dal Lv 2 la tabella limiti di livello aggiunge punti a Capacità, Capacità Combattive e Conoscenze.`;
+  }
 }
 
 function traitRowHtml(listKey, name, value, isCustom, idx) {
@@ -732,8 +743,7 @@ function renderTertiaryCostTable() {
     .map(([val, ap]) => `<tr><td class="num">${val}</td><td class="num">${ap}</td></tr>`).join('');
 }
 function renderTertiaryPlusMinus(c) {
-  const wrap = $('#tertiary-plusminus');
-  wrap.innerHTML = TERTIARY_STATS.map(s => {
+  const html = TERTIARY_STATS.map(s => {
     const pm = c.tertiaryPM[s.key];
     return `<div class="row-between" style="margin-bottom:8px;" data-pmrow="${s.key}">
       <span style="font-family:var(--font-title);font-weight:600;font-size:12.5px;">${s.label} <span style="color:var(--testo-secondario-dark);font-family:var(--font-mono);">(${c.tertiary[s.key]})</span></span>
@@ -743,6 +753,7 @@ function renderTertiaryPlusMinus(c) {
       </span>
     </div>`;
   }).join('');
+  $$('.tertiary-pm-wrap').forEach(wrap => { wrap.innerHTML = html; });
 }
 function updateGrowthCost() {
   const c = getActive(); if (!c) return;
@@ -1262,6 +1273,7 @@ function wireStaticEvents() {
       renderRetroNote(c);
       renderTecniche(c);
       renderAbilita(c);
+      updateTraitsRemaining(c);
     } else if (key === 'qi') {
       c.qi = isNaN(raw) ? null : raw;
       renderQi(c);
@@ -1446,6 +1458,7 @@ function wireStaticEvents() {
     renderTecniche(c);
     renderAbilita(c);
     renderDiagram(c);
+    updateTraitsRemaining(c);
     touchActive();
   });
   // accredita gli AP dei livelli attraversati: subito al blur, e comunque
@@ -1514,7 +1527,7 @@ function wireStaticEvents() {
     $(sel).addEventListener('change', updateGrowthCost);
   });
 
-  $('#tertiary-plusminus').addEventListener('click', e => {
+  $$('.tertiary-pm-wrap').forEach(wrap => wrap.addEventListener('click', e => {
     const btn = e.target.closest('[data-pm]');
     if (!btn) return;
     const c = getActive(); if (!c) return;
@@ -1522,7 +1535,6 @@ function wireStaticEvents() {
     const pm = c.tertiaryPM[key];
     if (type === 'plus') {
       pm.plus++;
-      if (pm.minus > 0 && pm.plus + pm.minus >= 0) { /* no-op safeguard */ }
       if (pm.plus >= 3) {
         pm.plus = 0;
         if (c.tertiary[key] < TERTIARY_MAX) c.tertiary[key]++;
@@ -1538,7 +1550,7 @@ function wireStaticEvents() {
     }
     renderTertiaryPlusMinus(c);
     touchActive();
-  });
+  }));
 
   // ---- retro: slots ----
   $('#slot-grid').addEventListener('input', e => {
