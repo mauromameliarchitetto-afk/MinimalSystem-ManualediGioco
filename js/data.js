@@ -154,22 +154,10 @@ function rollForValue(v) {
   return { label: 'd12+d8', result: a + b, detail: `${a}+${b}` };
 }
 
-// Costi di crescita HP/MP (Level Up) — costo AP per il punto successivo
-function hpApCostForPoint(n) {
-  if (n <= 100) return 1;
-  if (n <= 250) return 2;
-  if (n <= 400) return 4;
-  const bracket = Math.floor((n - 401) / 100);
-  return 4 * Math.pow(2, bracket + 1);
-}
-function mpApCostForPoint(n) {
-  if (n <= 100) return 1.5;
-  if (n <= 250) return 3;
-  if (n <= 400) return 6;
-  const bracket = Math.floor((n - 401) / 100);
-  return 6 * Math.pow(2, bracket + 1);
-}
-// Attributi Primari (FOR/F.MEN/DIF/D.MEN/Mira/DEX/VEL) e P.R.
+// Attributi Primari (HP/MP/FOR/F.MEN/DIF/D.MEN/Mira/DEX/VEL) e P.R. — dopo il
+// Lv1 crescono tutti con la stessa tabella costi (il rapporto "1 punto
+// base = 1 AP" di HP/MP vale solo durante la creazione, quando il punto
+// base interagisce col moltiplicatore di classe, non dopo)
 function primaryApCostForPoint(n) {
   if (n <= 10) return 2;
   if (n <= 20) return 3;

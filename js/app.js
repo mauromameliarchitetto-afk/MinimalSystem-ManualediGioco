@@ -801,18 +801,20 @@ function creditLevelAP(c) {
 
 /* Cambia un attributo primario. Al Lv1 gli attributi si assegnano ancora
    liberamente coi 40 punti di partenza (scegliere/confermare la classe non
-   chiude questa fase). Solo dopo il primo Lv Up ogni attributo si compra
-   con gli AP secondo i costi di crescita ufficiali (HP e MP hanno le loro
-   tabelle dedicate, gli altri attributi la tabella generica): la spesa è
-   automatica, la riduzione rimborsa, e senza AP il cambio è bloccato.
-   Restituisce il valore applicato o null se bloccato. */
+   chiude questa fase): il rapporto "1 punto base = 1 AP" di HP/MP vale solo
+   in questa fase, perché il punto base interagisce col moltiplicatore di
+   classe. Solo dopo il primo Lv Up ogni attributo — HP/MP compresi — si
+   compra con gli AP guadagnati a level up, secondo la stessa tabella di
+   costo generica degli altri attributi primari: la spesa è automatica, la
+   riduzione rimborsa, e senza AP il cambio è bloccato. Restituisce il
+   valore applicato o null se bloccato. */
 function changePrimary(c, key, newVal) {
   const oldVal = Number(c.primary[key]) || 0;
   newVal = Math.floor(Number(newVal));
   if (isNaN(newVal) || newVal < PRIMARY_MIN) newVal = PRIMARY_MIN;
   if (newVal === oldVal) return newVal;
   if (Number(c.livello) > 1) {
-    const costFn = key === 'hp' ? hpApCostForPoint : key === 'mp' ? mpApCostForPoint : primaryApCostForPoint;
+    const costFn = primaryApCostForPoint;
     let cost = 0;
     if (newVal > oldVal) { for (let n = oldVal + 1; n <= newVal; n++) cost += costFn(n); }
     else { for (let n = oldVal; n > newVal; n--) cost -= costFn(n); }
@@ -893,13 +895,9 @@ function renderTertiaryPlusMinus(c) {
 }
 function updateGrowthCost() {
   const c = getActive(); if (!c) return;
-  const kind = $('#growth-stat').value;
   const cur = Number($('#growth-current').value) || 0;
   const tgt = Number($('#growth-target').value) || 0;
-  let costFn = primaryApCostForPoint;
-  if (kind === 'hp') costFn = hpApCostForPoint;
-  else if (kind === 'mp') costFn = mpApCostForPoint;
-  const cost = totalGrowthCost(cur, tgt, costFn);
+  const cost = totalGrowthCost(cur, tgt, primaryApCostForPoint);
   $('#growth-cost-chip').textContent = `${cost} AP`;
 }
 
@@ -1787,7 +1785,7 @@ function wireStaticEvents() {
     touchActive();
   });
 
-  ['#growth-stat', '#growth-current', '#growth-target'].forEach(sel => {
+  ['#growth-current', '#growth-target'].forEach(sel => {
     $(sel).addEventListener('input', updateGrowthCost);
     $(sel).addEventListener('change', updateGrowthCost);
   });
