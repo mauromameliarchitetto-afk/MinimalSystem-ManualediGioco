@@ -596,6 +596,23 @@ body.pdf-lock-scroll{overflow:hidden;}
 .dg-input.dg-ro{color:var(--testo-secondario-dark-2);pointer-events:none;}
 @media (max-width:379px){.dg-input{font-size:12px;}}
 
+.dg-pm-overlay{position:absolute;inset:0;pointer-events:none;}
+.dg-pm-btn{
+  position:absolute;
+  transform:translate(-50%,-50%);
+  width:18px;height:18px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-title);font-weight:700;font-size:12px;line-height:1;
+  border:1.5px solid var(--bianco-artico);
+  background:var(--antracite-2);color:var(--bianco-artico);
+  pointer-events:auto;cursor:pointer;padding:0;
+  box-shadow:0 0 0 2px var(--antracite-1);
+}
+.dg-pm-btn:active{transform:translate(-50%,-50%) scale(.9);}
+.dg-pm-plus{background:var(--fisico);border-color:var(--fisico);color:var(--antracite-1);}
+.dg-pm-minus{background:var(--antracite-2);border-color:var(--testo-secondario-dark);}
+@media (max-width:379px){.dg-pm-btn{width:16px;height:16px;font-size:11px;}}
+
 /* ---------- Point buy ---------- */
 .pointbuy-header{
   display:flex;align-items:baseline;justify-content:space-between;
