@@ -500,9 +500,10 @@ function updatePrimaryRemaining(c) {
   el.className = 'remaining' + (remaining < 0 ? ' neg' : (remaining === 0 ? ' zero' : ''));
 
   const note = $('#primary-ap-note');
-  note.classList.toggle('hidden', !c.buildConfirmed);
-  if (c.buildConfirmed) {
-    note.textContent = `Classe confermata: ogni attributo (HP, MP inclusi) ora cresce spendendo AP secondo i costi ufficiali di crescita (AP disponibili: ${Number(c.apDisponibili) || 0}). "Punti rimanenti" resta solo indicativo del totale assegnato in fase di creazione.`;
+  const leveled = Number(c.livello) > 1;
+  note.classList.toggle('hidden', !leveled);
+  if (leveled) {
+    note.textContent = `Dal Lv ${c.livello}: ogni attributo (HP, MP inclusi) cresce spendendo AP secondo i costi ufficiali di crescita (AP disponibili: ${Number(c.apDisponibili) || 0}). "Punti rimanenti" resta solo indicativo del totale assegnato in fase di creazione.`;
   }
 }
 
@@ -793,21 +794,24 @@ function creditLevelAP(c) {
     ts: Date.now()
   });
   refreshApUI(c);
+  updatePrimaryRemaining(c);
   toast(delta > 0 ? `+${delta} AP disponibili (Lv ${from} → ${to})` : `${delta} AP (Lv ${from} → ${to})`);
   touchActive();
 }
 
-/* Cambia un attributo primario. Dopo la conferma della classe ogni attributo
-   si compra con gli AP secondo i costi di crescita ufficiali (HP e MP hanno
-   le loro tabelle dedicate, gli altri attributi la tabella generica): la
-   spesa è automatica, la riduzione rimborsa, e senza AP il cambio è
-   bloccato. Restituisce il valore applicato o null se bloccato. */
+/* Cambia un attributo primario. Al Lv1 gli attributi si assegnano ancora
+   liberamente coi 40 punti di partenza (scegliere/confermare la classe non
+   chiude questa fase). Solo dopo il primo Lv Up ogni attributo si compra
+   con gli AP secondo i costi di crescita ufficiali (HP e MP hanno le loro
+   tabelle dedicate, gli altri attributi la tabella generica): la spesa è
+   automatica, la riduzione rimborsa, e senza AP il cambio è bloccato.
+   Restituisce il valore applicato o null se bloccato. */
 function changePrimary(c, key, newVal) {
   const oldVal = Number(c.primary[key]) || 0;
   newVal = Math.floor(Number(newVal));
   if (isNaN(newVal) || newVal < PRIMARY_MIN) newVal = PRIMARY_MIN;
   if (newVal === oldVal) return newVal;
-  if (c.buildConfirmed) {
+  if (Number(c.livello) > 1) {
     const costFn = key === 'hp' ? hpApCostForPoint : key === 'mp' ? mpApCostForPoint : primaryApCostForPoint;
     let cost = 0;
     if (newVal > oldVal) { for (let n = oldVal + 1; n <= newVal; n++) cost += costFn(n); }
@@ -1719,6 +1723,7 @@ function wireStaticEvents() {
     renderAbilita(c);
     renderDiagram(c);
     updateTraitsRemaining(c);
+    updatePrimaryRemaining(c);
     touchActive();
   });
   // accredita gli AP dei livelli attraversati: subito al blur, e comunque
@@ -1791,15 +1796,34 @@ function wireStaticEvents() {
     const btn = e.target.closest('[data-pm]');
     if (!btn) return;
     const c = getActive(); if (!c) return;
+    if (Number(c.livello) <= 1) {
+      toast('Stile, Carisma e Fortuna si sbloccano dal Livello 2');
+      return;
+    }
     const key = btn.dataset.pm, type = btn.dataset.pmtype;
     const pm = c.tertiaryPM[key];
+    const label = TERTIARY_STATS.find(s => s.key === key).label;
     if (type === 'plus') {
-      pm.plus++;
+      pm.plus = Math.min(pm.plus + 1, 3);
       if (pm.plus >= 3) {
-        pm.plus = 0;
-        if (c.tertiary[key] < TERTIARY_MAX) c.tertiary[key]++;
-        toast(`${TERTIARY_STATS.find(s => s.key === key).label} sale di livello!`);
-        renderTertiaryStats(c);
+        const targetLv = c.tertiary[key] + 1;
+        if (targetLv > TERTIARY_MAX) {
+          pm.plus = 0;
+        } else {
+          const cost = TERTIARY_AP_TABLE[String(targetLv)] || 0;
+          const disponibili = Number(c.apDisponibili) || 0;
+          if (cost > disponibili) {
+            toast(`AP insufficienti per far salire ${label}: servono ${cost} AP (disponibili ${disponibili})`);
+          } else {
+            pm.plus = 0;
+            c.tertiary[key] = targetLv;
+            c.apDisponibili = disponibili - cost;
+            c.ledger.push({ id: uid(), desc: `+1 ${label} (→ ${targetLv})`, amt: cost, ts: Date.now() });
+            toast(`${label} sale di livello! (-${cost} AP)`);
+            renderTertiaryStats(c);
+            refreshApUI(c);
+          }
+        }
       }
     } else {
       pm.minus++;
