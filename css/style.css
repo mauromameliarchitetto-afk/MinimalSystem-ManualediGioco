@@ -342,15 +342,6 @@ input,select,textarea{font-family:var(--font-body);}
 .box-bar.bicolor{background:linear-gradient(90deg,var(--fisico-forte),var(--magico-forte));}
 .box-pad{padding:14px 14px 16px;}
 
-.box-example{
-  background:transparent;
-  border:1px dashed var(--bordo-scuro);
-  border-radius:var(--radius);
-  padding:12px 14px;
-}
-.box-example .ex-title{font-style:italic;color:var(--testo-secondario-dark-2);font-size:12.5px;margin-bottom:4px;}
-.box-example p{font-size:12.5px;color:var(--testo-secondario-dark-2);margin:0;}
-
 .box-lore{
   background:rgba(255,255,255,0.03);
   border-radius:var(--radius);
@@ -806,10 +797,9 @@ table.edit-table thead th{white-space:nowrap;}
 .slot-picker .sp-row{display:flex;flex-wrap:wrap;gap:6px;}
 .slot-picker .sp-row .btn-sm{flex:1;min-width:64px;padding:7px 8px;}
 .slot-fields{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
-.slot-fields .sf{display:flex;flex-direction:column;gap:3px;}
+.slot-fields .sf{display:flex;flex-direction:column;gap:3px;min-width:0;}
 .slot-fields label{font-size:8.5px;text-transform:uppercase;color:var(--testo-secondario-dark);letter-spacing:.04em;}
 .slot-fields label .sf-range{text-transform:none;letter-spacing:0;font-family:var(--font-mono);}
-.slot-fields .sf{min-width:0;}
 .slot-card .slot-bonus{margin-top:10px;}
 .slot-fields input{
   background:var(--antracite-1);border:1px solid var(--bordo-scuro);border-radius:5px;
@@ -824,10 +814,6 @@ table.edit-table thead th{white-space:nowrap;}
   display:block;text-align:center;font-family:var(--font-mono);font-size:12px;
   color:var(--testo-primario-dark);
 }
-
-/* ---------- Boost table ---------- */
-.boost-row{display:flex;align-items:center;gap:8px;}
-.boost-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--magico-forte);}
 
 /* ---------- Ledger AP ---------- */
 .ledger-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;}
@@ -852,7 +838,6 @@ table.edit-table thead th{white-space:nowrap;}
 #toast.show{transform:translateX(-50%) translateY(0);}
 
 /* ---------- Misc ---------- */
-.spacer{height:6px;}
 .helper-text{font-size:11px;color:var(--testo-secondario-dark);line-height:1.5;}
 .row-between{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .chip{
