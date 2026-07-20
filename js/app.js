@@ -668,6 +668,10 @@ function renderTertiaryStats(c) {
   }).join('');
   updateTertiaryRemaining(c);
 }
+function tertiaryMaxAllowed(c, key) {
+  const sumOthers = TERTIARY_STATS.reduce((s, st) => s + (st.key === key ? 0 : Number(c.tertiary[st.key]) || 0), 0);
+  return TERTIARY_POOL - sumOthers;
+}
 function updateTertiaryRemaining(c) {
   const sum = TERTIARY_STATS.reduce((s, k) => s + Number(c.tertiary[k.key] || 0), 0);
   const remaining = TERTIARY_POOL - sum;
@@ -720,12 +724,20 @@ function renderTraits(c) {
   }).join('');
   updateTraitsRemaining(c);
 }
-function updateTraitsRemaining(c) {
+function traitsSpent(c) {
   let sum = 0;
   Object.keys(TRAIT_LISTS).forEach(k => {
     TRAIT_LISTS[k].forEach(name => { sum += Number(c.traits[k][name]) || 0; });
     (c.customTraits[k] || []).forEach(t => { sum += Number(t.value) || 0; });
   });
+  return sum;
+}
+function traitsPool(c) {
+  const bonus = traitBonusAtLevel(c.livello || 1);
+  return TRAIT_POOL + bonus.capacitaNormali + bonus.capacitaCombattive + bonus.conoscenze;
+}
+function updateTraitsRemaining(c) {
+  const sum = traitsSpent(c);
   const bonus = traitBonusAtLevel(c.livello || 1);
   const bonusTotal = bonus.capacitaNormali + bonus.capacitaCombattive + bonus.conoscenze;
   const pool = TRAIT_POOL + bonusTotal;
@@ -834,6 +846,15 @@ function changePrimary(c, key, newVal) {
       ts: Date.now()
     });
     refreshApUI(c);
+  } else if (newVal > oldVal) {
+    // Fase 1 — creazione: il pool di 40 punti primari è un tetto invalicabile,
+    // non si può spendere più di quanto disponibile (niente numeri negativi)
+    const sumOthers = PRIMARY_STATS.reduce((s, st) => s + (st.key === key ? 0 : Number(c.primary[st.key]) || 0), 0);
+    const maxAllowed = PRIMARY_POOL - sumOthers;
+    if (newVal > maxAllowed) {
+      toast(`Punti creazione esauriti: pool di ${PRIMARY_POOL} già assegnato`);
+      newVal = Math.max(oldVal, Math.max(PRIMARY_MIN, maxAllowed));
+    }
   }
   c.primary[key] = newVal;
   return newVal;
@@ -1626,6 +1647,10 @@ function wireStaticEvents() {
     const key = btn.dataset.tstat, dir = Number(btn.dataset.dir);
     const next = Number(c.tertiary[key]) + dir;
     if (next < TERTIARY_MIN || next > TERTIARY_MAX) return;
+    if (dir > 0 && next > tertiaryMaxAllowed(c, key)) {
+      toast(`Punti creazione esauriti: pool di ${TERTIARY_POOL} già assegnato`);
+      return;
+    }
     c.tertiary[key] = next;
     $(`#tertiary-stats input[data-tstat-input="${key}"]`).value = next;
     updateTertiaryRemaining(c);
@@ -1641,6 +1666,15 @@ function wireStaticEvents() {
     let v = Math.floor(Number(input.value));
     if (isNaN(v)) v = TERTIARY_MIN;
     v = clamp(v, TERTIARY_MIN, TERTIARY_MAX);
+    const old = Number(c.tertiary[key]) || 0;
+    if (v > old) {
+      const maxAllowed = tertiaryMaxAllowed(c, key);
+      if (v > maxAllowed) {
+        toast(`Punti creazione esauriti: pool di ${TERTIARY_POOL} già assegnato`);
+        v = Math.max(old, maxAllowed);
+        input.value = v;
+      }
+    }
     c.tertiary[key] = v;
     updateTertiaryRemaining(c);
     renderTertiaryPlusMinus(c);
@@ -1697,7 +1731,20 @@ function wireStaticEvents() {
     if (valInput) {
       const list = valInput.dataset.list;
       let v = clamp(Math.floor(Number(valInput.value)) || 0, 0, 50);
-      if (valInput.dataset.customIdx !== undefined) {
+      const isCustom = valInput.dataset.customIdx !== undefined;
+      const old = isCustom
+        ? Number(c.customTraits[list][Number(valInput.dataset.customIdx)].value) || 0
+        : Number(c.traits[list][valInput.dataset.traitvalue]) || 0;
+      if (v > old) {
+        const pool = traitsPool(c);
+        const maxAllowed = pool - traitsSpent(c) + old;
+        if (v > maxAllowed) {
+          toast(`Punti tratti esauriti: pool di ${pool} già assegnato`);
+          v = Math.max(old, maxAllowed);
+          valInput.value = v;
+        }
+      }
+      if (isCustom) {
         const idx = Number(valInput.dataset.customIdx);
         c.customTraits[list][idx].value = v;
       } else {
