@@ -170,14 +170,24 @@ function touchActive() {
 
 /* ------------------------------------------------------------- factories */
 
+/* Retro scheda: solo locazioni di armatura (le armi sono sul fronte) */
 function defaultSlots() {
   return ['Capo', 'Busto', 'Braccio Sx', 'Braccio Dx', 'Gamba Sx', 'Gamba Dx']
-    .map(name => ({ name, type: '', size: '', quality: '', atk: 0, dif: 0, bonus: 0, dur: 0 }));
+    .map(name => ({ name, kind: 'armatura', size: '', quality: '', atk: 0, dif: 0, bonus: 0, dur: 0 }));
 }
-/* Se tipo/taglia/qualità sono tutti scelti, riporta atk/dif/dur nel range
-   ufficiale corrispondente (usato quando cambia una delle tre scelte) */
+/* Fronte scheda: 1 scudo + 3 armi */
+function defaultWeaponSlots() {
+  return [
+    { name: 'Scudo', kind: 'scudo', size: '', quality: '', atk: 0, dif: 0, bonus: 0, dur: 0 },
+    { name: 'Arma 1', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: 0, dur: 0 },
+    { name: 'Arma 2', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: 0, dur: 0 },
+    { name: 'Arma 3', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: 0, dur: 0 }
+  ];
+}
+/* Se taglia/qualità sono entrambe scelte, riporta atk/dif/dur nel range
+   ufficiale corrispondente (usato quando cambia una delle due scelte) */
 function clampSlotToRange(slot) {
-  const r = equipRange(slot.type, slot.size, slot.quality);
+  const r = equipRange(slot.kind, slot.size, slot.quality);
   if (!r) return;
   ['atk', 'dif', 'dur'].forEach(f => {
     const [min, max] = r[f];
@@ -258,6 +268,7 @@ function newCharacter(nome) {
     hpMaxTracked: null, mpMaxTracked: null, prMaxTracked: null,
     hpCur: null, mpCur: null, ppCur: null, prCur: null,
     slots: defaultSlots(),
+    weaponSlots: defaultWeaponSlots(),
     tecniche: [],
     abilita: [],
     boostRows: [],
@@ -330,13 +341,18 @@ function ensureShape(c) {
   // rinomina i vecchi nomi predefiniti delle locazioni in quelli ufficiali
   const slotRenames = { 'Testa': 'Capo', 'Torso': 'Busto', 'Braccio Destro': 'Braccio Dx',
     'Braccio Sinistro': 'Braccio Sx', 'Gamba Destra': 'Gamba Dx', 'Gamba Sinistra': 'Gamba Sx' };
+  // il retro scheda ora ospita solo armature (le armi sono sul fronte): le
+  // vecchie locazioni con Arma/Scudo perdono taglia/qualità non più valide
+  const armorSizes = (EQUIP_TYPES.find(t => t.key === 'armatura') || { sizes: [] }).sizes.map(sz => sz.key);
   (c.slots || []).forEach(s => {
     if (slotRenames[s.name]) s.name = slotRenames[s.name];
     delete s.item;
-    if (s.type === undefined) s.type = '';
-    if (s.size === undefined) s.size = '';
+    delete s.type;
+    s.kind = 'armatura';
+    if (s.size && !armorSizes.includes(s.size)) { s.size = ''; s.quality = ''; s.atk = 0; s.dif = 0; s.dur = 0; }
     if (s.quality === undefined) s.quality = '';
   });
+  (c.weaponSlots || []).forEach(s => { if (s.quality === undefined) s.quality = ''; });
   return c;
 }
 
@@ -916,32 +932,33 @@ function updateGrowthCost() {
 
 /* ------------------------------------------------------------- retro/eq */
 
-function renderSlots(c) {
-  $('#slot-grid').innerHTML = c.slots.map((s, i) => {
-    const typeInfo = EQUIP_TYPES.find(t => t.key === s.type);
-    const sizes = typeInfo ? typeInfo.sizes : [];
-    const range = equipRange(s.type, s.size, s.quality);
-    const pickerRow = (label, options, selected, attr) => `
-      <div class="slot-picker">
-        <span class="sp-label">${label}</span>
-        <div class="sp-row">
-          ${options.map(o => `<button type="button" class="btn btn-sm ${selected === o.key ? 'btn-primary' : 'btn-ghost'}" data-${attr}="${o.key}">${o.label}</button>`).join('')}
-        </div>
-      </div>`;
-    const rangeField = (label, key) => {
-      const r = range ? range[key] : null;
-      const min = r ? r[0] : 0, max = r ? r[1] : 0;
-      const val = r ? clamp(Number(s[key]) || min, min, max) : 0;
-      return `<div class="sf">
-        <label>${label}${r ? ` <span class="sf-range">${min}–${max}</span>` : ''}</label>
-        <input type="range" min="${min}" max="${max}" value="${val}" data-slotfield="${key}" data-idx="${i}" ${r ? '' : 'disabled'}>
-        <span class="sf-val">${r ? val : '—'}</span>
-      </div>`;
-    };
-    return `
+/* Card di equip condivisa da retro (solo armature) e fronte (scudo/armi):
+   il tipo è fisso per contesto/indice, restano da scegliere solo taglia e
+   qualità — Atk/Dif/Durabilità diventano cursori nel range ufficiale */
+function equipCardHtml(s, i, namePlaceholder) {
+  const typeInfo = EQUIP_TYPES.find(t => t.key === s.kind);
+  const sizes = typeInfo ? typeInfo.sizes : [];
+  const range = equipRange(s.kind, s.size, s.quality);
+  const pickerRow = (label, options, selected, attr) => `
+    <div class="slot-picker">
+      <span class="sp-label">${label}</span>
+      <div class="sp-row">
+        ${options.map(o => `<button type="button" class="btn btn-sm ${selected === o.key ? 'btn-primary' : 'btn-ghost'}" data-${attr}="${o.key}">${o.label}</button>`).join('')}
+      </div>
+    </div>`;
+  const rangeField = (label, key) => {
+    const r = range ? range[key] : null;
+    const min = r ? r[0] : 0, max = r ? r[1] : 0;
+    const val = r ? clamp(Number(s[key]) || min, min, max) : 0;
+    return `<div class="sf">
+      <label>${label}${r ? ` <span class="sf-range">${min}–${max}</span>` : ''}</label>
+      <input type="range" min="${min}" max="${max}" value="${val}" data-slotfield="${key}" data-idx="${i}" ${r ? '' : 'disabled'}>
+      <span class="sf-val">${r ? val : '—'}</span>
+    </div>`;
+  };
+  return `
     <div class="slot-card" data-slotidx="${i}">
-      <input type="text" class="slot-name" value="${escapeHtml(s.name)}" data-slotname="${i}" placeholder="Locazione">
-      ${pickerRow('Tipo', EQUIP_TYPES, s.type, 'slottype')}
+      <input type="text" class="slot-name" value="${escapeHtml(s.name)}" data-slotname="${i}" placeholder="${namePlaceholder}">
       ${sizes.length ? pickerRow('Taglia', sizes, s.size, 'slotsize') : ''}
       ${pickerRow('Qualità', EQUIP_QUALITIES, s.quality, 'slotquality')}
       <div class="slot-fields">
@@ -951,7 +968,13 @@ function renderSlots(c) {
         ${rangeField('Durabilità', 'dur')}
       </div>
     </div>`;
-  }).join('');
+}
+function renderSlots(c) {
+  $('#slot-grid').innerHTML = c.slots.map((s, i) => equipCardHtml(s, i, 'Locazione')).join('');
+}
+function renderWeaponSlots(c) {
+  $('#weapon-grid').innerHTML = c.weaponSlots.map((s, i) =>
+    equipCardHtml(s, i, s.kind === 'scudo' ? 'Nome scudo' : 'Nome arma')).join('');
 }
 function editTableRows(id, rows, dataAttr, fields) {
   if (!rows.length) {
@@ -1101,6 +1124,7 @@ function renderSheet() {
   renderTertiaryPlusMinus(c);
   updateGrowthCost();
   renderSlots(c);
+  renderWeaponSlots(c);
   renderRetroNote(c);
   renderTecniche(c);
   renderAbilita(c);
@@ -1876,41 +1900,9 @@ function wireStaticEvents() {
     touchActive();
   }));
 
-  // ---- retro: slots ----
-  $('#slot-grid').addEventListener('input', e => {
-    const c = getActive(); if (!c) return;
-    const nameInput = e.target.closest('[data-slotname]');
-    const fieldInput = e.target.closest('[data-slotfield]');
-    if (nameInput) {
-      c.slots[Number(nameInput.dataset.slotname)].name = nameInput.value;
-      touchActive();
-    } else if (fieldInput) {
-      const idx = Number(fieldInput.dataset.idx), field = fieldInput.dataset.slotfield;
-      c.slots[idx][field] = Number(fieldInput.value) || 0;
-      const out = fieldInput.parentElement.querySelector('.sf-val');
-      if (out) out.textContent = c.slots[idx][field];
-      touchActive();
-    }
-  });
-  $('#slot-grid').addEventListener('click', e => {
-    const btn = e.target.closest('[data-slottype],[data-slotsize],[data-slotquality]');
-    if (!btn) return;
-    const c = getActive(); if (!c) return;
-    const card = btn.closest('[data-slotidx]');
-    const slot = c.slots[Number(card.dataset.slotidx)];
-    const val = btn.dataset.slottype || btn.dataset.slotsize || btn.dataset.slotquality;
-    if (btn.hasAttribute('data-slottype')) {
-      slot.type = slot.type === val ? '' : val;
-      slot.size = '';
-    } else if (btn.hasAttribute('data-slotsize')) {
-      slot.size = slot.size === val ? '' : val;
-    } else {
-      slot.quality = slot.quality === val ? '' : val;
-    }
-    clampSlotToRange(slot);
-    renderSlots(c);
-    touchActive();
-  });
+  // ---- retro (solo armature) e fronte (scudo + armi): equip a card ----
+  wireEquipGrid('#slot-grid', c => c.slots, renderSlots);
+  wireEquipGrid('#weapon-grid', c => c.weaponSlots, renderWeaponSlots);
 
   // ---- tecniche / abilità / boost personali (edit tables) ----
   wireEditTable('#tecniche-table', 'tecnica', 'tecniche');
@@ -2042,6 +2034,40 @@ function wireStaticEvents() {
   });
 }
 
+function wireEquipGrid(sel, getSlots, doRender) {
+  $(sel).addEventListener('input', e => {
+    const c = getActive(); if (!c) return;
+    const slots = getSlots(c);
+    const nameInput = e.target.closest('[data-slotname]');
+    const fieldInput = e.target.closest('[data-slotfield]');
+    if (nameInput) {
+      slots[Number(nameInput.dataset.slotname)].name = nameInput.value;
+      touchActive();
+    } else if (fieldInput) {
+      const idx = Number(fieldInput.dataset.idx), field = fieldInput.dataset.slotfield;
+      slots[idx][field] = Number(fieldInput.value) || 0;
+      const out = fieldInput.parentElement.querySelector('.sf-val');
+      if (out) out.textContent = slots[idx][field];
+      touchActive();
+    }
+  });
+  $(sel).addEventListener('click', e => {
+    const btn = e.target.closest('[data-slotsize],[data-slotquality]');
+    if (!btn) return;
+    const c = getActive(); if (!c) return;
+    const card = btn.closest('[data-slotidx]');
+    const slot = getSlots(c)[Number(card.dataset.slotidx)];
+    const val = btn.dataset.slotsize || btn.dataset.slotquality;
+    if (btn.hasAttribute('data-slotsize')) {
+      slot.size = slot.size === val ? '' : val;
+    } else {
+      slot.quality = slot.quality === val ? '' : val;
+    }
+    clampSlotToRange(slot);
+    doRender(c);
+    touchActive();
+  });
+}
 function wireEditTable(sel, dataAttr, field) {
   $(sel).addEventListener('input', e => {
     const input = e.target.closest(`[data-${dataAttr}]`);
@@ -2620,14 +2646,15 @@ function renderCharView(c) {
     }
   });
 
-  const slots = (c.slots || []).filter(s2 => s2.type || s2.atk || s2.dif || s2.bonus || s2.dur)
-    .map(s2 => {
-      const t = EQUIP_TYPES.find(t2 => t2.key === s2.type);
-      const sz = t && t.sizes.find(sz2 => sz2.key === s2.size);
-      const q = EQUIP_QUALITIES.find(q2 => q2.key === s2.quality);
-      const desc = [t && t.label, sz && sz.label, q && q.label].filter(Boolean).join(' · ') || '—';
-      return `<tr><td class="field">${escapeHtml(s2.name)}</td><td>${escapeHtml(desc)}</td><td class="num">${s2.atk}/${s2.dif}/${s2.bonus}/${s2.dur}</td></tr>`;
-    }).join('');
+  const equipRow = s2 => {
+    const t = EQUIP_TYPES.find(t2 => t2.key === s2.kind);
+    const sz = t && t.sizes.find(sz2 => sz2.key === s2.size);
+    const q = EQUIP_QUALITIES.find(q2 => q2.key === s2.quality);
+    const desc = [t && t.label, sz && sz.label, q && q.label].filter(Boolean).join(' · ') || '—';
+    return `<tr><td class="field">${escapeHtml(s2.name)}</td><td>${escapeHtml(desc)}</td><td class="num">${s2.atk}/${s2.dif}/${s2.bonus}/${s2.dur}</td></tr>`;
+  };
+  const slots = (c.slots || []).filter(s2 => s2.size || s2.atk || s2.dif || s2.bonus || s2.dur).map(equipRow).join('');
+  const weaponSlots = (c.weaponSlots || []).filter(s2 => s2.size || s2.atk || s2.dif || s2.bonus || s2.dur).map(equipRow).join('');
 
   const rowTable = (rows, fields) => (rows || []).filter(rowHasContent)
     .map(r => `<tr>${fields.map(f => `<td>${escapeHtml(String(r[f] || ''))}</td>`).join('')}</tr>`).join('');
@@ -2663,7 +2690,8 @@ function renderCharView(c) {
     ${section('Caratteristiche primarie', table(primarie))}
     ${section('Terziarie', table(terziarie))}
     ${section('Tratti', tratti ? table(tratti) : '')}
-    ${section('Equipaggiamento (Tipo · Atk/Dif/Bonus/Durabilità)', slots ? table(slots) : '')}
+    ${section('Armatura (Locazione · Atk/Dif/Bonus/Durabilità)', slots ? table(slots) : '')}
+    ${section('Scudo e armi (Atk/Dif/Bonus/Durabilità)', weaponSlots ? table(weaponSlots) : '')}
     ${section('Tecniche (Nome · Bonus · Malus · Durata · Utilizzi · Lv)', tecniche ? table(tecniche) : '')}
     ${section('Abilità (Nome · Bonus · Costo · Durata · Utilizzi · Lv)', abilita ? table(abilita) : '')}
     ${section('Boost (Bonus · Range · PP · Costo · Limite · Lv)', boosts ? table(boosts) : '')}
