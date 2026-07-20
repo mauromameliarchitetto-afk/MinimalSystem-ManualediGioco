@@ -39,13 +39,12 @@
       <button class="cm-item" data-menu-nav="premises">Premesse di gioco</button>
       <div class="cm-sep"></div>
       <div class="cm-label">Scheda personaggio</div>
-      <button class="cm-item" data-menu-tab="gioco">In gioco</button>
+      <button class="cm-item" data-menu-tab="gioco">Fronte Scheda</button>
+      <button class="cm-item" data-menu-tab="retro">Retro Scheda</button>
       <button class="cm-item" data-menu-tab="identita">Identità</button>
-      <button class="cm-item" data-menu-tab="primarie">Primarie</button>
-      <button class="cm-item" data-menu-tab="terziarie">Terziarie</button>
+      <button class="cm-item" data-menu-tab="statistiche">Statistiche</button>
       <button class="cm-item" data-menu-tab="tratti">Tratti</button>
       <button class="cm-item" data-menu-tab="livelli">Livelli</button>
-      <button class="cm-item" data-menu-tab="retro">Equip. &amp; Poteri</button>
       <button class="cm-item" data-menu-tab="note">Background</button>
     </nav>
 
@@ -84,19 +83,18 @@
     </div>
 
     <nav class="tabs" id="tabs">
-      <button class="tab-btn active" data-tab="gioco">In gioco</button>
+      <button class="tab-btn active" data-tab="gioco">Fronte Scheda</button>
+      <button class="tab-btn" data-tab="retro">Retro Scheda</button>
       <button class="tab-btn" data-tab="identita">Identità</button>
-      <button class="tab-btn" data-tab="primarie">Primarie</button>
-      <button class="tab-btn" data-tab="terziarie">Terziarie</button>
+      <button class="tab-btn" data-tab="statistiche">Statistiche</button>
       <button class="tab-btn" data-tab="tratti">Tratti</button>
       <button class="tab-btn" data-tab="livelli">Livelli</button>
-      <button class="tab-btn" data-tab="retro">Equip. &amp; Poteri</button>
       <button class="tab-btn" data-tab="note">Background</button>
     </nav>
 
     <div class="sheet-body">
 
-      <!-- ---- IN GIOCO ---- -->
+      <!-- ---- FRONTE SCHEDA ---- -->
       <div class="tab-panel active" data-panel="gioco">
         <div class="section-title"><span class="dot"></span>Diagramma della scheda</div>
         <p class="helper-text">Il fronte della scheda ufficiale, compilabile: tocca un cerchio e scrivi il valore. I cerchi HP e MP mostrano i punti <em>rimanenti</em>: partono dal massimo (moltiplicatore della classe + incrementi dei level-up, modificabile qui sotto nelle barre) e si riducono da soli scrivendo in USO i punti <em>spesi</em> per danni o abilità. K.O. è automatico: 10% del massimo. Caratteristiche, terziarie, LV e Q.I. restano sincronizzati con le rispettive schede.</p>
@@ -154,6 +152,12 @@
             </svg>
             <div class="dg-inputs" id="dg-inputs"></div>
           </div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Stile · Carisma · Fortuna</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad">
+          <p class="helper-text" style="margin:0 0 8px;">3 esiti "+" = +1 livello (poi il contatore si azzera). Ogni 3 "-" si toglie un "+". Base e distribuzione iniziale si impostano in "Statistiche".</p>
+          <div id="tertiary-plusminus-gioco" class="tertiary-pm-wrap"></div>
         </div></div>
 
         <div class="box"><div class="box-bar bicolor"></div><div class="box-pad">
@@ -217,6 +221,51 @@
           </div>
         </div></div>
       </div>
+      <!-- ---- RETRO SCHEDA ---- -->
+      <div class="tab-panel" data-panel="retro">
+        <p class="helper-text" id="retro-build-note">—</p>
+        <p class="helper-text">Apprendimenti: Lv 4/12/20 per classe (Guerriero 2 Tecniche · Eclettico 1+1 · Mago 2 Abilità); Lv 8/16 tutte le classi 1 Tecnica + 1 Abilità — l'Eclettico può scegliere 2 Tecniche, 2 Abilità o 1+1. Spendendo 2 apprendimenti dello stesso tipo si livella una Tecnica/Abilità già appresa (colonna Lv): Eclettico ai Lv 8/16, Guerriero e Mago ai Lv 12/20.</p>
+        <div class="section-title"><span class="dot neutral"></span>Locazioni equipaggiamento</div>
+        <p class="helper-text">Locazioni come da scheda ufficiale (Capo, Busto, Braccia, Gambe): per ciascuna annota l'oggetto o l'arma equipaggiata con Atk, Dif, Bonus e Durabilità.</p>
+        <div class="slot-grid" id="slot-grid"></div>
+
+        <div class="section-title"><span class="dot physical"></span>Tecniche <span class="chip" style="margin-left:auto;" id="tecniche-count">—</span></div>
+        <div class="table-scroll"><table class="data-table edit-table">
+          <thead><tr><th>Nome</th><th>Bonus</th><th>Malus</th><th>Durata</th><th>Utilizzi</th><th>Lv</th></tr></thead>
+          <tbody id="tecniche-table"></tbody>
+        </table></div>
+
+        <div class="section-title"><span class="dot magic"></span>Abilità <span class="chip" style="margin-left:auto;" id="abilita-count">—</span></div>
+        <div class="table-scroll"><table class="data-table edit-table">
+          <thead><tr><th>Nome</th><th>Bonus</th><th>Costo</th><th>Durata</th><th>Utilizzi</th><th>Lv</th></tr></thead>
+          <tbody id="abilita-table"></tbody>
+        </table></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Boost <span class="chip" style="margin-left:auto;">max 2</span></div>
+        <div class="table-scroll"><table class="data-table edit-table">
+          <thead><tr><th>Bonus</th><th>Range</th><th>PP</th><th>Costo</th><th>Limite</th><th>Lv</th></tr></thead>
+          <tbody id="boostrows-table"></tbody>
+        </table></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" id="boost-add">+ Aggiungi boost</button>
+          <button class="btn btn-ghost btn-sm hidden" id="boost-remove">✕ Rimuovi il 2° boost</button>
+        </div>
+
+        <div class="section-title"><span class="dot neutral"></span>Boost — riferimento ufficiale <span class="chip" style="margin-left:auto;">5 livelli</span></div>
+        <div class="table-scroll"><table class="data-table">
+          <thead><tr><th>Lv</th><th class="num">Costo</th><th>Mantenim.</th><th>Durata</th><th>Range</th><th>Appreso</th></tr></thead>
+          <tbody id="boost-table"></tbody>
+        </table></div>
+        <div class="box-lore" id="boost-top-note" style="margin-top:8px;">Oltre il livello 5 (Lv Top): -10% sui costi di attivazione di tutti i livelli appresi.</div>
+
+        <div class="section-title"><span class="dot neutral"></span>Inventario</div>
+        <div class="table-scroll"><table class="data-table edit-table">
+          <thead><tr><th>Oggetto</th><th>Note</th></tr></thead>
+          <tbody id="inventario-table"></tbody>
+        </table></div>
+        <button class="btn btn-ghost btn-sm" id="inv-add" style="align-self:flex-start;">+ Aggiungi oggetto</button>
+      </div>
+
 
       <!-- ---- IDENTITÀ ---- -->
       <div class="tab-panel" data-panel="identita">
@@ -275,8 +324,8 @@
         </div></div>
       </div>
 
-      <!-- ---- PRIMARIE ---- -->
-      <div class="tab-panel" data-panel="primarie">
+      <!-- ---- STATISTICHE (Primarie + Terziarie) ---- -->
+      <div class="tab-panel" data-panel="statistiche">
         <div class="section-title"><span class="dot neutral"></span>Caratteristiche primarie · 40 punti</div>
         <p class="helper-text">Minimo 2 per caratteristica. HP e MP qui sono i valori <em>base</em>: il totale reale si ottiene moltiplicandoli per i moltiplicatori della build (sotto). Dopo la conferma della classe, aumentare un attributo spende automaticamente gli AP guadagnati con i level-up (costi di crescita ufficiali); ridurlo li rimborsa.</p>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
@@ -287,14 +336,25 @@
           <div id="primary-stats"></div>
         </div></div>
 
-        <div class="section-title"><span class="dot neutral"></span>Stile · Carisma · Fortuna</div>
+        <div class="section-title"><span class="dot neutral"></span>Statistiche terziarie · 5 punti</div>
+        <p class="helper-text">Minimo -1 per statistica. Prova: 1d20 + bonus/malus. Il contatore +/- che le fa salire di livello con l'uso è in "Fronte Scheda".</p>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <p class="helper-text" style="margin:0 0 8px;">3 esiti "+" = +1 livello (poi il contatore si azzera). Ogni 3 "-" si toglie un "+". Base e distribuzione iniziale si impostano in "Terziarie".</p>
-          <div id="tertiary-plusminus-primary" class="tertiary-pm-wrap"></div>
+          <div class="pointbuy-header">
+            <span class="label">Punti rimanenti</span>
+            <span class="remaining" id="tertiary-remaining">5</span>
+          </div>
+          <div id="tertiary-stats"></div>
         </div></div>
 
+        <div class="section-title"><span class="dot neutral"></span>Tabella esiti (riferimento)</div>
+        <div class="table-scroll"><table class="data-table">
+          <thead><tr><th>Tiro</th><th>Carisma</th><th>Stile / Fortuna</th></tr></thead>
+          <tbody id="tertiary-ref-table"></tbody>
+        </table></div>
+        <p class="helper-text">Esito sempre a discrezione del Narratore.</p>
+
         <div class="section-title"><span class="dot"></span>Valori derivati alla creazione</div>
-        <p class="helper-text">Formula: base × moltiplicatore build. In "In gioco" HP/MP/P.R. massimi sono tracciati liberamente (crescono col Level Up) — usa "Sincronizza" per riportarli al valore qui sotto.</p>
+        <p class="helper-text">Formula: base × moltiplicatore build. In "Fronte Scheda" HP/MP/P.R. massimi sono tracciati liberamente (crescono col Level Up) — usa "Sincronizza" per riportarli al valore qui sotto.</p>
         <div class="hud-grid">
           <div class="hud-tile physical"><div class="ht-label">HP max (base×mult)</div><div class="ht-value" id="derived-hpmax">0</div><div class="ht-sub" id="derived-hpmax-sub"></div></div>
           <div class="hud-tile magic"><div class="ht-label">MP max (base×mult)</div><div class="ht-value" id="derived-mpmax">0</div><div class="ht-sub" id="derived-mpmax-sub"></div></div>
@@ -302,7 +362,7 @@
           <div class="hud-tile"><div class="ht-label">P.R. iniziali</div><div class="ht-value" id="derived-pr">0</div><div class="ht-sub">da build</div></div>
           <div class="hud-tile"><div class="ht-label">AP disponibili</div><div class="ht-value" id="derived-ap">0</div><div class="ht-sub">dai level-up · si spendono sugli attributi</div></div>
         </div>
-        <button class="btn btn-ghost btn-sm" id="btn-sync-derived" style="align-self:flex-start;">Sincronizza in "In gioco"</button>
+        <button class="btn btn-ghost btn-sm" id="btn-sync-derived" style="align-self:flex-start;">Sincronizza in "Fronte Scheda"</button>
 
         <div class="section-title"><span class="dot neutral"></span>Q.I.</div>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
@@ -319,26 +379,6 @@
             <div class="field"><label>Progresso apprendimento</label><input type="number" id="f-qi-progresso" value="0" min="0"></div>
           </div>
         </div></div>
-      </div>
-
-      <!-- ---- TERZIARIE ---- -->
-      <div class="tab-panel" data-panel="terziarie">
-        <div class="section-title"><span class="dot neutral"></span>Statistiche terziarie · 5 punti</div>
-        <p class="helper-text">Minimo -1 per statistica. Prova: 1d20 + bonus/malus.</p>
-        <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <div class="pointbuy-header">
-            <span class="label">Punti rimanenti</span>
-            <span class="remaining" id="tertiary-remaining">5</span>
-          </div>
-          <div id="tertiary-stats"></div>
-        </div></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Tabella esiti (riferimento)</div>
-        <div class="table-scroll"><table class="data-table">
-          <thead><tr><th>Tiro</th><th>Carisma</th><th>Stile / Fortuna</th></tr></thead>
-          <tbody id="tertiary-ref-table"></tbody>
-        </table></div>
-        <p class="helper-text">Esito sempre a discrezione del Narratore.</p>
       </div>
 
       <!-- ---- TRATTI ---- -->
@@ -407,51 +447,6 @@
           <thead><tr><th>Lv</th><th class="num">AP</th><th>Perk (Capacità/Combattive/Conoscenze)</th><th>Nota</th></tr></thead>
           <tbody id="level-table-body"></tbody>
         </table></div>
-      </div>
-
-      <!-- ---- RETRO / EQUIP & POTERI ---- -->
-      <div class="tab-panel" data-panel="retro">
-        <p class="helper-text" id="retro-build-note">—</p>
-        <p class="helper-text">Apprendimenti: Lv 4/12/20 per classe (Guerriero 2 Tecniche · Eclettico 1+1 · Mago 2 Abilità); Lv 8/16 tutte le classi 1 Tecnica + 1 Abilità — l'Eclettico può scegliere 2 Tecniche, 2 Abilità o 1+1. Spendendo 2 apprendimenti dello stesso tipo si livella una Tecnica/Abilità già appresa (colonna Lv): Eclettico ai Lv 8/16, Guerriero e Mago ai Lv 12/20.</p>
-        <div class="section-title"><span class="dot neutral"></span>Locazioni equipaggiamento</div>
-        <p class="helper-text">Locazioni come da scheda ufficiale (Capo, Busto, Braccia, Gambe): per ciascuna annota l'oggetto o l'arma equipaggiata con Atk, Dif, Bonus e Durabilità.</p>
-        <div class="slot-grid" id="slot-grid"></div>
-
-        <div class="section-title"><span class="dot physical"></span>Tecniche <span class="chip" style="margin-left:auto;" id="tecniche-count">—</span></div>
-        <div class="table-scroll"><table class="data-table edit-table">
-          <thead><tr><th>Nome</th><th>Bonus</th><th>Malus</th><th>Durata</th><th>Utilizzi</th><th>Lv</th></tr></thead>
-          <tbody id="tecniche-table"></tbody>
-        </table></div>
-
-        <div class="section-title"><span class="dot magic"></span>Abilità <span class="chip" style="margin-left:auto;" id="abilita-count">—</span></div>
-        <div class="table-scroll"><table class="data-table edit-table">
-          <thead><tr><th>Nome</th><th>Bonus</th><th>Costo</th><th>Durata</th><th>Utilizzi</th><th>Lv</th></tr></thead>
-          <tbody id="abilita-table"></tbody>
-        </table></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Boost <span class="chip" style="margin-left:auto;">max 2</span></div>
-        <div class="table-scroll"><table class="data-table edit-table">
-          <thead><tr><th>Bonus</th><th>Range</th><th>PP</th><th>Costo</th><th>Limite</th><th>Lv</th></tr></thead>
-          <tbody id="boostrows-table"></tbody>
-        </table></div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-ghost btn-sm" id="boost-add">+ Aggiungi boost</button>
-          <button class="btn btn-ghost btn-sm hidden" id="boost-remove">✕ Rimuovi il 2° boost</button>
-        </div>
-
-        <div class="section-title"><span class="dot neutral"></span>Boost — riferimento ufficiale <span class="chip" style="margin-left:auto;">5 livelli</span></div>
-        <div class="table-scroll"><table class="data-table">
-          <thead><tr><th>Lv</th><th class="num">Costo</th><th>Mantenim.</th><th>Durata</th><th>Range</th><th>Appreso</th></tr></thead>
-          <tbody id="boost-table"></tbody>
-        </table></div>
-        <div class="box-lore" id="boost-top-note" style="margin-top:8px;">Oltre il livello 5 (Lv Top): -10% sui costi di attivazione di tutti i livelli appresi.</div>
-
-        <div class="section-title"><span class="dot neutral"></span>Inventario</div>
-        <div class="table-scroll"><table class="data-table edit-table">
-          <thead><tr><th>Oggetto</th><th>Note</th></tr></thead>
-          <tbody id="inventario-table"></tbody>
-        </table></div>
-        <button class="btn btn-ghost btn-sm" id="inv-add" style="align-self:flex-start;">+ Aggiungi oggetto</button>
       </div>
 
       <!-- ---- BACKGROUND ---- -->
