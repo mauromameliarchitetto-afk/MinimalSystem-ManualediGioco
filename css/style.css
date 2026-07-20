@@ -838,23 +838,29 @@ table.edit-table thead th{white-space:nowrap;}
   .sheet-body{padding-left:32px;padding-right:32px;}
   .slot-fields{grid-template-columns:repeat(4,1fr);}
 
-  /* Sul web/desktop l'app resta alle dimensioni di un telefono, centrata
-     nella finestra: copertina compresa, non si ridimensiona più insieme
-     alla finestra del browser. Sotto i ~915px di altezza della finestra
-     si riduce comunque un po' (max-height), altrimenti resterebbe tagliata
-     fuori dallo schermo senza modo di raggiungerne le parti nascoste. */
-  html,body{height:100%;}
+  /* Sul web/desktop l'app resta alle dimensioni fisse di un telefono,
+     430×860, e non si ridimensiona MAI insieme alla finestra del browser
+     (copertina compresa) — né in larghezza né in altezza. Se la finestra
+     è più bassa di 860px la pagina diventa scorrevole verticalmente
+     invece di rimpicciolire l'app; margin-top con max(0px, …) centra
+     l'app quando c'è spazio e la ancora in alto (anziché "a cavallo" del
+     bordo superiore) quando serve scorrere, così non tocca mai scorrere
+     all'indietro per vederne la cima. */
+  html{height:100%;}
   body{
     display:flex;
+    flex-direction:column;
     align-items:center;
-    justify-content:center;
+    min-height:100vh;
     background:#0a0b0d;
   }
   #app{
     position:relative;
     width:430px;
     height:860px;
-    max-height:94vh;
+    flex:none;
+    margin-top:max(0px, calc((100vh - 860px) / 2));
+    margin-bottom:max(0px, calc((100vh - 860px) / 2));
     min-height:0;
     border-radius:26px;
     overflow:hidden;
