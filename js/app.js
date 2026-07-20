@@ -24,6 +24,62 @@ const STORIES_CACHE_KEY = 'ms_stories_index_cache_v1';
 const STORIES_CACHE_TTL = 5 * 60 * 1000;
 const PREMESSA_MAX_BYTES = 30 * 1024 * 1024;
 
+/* I PDF delle premesse (fino a 30 MB) vivono in IndexedDB, non in
+   localStorage: localStorage ha un limite reale di pochi MB per origine e
+   un PDF anche modesto lo satura subito, facendo fallire OGNI salvataggio
+   successivo (compreso l'aggiornamento della spunta "Pubblica"). In
+   `stories`/localStorage restano solo i metadati (titolo, nome file,
+   dimensione), sempre piccoli. Chiave: l'id della storia lato Narratore,
+   oppure "import:<nome storia>" per il fallback via invito lato giocatore. */
+const PDF_DB_NAME = 'ms_premesse_pdf_db';
+const PDF_DB_STORE = 'pdfs';
+let pdfDbPromise = null;
+function pdfDb() {
+  if (pdfDbPromise) return pdfDbPromise;
+  pdfDbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(PDF_DB_NAME, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(PDF_DB_STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return pdfDbPromise;
+}
+async function savePdfBlob(key, blob) {
+  const db = await pdfDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PDF_DB_STORE, 'readwrite');
+    tx.objectStore(PDF_DB_STORE).put(blob, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function loadPdfBlob(key) {
+  const db = await pdfDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PDF_DB_STORE, 'readonly');
+    const req = tx.objectStore(PDF_DB_STORE).get(key);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function deletePdfBlob(key) {
+  const db = await pdfDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PDF_DB_STORE, 'readwrite');
+    tx.objectStore(PDF_DB_STORE).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).slice(String(reader.result).indexOf(',') + 1));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
 let characters = [];
 let activeId = null;
 let stories = [];
@@ -45,15 +101,43 @@ function loadAll() {
     stories = rawS ? JSON.parse(rawS) : [];
     // migrazione: le premesse a testo con spunte sono state sostituite da
     // un'unica premessa in PDF per storia
+    let migratedPdf = false;
     stories.forEach(s => {
       if (s.premesse !== undefined) delete s.premesse;
       if (s.premessa === undefined) s.premessa = null;
+      // migrazione: i PDF finivano dentro localStorage (dataUrl) e lo
+      // saturavano subito, facendo fallire ogni salvataggio successivo —
+      // ora vivono in IndexedDB; qui si recupera l'eventuale copia rimasta
+      if (s.premessa && s.premessa.dataUrl) {
+        const dataUrl = s.premessa.dataUrl;
+        delete s.premessa.dataUrl;
+        migratedPdf = true;
+        fetch(dataUrl).then(r => r.blob()).then(blob => savePdfBlob(s.id, blob)).catch(() => {});
+      }
     });
+    if (migratedPdf) saveStories(); // libera subito lo spazio in localStorage
   } catch (e) {
     console.error('Errore lettura storie', e);
     stories = [];
   }
   activeId = localStorage.getItem(ACTIVE_KEY) || null;
+  // stessa migrazione lato giocatore: eventuali premesse importate via
+  // invito con il PDF ancora dentro localStorage vengono spostate in
+  // IndexedDB, altrimenti restano lì a saturare lo spazio per sempre
+  try {
+    const map = loadPremesse();
+    let migratedPremesse = false;
+    Object.keys(map).forEach(storia => {
+      const p = map[storia];
+      if (p && p.dataUrl) {
+        const dataUrl = p.dataUrl;
+        delete p.dataUrl;
+        migratedPremesse = true;
+        fetch(dataUrl).then(r => r.blob()).then(blob => savePdfBlob('import:' + storia, blob)).catch(() => {});
+      }
+    });
+    if (migratedPremesse) savePremesse(map);
+  } catch (e) { /* niente da migrare */ }
 }
 function saveStories() {
   try {
@@ -1090,7 +1174,7 @@ function wireStaticEvents() {
     saveStories();
   });
   $('#premises-upload-btn').addEventListener('click', () => $('#premises-pdf-input').click());
-  $('#premises-pdf-input').addEventListener('change', e => {
+  $('#premises-pdf-input').addEventListener('change', async e => {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
@@ -1101,34 +1185,38 @@ function wireStaticEvents() {
       toast(`PDF troppo grande (${(file.size / (1024 * 1024)).toFixed(1)} MB): il limite è 30 MB`);
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      s.premessa = {
-        titolo: ($('#premises-title').value || '').trim() || file.name.replace(/\.pdf$/i, ''),
-        filename: file.name,
-        dataUrl: reader.result,
-        size: file.size,
-        pubblicata: false,
-        uploadedAt: Date.now()
-      };
-      saveStories();
-      renderPremisesStory();
-      toast('PDF caricato');
+    try {
+      await savePdfBlob(s.id, file); // il contenuto va in IndexedDB, non in localStorage
+    } catch (err) {
+      toast('Impossibile salvare il PDF sul dispositivo (spazio insufficiente?)');
+      return;
+    }
+    s.premessa = {
+      titolo: ($('#premises-title').value || '').trim() || file.name.replace(/\.pdf$/i, ''),
+      filename: file.name,
+      size: file.size,
+      pubblicata: false,
+      uploadedAt: Date.now()
     };
-    reader.onerror = () => toast('Impossibile leggere il file');
-    reader.readAsDataURL(file);
+    saveStories();
+    renderPremisesStory();
+    toast('PDF caricato');
   });
-  $('#premises-open-btn').addEventListener('click', () => {
-    const s = getActiveStory(); if (!s || !s.premessa || !s.premessa.dataUrl) return;
-    if (window.MSPdfViewer) window.MSPdfViewer.open({ dataUrl: s.premessa.dataUrl, title: s.premessa.titolo || s.nome, label: 'Narratore · ' + s.nome });
+  $('#premises-open-btn').addEventListener('click', async () => {
+    const s = getActiveStory(); if (!s || !s.premessa) return;
+    const blob = await loadPdfBlob(s.id);
+    if (!blob) { toast('PDF non trovato sul dispositivo: ricaricalo'); return; }
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (window.MSPdfViewer) window.MSPdfViewer.open({ bytes, title: s.premessa.titolo || s.nome, label: 'Narratore · ' + s.nome });
   });
-  $('#premises-remove-btn').addEventListener('click', () => {
+  $('#premises-remove-btn').addEventListener('click', async () => {
     const s = getActiveStory(); if (!s) return;
     if (!confirm('Rimuovere il PDF caricato? Se era pubblicata, viene rimossa anche online.')) return;
     const wasPublished = s.premessa && s.premessa.pubblicata;
     s.premessa = null;
     saveStories();
     renderPremisesStory();
+    await deletePdfBlob(s.id).catch(() => {});
     if (wasPublished) unpublishStoryOnline(s).catch(() => {});
   });
   $('#premises-gh-token-save').addEventListener('click', () => {
@@ -1169,13 +1257,16 @@ function wireStaticEvents() {
       if (errorText) $('#premises-online-status').textContent = 'Errore: ' + errorText;
     }
   });
-  $('#btn-share-premesse-pdf').addEventListener('click', () => {
+  $('#btn-share-premesse-pdf').addEventListener('click', async () => {
     const s = getActiveStory(); if (!s) return;
-    if (!s.premessa || !s.premessa.dataUrl) { toast('Carica prima un PDF'); return; }
-    if (!s.premessa.pubblicata) { toast('Attiva "Pubblica ai giocatori" prima di condividere'); return; }
+    if (!s.premessa) { toast('Carica prima un PDF'); return; }
+    if (!s.premessa.pubblicata) { toast('Attiva "Pubblica" prima di condividere'); return; }
+    const blob = await loadPdfBlob(s.id);
+    if (!blob) { toast('PDF non trovato sul dispositivo: ricaricalo'); return; }
+    const dataUrl = 'data:application/pdf;base64,' + (await blobToBase64(blob));
     const text = JSON.stringify({
       type: 'premessa_pdf', storia: s.nome,
-      titolo: s.premessa.titolo, filename: s.premessa.filename, dataUrl: s.premessa.dataUrl
+      titolo: s.premessa.titolo, filename: s.premessa.filename, dataUrl
     });
     const proceed = () => {
       const done = () => toast('Invito copiato: incollalo nella chat coi giocatori');
@@ -1220,8 +1311,12 @@ function wireStaticEvents() {
     }
     if (!e.target.closest('#prem-popup-open')) return;
     const p = loadPremesse()[storia];
-    if (p && p.dataUrl && window.MSPdfViewer) {
-      window.MSPdfViewer.open({ dataUrl: p.dataUrl, title: p.titolo || 'Premessa', label: (c.nome || 'Giocatore') + ' · ' + storia });
+    if (!p) return;
+    const blob = await loadPdfBlob('import:' + storia);
+    if (!blob) { toast('PDF non trovato sul dispositivo: incolla di nuovo l\'invito'); return; }
+    if (window.MSPdfViewer) {
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      window.MSPdfViewer.open({ bytes, title: p.titolo || 'Premessa', label: (c.nome || 'Giocatore') + ' · ' + storia });
     }
   });
   $('#prem-import-btn').addEventListener('click', () => {
@@ -1974,7 +2069,6 @@ function setGhToken(t) {
   if (t) localStorage.setItem(GH_TOKEN_KEY, t);
   else localStorage.removeItem(GH_TOKEN_KEY);
 }
-function b64FromDataUrl(dataUrl) { return dataUrl.slice(dataUrl.indexOf(',') + 1); }
 function b64FromJson(obj) { return btoa(unescape(encodeURIComponent(JSON.stringify(obj, null, 1)))); }
 function jsonFromB64(b64) { return JSON.parse(decodeURIComponent(escape(atob(b64.replace(/\n/g, ''))))); }
 
@@ -2078,10 +2172,12 @@ async function fetchStoryPdfBytes(id) {
 /* Pubblica/aggiorna la premessa di una storia: carica il PDF e aggiorna
    l'indice condiviso, così ogni giocatore la vede in automatico. */
 async function publishStoryOnline(s) {
-  if (!s.premessa || !s.premessa.dataUrl) throw new Error('Carica prima un PDF');
+  if (!s.premessa) throw new Error('Carica prima un PDF');
   if (!ghToken()) throw new Error('Inserisci prima il token GitHub');
+  const blob = await loadPdfBlob(s.id);
+  if (!blob) throw new Error('PDF non trovato sul dispositivo: ricaricalo');
+  const base64 = await blobToBase64(blob);
   await ghEnsureBranch();
-  const base64 = b64FromDataUrl(s.premessa.dataUrl);
   await ghPutFile(`stories/${s.id}.pdf`, base64, `Pubblica premessa: ${s.nome}`);
   const index = (await fetchStoriesIndexRemote()) || [];
   const entry = {
@@ -2220,7 +2316,7 @@ async function renderPremPopup() {
     }
   }
   const p = loadPremesse()[storia];
-  wrap.innerHTML = (p && p.dataUrl) ? `
+  wrap.innerHTML = p ? `
     <div class="prem-row">
       <div class="pr-main">
         <div class="pr-title">${escapeHtml(p.titolo || p.filename || 'Premessa')}</div>
@@ -2231,7 +2327,7 @@ async function renderPremPopup() {
     : `<div class="helper-text" style="padding:4px 0 8px;">Nessuna premessa per questa storia: scegli una storia pubblicata dal menù in Identità, oppure incolla qui sotto l'invito del Narratore.</div>`;
 }
 
-function importPremesseInvito(text) {
+async function importPremesseInvito(text) {
   const c = getActive(); if (!c) return;
   let data;
   try { data = JSON.parse(text); } catch (e) { toast('Invito non valido'); return; }
@@ -2239,8 +2335,15 @@ function importPremesseInvito(text) {
   const storia = (data.storia || c.storia || '').trim();
   if (!storia) { toast('L\'invito non indica la storia'); return; }
   if (!(c.storia || '').trim()) { c.storia = storia; $('#f-storia').value = storia; touchActive(); }
+  try {
+    const blob = await (await fetch(data.dataUrl)).blob();
+    await savePdfBlob('import:' + storia, blob); // il contenuto va in IndexedDB, non in localStorage
+  } catch (e) {
+    toast('Impossibile salvare il PDF sul dispositivo');
+    return;
+  }
   const map = loadPremesse();
-  map[storia] = { titolo: data.titolo || '', filename: data.filename || '', dataUrl: data.dataUrl, importedAt: Date.now() };
+  map[storia] = { titolo: data.titolo || '', filename: data.filename || '', importedAt: Date.now() };
   savePremesse(map);
   renderPremPopup();
   toast(`Premessa importata per «${storia}»`);
@@ -2278,7 +2381,7 @@ function renderPremisesArea() {
     return;
   }
   wrap.innerHTML = stories.map(s => {
-    const has = !!(s.premessa && s.premessa.dataUrl);
+    const has = !!s.premessa;
     const stato = has ? (s.premessa.pubblicata ? 'Premessa pubblicata' : 'Premessa caricata, non pubblicata') : 'Nessuna premessa caricata';
     return `<div class="char-card" data-premstoryid="${s.id}">
       <div class="avatar bicolor">📄</div>
@@ -2298,7 +2401,7 @@ function renderPremisesStory() {
   const s = getActiveStory(); if (!s) return;
   $('#premises-story-title').textContent = s.nome;
   $('#premises-title').value = (s.premessa && s.premessa.titolo) || '';
-  const has = !!(s.premessa && s.premessa.dataUrl);
+  const has = !!s.premessa;
   $('#premises-publish-toggle').checked = has && !!s.premessa.pubblicata;
   $('#premises-publish-toggle').disabled = !has;
   $('#premises-open-btn').classList.toggle('hidden', !has);
