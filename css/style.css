@@ -805,11 +805,12 @@ table.edit-table thead th{white-space:nowrap;}
 }
 .slot-picker .sp-row{display:flex;flex-wrap:wrap;gap:6px;}
 .slot-picker .sp-row .btn-sm{flex:1;min-width:64px;padding:7px 8px;}
-.slot-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.slot-fields{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
 .slot-fields .sf{display:flex;flex-direction:column;gap:3px;}
 .slot-fields label{font-size:8.5px;text-transform:uppercase;color:var(--testo-secondario-dark);letter-spacing:.04em;}
 .slot-fields label .sf-range{text-transform:none;letter-spacing:0;font-family:var(--font-mono);}
 .slot-fields .sf{min-width:0;}
+.slot-card .slot-bonus{margin-top:10px;}
 .slot-fields input{
   background:var(--antracite-1);border:1px solid var(--bordo-scuro);border-radius:5px;
   color:var(--testo-primario-dark);font-family:var(--font-mono);text-align:center;padding:6px 2px;font-size:13px;
@@ -864,7 +865,6 @@ table.edit-table thead th{white-space:nowrap;}
 
 @media (min-width:600px){
   .sheet-body{padding-left:32px;padding-right:32px;}
-  .slot-fields{grid-template-columns:repeat(4,1fr);}
 
   /* Sul web/desktop l'app resta alle dimensioni fisse di un telefono,
      430×860, e non si ridimensiona MAI insieme alla finestra del browser
