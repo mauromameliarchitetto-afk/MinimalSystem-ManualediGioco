@@ -128,6 +128,42 @@ const TRAIT_LIST_LABELS = {
   capacitaCombattive: 'Capacità Combattive'
 };
 
+// Equipaggiamento (retro scheda): range di Atk/Dif/Durabilità per tipo,
+// taglia e qualità, come da tabella ufficiale del manuale
+const EQUIP_TYPES = [
+  { key: 'arma',     label: 'Arma',     sizes: [{ key: 'corte',   label: 'Corta'   }, { key: 'medie',   label: 'Media'   }, { key: 'grandi',  label: 'Grande'  }] },
+  { key: 'scudo',    label: 'Scudo',    sizes: [{ key: 'piccoli', label: 'Piccolo' }, { key: 'medi',    label: 'Medio'   }, { key: 'grandi',  label: 'Grande'  }] },
+  { key: 'armatura', label: 'Armatura', sizes: [{ key: 'leggere', label: 'Leggera' }, { key: 'medie',   label: 'Media'   }, { key: 'pesanti', label: 'Pesante' }] }
+];
+const EQUIP_QUALITIES = [
+  { key: 'bassa', label: 'Bassa' },
+  { key: 'media', label: 'Media' },
+  { key: 'alta',  label: 'Alta'  }
+];
+const EQUIP_TABLE = {
+  arma: {
+    corte:  { bassa: { atk: [8, 18],  dif: [4, 15],  dur: [80, 200] },  media: { atk: [12, 24], dif: [14, 21], dur: [120, 220] }, alta: { atk: [34, 50], dif: [22, 28], dur: [240, 380] } },
+    medie:  { bassa: { atk: [10, 25], dif: [8, 20],  dur: [100, 250] }, media: { atk: [18, 35], dif: [25, 30], dur: [140, 300] }, alta: { atk: [55, 70], dif: [32, 38], dur: [320, 440] } },
+    grandi: { bassa: { atk: [15, 35], dif: [12, 25], dur: [120, 300] }, media: { atk: [30, 55], dif: [35, 41], dur: [160, 350] }, alta: { atk: [75, 90], dif: [42, 48], dur: [370, 500] } }
+  },
+  scudo: {
+    piccoli: { bassa: { atk: [4, 10],  dif: [8, 18],  dur: [80, 200] },  media: { atk: [8, 15],  dif: [12, 24], dur: [120, 220] }, alta: { atk: [12, 20], dif: [25, 35], dur: [240, 380] } },
+    medi:    { bassa: { atk: [10, 18], dif: [10, 20], dur: [100, 250] }, media: { atk: [15, 24], dif: [25, 30], dur: [140, 300] }, alta: { atk: [20, 28], dif: [32, 38], dur: [320, 440] } },
+    grandi:  { bassa: { atk: [12, 25], dif: [15, 30], dur: [120, 300] }, media: { atk: [20, 35], dif: [32, 60], dur: [160, 350] }, alta: { atk: [35, 50], dif: [70, 90], dur: [370, 500] } }
+  },
+  armatura: {
+    leggere: { bassa: { atk: [0, 2],   dif: [1, 10],  dur: [50, 120] },  media: { atk: [2, 5],   dif: [10, 20], dur: [140, 210] }, alta: { atk: [8, 12],  dif: [20, 30], dur: [230, 300] } },
+    medie:   { bassa: { atk: [5, 10],  dif: [5, 15],  dur: [80, 140] },  media: { atk: [8, 15],  dif: [15, 25], dur: [180, 240] }, alta: { atk: [15, 20], dif: [25, 35], dur: [260, 340] } },
+    pesanti: { bassa: { atk: [10, 15], dif: [25, 35], dur: [180, 230] }, media: { atk: [15, 20], dif: [25, 35], dur: [260, 350] }, alta: { atk: [25, 30], dif: [40, 60], dur: [360, 500] } }
+  }
+};
+function equipRange(type, size, quality) {
+  const t = EQUIP_TABLE[type];
+  const s = t && t[size];
+  const q = s && s[quality];
+  return q || null;
+}
+
 // Q.I. — fasce di apprendimento
 function qiLimite(qi) {
   if (qi < 100) return 11;

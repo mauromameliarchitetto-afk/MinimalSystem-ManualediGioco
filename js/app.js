@@ -172,7 +172,17 @@ function touchActive() {
 
 function defaultSlots() {
   return ['Capo', 'Busto', 'Braccio Sx', 'Braccio Dx', 'Gamba Sx', 'Gamba Dx']
-    .map(name => ({ name, item: '', atk: 0, dif: 0, bonus: 0, dur: 0 }));
+    .map(name => ({ name, type: '', size: '', quality: '', atk: 0, dif: 0, bonus: 0, dur: 0 }));
+}
+/* Se tipo/taglia/qualità sono tutti scelti, riporta atk/dif/dur nel range
+   ufficiale corrispondente (usato quando cambia una delle tre scelte) */
+function clampSlotToRange(slot) {
+  const r = equipRange(slot.type, slot.size, slot.quality);
+  if (!r) return;
+  ['atk', 'dif', 'dur'].forEach(f => {
+    const [min, max] = r[f];
+    slot[f] = clamp(Number(slot[f]) || min, min, max);
+  });
 }
 /* Righe delle tabelle del retro scheda (colonne come da schede ufficiali) */
 function makeTecnicaRow() { return { nome: '', bonus: '', malus: '', durata: '', utilizzi: '', lv: '' }; }
@@ -322,7 +332,10 @@ function ensureShape(c) {
     'Braccio Sinistro': 'Braccio Sx', 'Gamba Destra': 'Gamba Dx', 'Gamba Sinistra': 'Gamba Sx' };
   (c.slots || []).forEach(s => {
     if (slotRenames[s.name]) s.name = slotRenames[s.name];
-    if (s.item === undefined) s.item = '';
+    delete s.item;
+    if (s.type === undefined) s.type = '';
+    if (s.size === undefined) s.size = '';
+    if (s.quality === undefined) s.quality = '';
   });
   return c;
 }
@@ -904,17 +917,41 @@ function updateGrowthCost() {
 /* ------------------------------------------------------------- retro/eq */
 
 function renderSlots(c) {
-  $('#slot-grid').innerHTML = c.slots.map((s, i) => `
+  $('#slot-grid').innerHTML = c.slots.map((s, i) => {
+    const typeInfo = EQUIP_TYPES.find(t => t.key === s.type);
+    const sizes = typeInfo ? typeInfo.sizes : [];
+    const range = equipRange(s.type, s.size, s.quality);
+    const pickerRow = (label, options, selected, attr) => `
+      <div class="slot-picker">
+        <span class="sp-label">${label}</span>
+        <div class="sp-row">
+          ${options.map(o => `<button type="button" class="btn btn-sm ${selected === o.key ? 'btn-primary' : 'btn-ghost'}" data-${attr}="${o.key}">${o.label}</button>`).join('')}
+        </div>
+      </div>`;
+    const rangeField = (label, key) => {
+      const r = range ? range[key] : null;
+      const min = r ? r[0] : 0, max = r ? r[1] : 0;
+      const val = r ? clamp(Number(s[key]) || min, min, max) : 0;
+      return `<div class="sf">
+        <label>${label}${r ? ` <span class="sf-range">${min}–${max}</span>` : ''}</label>
+        <input type="range" min="${min}" max="${max}" value="${val}" data-slotfield="${key}" data-idx="${i}" ${r ? '' : 'disabled'}>
+        <span class="sf-val">${r ? val : '—'}</span>
+      </div>`;
+    };
+    return `
     <div class="slot-card" data-slotidx="${i}">
       <input type="text" class="slot-name" value="${escapeHtml(s.name)}" data-slotname="${i}" placeholder="Locazione">
-      <div class="slot-item"><input type="text" value="${escapeHtml(s.item || '')}" data-slotitem="${i}" placeholder="Oggetto / arma equipaggiata"></div>
+      ${pickerRow('Tipo', EQUIP_TYPES, s.type, 'slottype')}
+      ${sizes.length ? pickerRow('Taglia', sizes, s.size, 'slotsize') : ''}
+      ${pickerRow('Qualità', EQUIP_QUALITIES, s.quality, 'slotquality')}
       <div class="slot-fields">
-        <div class="sf"><label>Atk</label><input type="number" value="${s.atk}" data-slotfield="atk" data-idx="${i}"></div>
-        <div class="sf"><label>Dif</label><input type="number" value="${s.dif}" data-slotfield="dif" data-idx="${i}"></div>
+        ${rangeField('Atk', 'atk')}
+        ${rangeField('Dif', 'dif')}
         <div class="sf"><label>Bonus</label><input type="number" value="${s.bonus}" data-slotfield="bonus" data-idx="${i}"></div>
-        <div class="sf"><label>Durab.</label><input type="number" value="${s.dur}" data-slotfield="dur" data-idx="${i}"></div>
+        ${rangeField('Durabilità', 'dur')}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 function editTableRows(id, rows, dataAttr, fields) {
   if (!rows.length) {
@@ -1825,9 +1862,13 @@ function wireStaticEvents() {
       }
     } else {
       pm.minus++;
+      // ogni 3 tiri andati male la statistica scende di un punto, senza
+      // un fondo minimo (es. da -1 puo' scendere a -2)
       if (pm.minus >= 3) {
         pm.minus = 0;
-        if (pm.plus > 0) pm.plus--;
+        c.tertiary[key]--;
+        toast(`${label} scende di un punto`);
+        renderTertiaryStats(c);
       }
     }
     renderTertiaryPlusMinus(c);
@@ -1839,19 +1880,36 @@ function wireStaticEvents() {
   $('#slot-grid').addEventListener('input', e => {
     const c = getActive(); if (!c) return;
     const nameInput = e.target.closest('[data-slotname]');
-    const itemInput = e.target.closest('[data-slotitem]');
     const fieldInput = e.target.closest('[data-slotfield]');
     if (nameInput) {
       c.slots[Number(nameInput.dataset.slotname)].name = nameInput.value;
       touchActive();
-    } else if (itemInput) {
-      c.slots[Number(itemInput.dataset.slotitem)].item = itemInput.value;
-      touchActive();
     } else if (fieldInput) {
       const idx = Number(fieldInput.dataset.idx), field = fieldInput.dataset.slotfield;
       c.slots[idx][field] = Number(fieldInput.value) || 0;
+      const out = fieldInput.parentElement.querySelector('.sf-val');
+      if (out) out.textContent = c.slots[idx][field];
       touchActive();
     }
+  });
+  $('#slot-grid').addEventListener('click', e => {
+    const btn = e.target.closest('[data-slottype],[data-slotsize],[data-slotquality]');
+    if (!btn) return;
+    const c = getActive(); if (!c) return;
+    const card = btn.closest('[data-slotidx]');
+    const slot = c.slots[Number(card.dataset.slotidx)];
+    const val = btn.dataset.slottype || btn.dataset.slotsize || btn.dataset.slotquality;
+    if (btn.hasAttribute('data-slottype')) {
+      slot.type = slot.type === val ? '' : val;
+      slot.size = '';
+    } else if (btn.hasAttribute('data-slotsize')) {
+      slot.size = slot.size === val ? '' : val;
+    } else {
+      slot.quality = slot.quality === val ? '' : val;
+    }
+    clampSlotToRange(slot);
+    renderSlots(c);
+    touchActive();
   });
 
   // ---- tecniche / abilità / boost personali (edit tables) ----
@@ -2562,8 +2620,14 @@ function renderCharView(c) {
     }
   });
 
-  const slots = (c.slots || []).filter(s2 => s2.item || s2.atk || s2.dif || s2.bonus || s2.dur)
-    .map(s2 => `<tr><td class="field">${escapeHtml(s2.name)}</td><td>${escapeHtml(s2.item || '—')}</td><td class="num">${s2.atk}/${s2.dif}/${s2.bonus}/${s2.dur}</td></tr>`).join('');
+  const slots = (c.slots || []).filter(s2 => s2.type || s2.atk || s2.dif || s2.bonus || s2.dur)
+    .map(s2 => {
+      const t = EQUIP_TYPES.find(t2 => t2.key === s2.type);
+      const sz = t && t.sizes.find(sz2 => sz2.key === s2.size);
+      const q = EQUIP_QUALITIES.find(q2 => q2.key === s2.quality);
+      const desc = [t && t.label, sz && sz.label, q && q.label].filter(Boolean).join(' · ') || '—';
+      return `<tr><td class="field">${escapeHtml(s2.name)}</td><td>${escapeHtml(desc)}</td><td class="num">${s2.atk}/${s2.dif}/${s2.bonus}/${s2.dur}</td></tr>`;
+    }).join('');
 
   const rowTable = (rows, fields) => (rows || []).filter(rowHasContent)
     .map(r => `<tr>${fields.map(f => `<td>${escapeHtml(String(r[f] || ''))}</td>`).join('')}</tr>`).join('');
@@ -2599,7 +2663,7 @@ function renderCharView(c) {
     ${section('Caratteristiche primarie', table(primarie))}
     ${section('Terziarie', table(terziarie))}
     ${section('Tratti', tratti ? table(tratti) : '')}
-    ${section('Equipaggiamento (Oggetto · Atk/Dif/Bonus/Durab)', slots ? table(slots) : '')}
+    ${section('Equipaggiamento (Tipo · Atk/Dif/Bonus/Durabilità)', slots ? table(slots) : '')}
     ${section('Tecniche (Nome · Bonus · Malus · Durata · Utilizzi · Lv)', tecniche ? table(tecniche) : '')}
     ${section('Abilità (Nome · Bonus · Costo · Durata · Utilizzi · Lv)', abilita ? table(abilita) : '')}
     ${section('Boost (Bonus · Range · PP · Costo · Limite · Lv)', boosts ? table(boosts) : '')}
