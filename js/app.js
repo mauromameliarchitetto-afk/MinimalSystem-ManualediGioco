@@ -1176,6 +1176,25 @@ function renderAbilita(c) {
   editTableRows('#abilita-table', buildRows(c.abilita, un.ab, makeAbilitaRow), 'abilita',
     ['nome', 'bonus', 'costo', 'durata', 'utilizzi', 'lv']);
   $('#abilita-count').textContent = `${un.ab} / ${max.ab}`;
+  populateMpCostSelect(c);
+}
+/* Selettore "costo incantesimo" nel Fronte Scheda: elenca le Abilità con
+   nome e un costo con almeno un numero (es. "5", "5 MP"), da sommare in
+   Uso sugli MP con un tap. */
+function populateMpCostSelect(c) {
+  const sel = $('#mp-cost-select');
+  if (!sel) return;
+  const prevVal = sel.value;
+  const opts = (c.abilita || []).map(r => {
+    if (!r.nome) return null;
+    const m = String(r.costo || '').match(/\d+(?:\.\d+)?/);
+    if (!m) return null;
+    const cost = Number(m[0]);
+    if (!cost) return null;
+    return `<option value="${cost}">${escapeHtml(r.nome)} (${cost} MP)</option>`;
+  }).filter(Boolean);
+  sel.innerHTML = opts.length ? opts.join('') : '<option value="">Nessuna abilità con costo</option>';
+  if (prevVal && sel.querySelector(`option[value="${cssEscapeAttr(prevVal)}"]`)) sel.value = prevVal;
 }
 function renderBoostRows(c) {
   const shown = clamp(c.boostRowsShown || 1, 1, BOOST_ROWS_MAX);
@@ -1204,6 +1223,20 @@ function renderBoost(c) {
   }).join('');
   const allLearned = BOOST_LEVELS.every(b => c.boost[b.lv] && c.boost[b.lv].appreso);
   $('#boost-top-note').style.opacity = allLearned ? '1' : '.55';
+  populateBoostActivateSelect(c);
+}
+/* Selettore "attiva Boost" nel Fronte Scheda: elenca solo i livelli già
+   appresi (spuntati nella tabella ufficiale qui sopra), col relativo
+   costo fisso in PP. */
+function populateBoostActivateSelect(c) {
+  const sel = $('#boost-activate-select');
+  if (!sel) return;
+  const prevVal = sel.value;
+  const learned = BOOST_LEVELS.filter(b => c.boost[b.lv] && c.boost[b.lv].appreso);
+  sel.innerHTML = learned.length
+    ? learned.map(b => `<option value="${b.lv}">Lv ${b.lv} — ${b.costo} PP</option>`).join('')
+    : '<option value="">Nessun boost appreso</option>';
+  if (prevVal && sel.querySelector(`option[value="${cssEscapeAttr(prevVal)}"]`)) sel.value = prevVal;
 }
 function renderInventario(c) {
   $('#inventario-table').innerHTML = c.inventario.map((r, i) => `
@@ -2259,6 +2292,11 @@ function wireStaticEvents() {
   wireEditTable('#tecniche-table', 'tecnica', 'tecniche');
   wireEditTable('#abilita-table', 'abilita', 'abilita');
   wireEditTable('#boostrows-table', 'boostrow', 'boostRows');
+  // il selettore "costo incantesimo" nel Fronte Scheda deve restare aggiornato
+  // mentre si scrive nome/costo di un'Abilità, non solo ai render completi
+  $('#abilita-table').addEventListener('input', () => {
+    const c = getActive(); if (c) populateMpCostSelect(c);
+  });
   $('#boost-add').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
     c.boostRowsShown = BOOST_ROWS_MAX;
@@ -2434,16 +2472,34 @@ function wireStaticEvents() {
     touchActive();
   });
 
-  // ---- barre in gioco ----
-  $('.sheet-body').addEventListener('click', e => {
-    const btn = e.target.closest('[data-adj]');
-    if (!btn) return;
+  // ---- barre in gioco: danno HP, costo incantesimo MP e attivazione Boost, sommati in Uso ----
+  $('#hp-dmg-apply').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
-    const kind = btn.dataset.adj, amt = Number(btn.dataset.amt);
-    if (kind === 'hp') c.hpCur = clamp(c.hpCur + amt, 0, effectiveHpMax(c));
-    if (kind === 'mp') c.mpCur = clamp(c.mpCur + amt, 0, effectiveMpMax(c));
-    if (kind === 'pp') c.ppCur = clamp(c.ppCur + amt, 0, (c.hpMaxTracked / 2 + c.mpMaxTracked / 2));
+    const dmg = Math.max(0, Math.floor(Number($('#hp-dmg-input').value)) || 0);
+    if (!dmg) return;
+    c.hpCur = clamp(c.hpCur - dmg, 0, effectiveHpMax(c));
+    $('#hp-dmg-input').value = '';
     updatePlayBars(c);
+    touchActive();
+  });
+  $('#mp-cost-apply').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const cost = Number($('#mp-cost-select').value);
+    if (!cost) return;
+    c.mpCur = clamp(c.mpCur - cost, 0, effectiveMpMax(c));
+    updatePlayBars(c);
+    touchActive();
+  });
+  $('#boost-activate-btn').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const lv = Number($('#boost-activate-select').value);
+    if (!lv) return;
+    const b = BOOST_LEVELS.find(x => x.lv === lv);
+    if (!b) return;
+    const ppMax = (c.hpMaxTracked || 0) / 2 + (c.mpMaxTracked || 0) / 2;
+    c.ppCur = clamp(c.ppCur - b.costo, 0, ppMax);
+    updatePlayBars(c);
+    toast(`Boost Lv ${lv} attivato: -${b.costo} PP`);
     touchActive();
   });
   ['#hp-max', '#mp-max', '#hud-pr-max'].forEach(sel => {
