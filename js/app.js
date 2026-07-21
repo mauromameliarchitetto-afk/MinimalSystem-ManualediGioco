@@ -251,6 +251,7 @@ function newCharacter(nome) {
     build: 'guerriero',
     buildConfirmed: false,
     primaryConfirmed: false,
+    traitsConfirmed: false,
     eclecticoHpMult: 7,
     primary: defaultPrimary(),
     tertiary: defaultTertiary(),
@@ -740,12 +741,13 @@ function renderQi(c) {
 
 function renderTraits(c) {
   const wrap = $('#trait-lists');
+  const locked = c.traitsConfirmed;
   wrap.innerHTML = Object.keys(TRAIT_LISTS).map(listKey => {
     const shown = c.shownTraits[listKey] || [];
     const rows = TRAIT_LISTS[listKey]
       .filter(name => shown.includes(name))
-      .map(name => traitRowHtml(listKey, name, c.traits[listKey][name] || 0, false));
-    const customRows = (c.customTraits[listKey] || []).map((t, i) => traitRowHtml(listKey, t.name, t.value, true, i));
+      .map(name => traitRowHtml(listKey, name, c.traits[listKey][name] || 0, false, undefined, locked));
+    const customRows = (c.customTraits[listKey] || []).map((t, i) => traitRowHtml(listKey, t.name, t.value, true, i, locked));
     const empty = !rows.length && !customRows.length
       ? `<div class="helper-text" style="padding:2px 2px 6px;">Nessun tratto ancora — aggiungine uno dal menù qui sotto.</div>` : '';
     const available = TRAIT_LISTS[listKey].filter(name => !shown.includes(name));
@@ -755,29 +757,40 @@ function renderTraits(c) {
         ${rows.join('')}
         ${customRows.join('')}
       </div>
-      <select class="trait-add-select" data-addtraitsel="${listKey}">
+      <select class="trait-add-select" data-addtraitsel="${listKey}" ${locked ? 'disabled' : ''}>
         <option value="" selected disabled>+ Aggiungi tratto…</option>
         ${available.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}
         <option value="__custom__">Tratto personalizzato…</option>
       </select>`;
   }).join('');
   updateTraitsRemaining(c);
+  renderTraitsLockStatus(c);
+  renderTraitRollSelect(c);
 }
-function updateTraitsRemaining(c) {
+/* Pool punti tratti al livello attuale (15 alla creazione + bonus level-up) */
+function traitsPool(c) {
+  const bonus = traitBonusAtLevel(c.livello || 1);
+  return TRAIT_POOL + bonus.capacitaNormali + bonus.capacitaCombattive + bonus.conoscenze;
+}
+function traitsSum(c) {
   let sum = 0;
   Object.keys(TRAIT_LISTS).forEach(k => {
     TRAIT_LISTS[k].forEach(name => { sum += Number(c.traits[k][name]) || 0; });
     (c.customTraits[k] || []).forEach(t => { sum += Number(t.value) || 0; });
   });
-  const bonus = traitBonusAtLevel(c.livello || 1);
-  const bonusTotal = bonus.capacitaNormali + bonus.capacitaCombattive + bonus.conoscenze;
-  const pool = TRAIT_POOL + bonusTotal;
+  return sum;
+}
+function updateTraitsRemaining(c) {
+  const pool = traitsPool(c);
+  const sum = traitsSum(c);
   const remaining = pool - sum;
   const el = $('#traits-remaining');
   el.textContent = remaining;
   el.className = 'remaining' + (remaining < 0 ? ' neg' : (remaining === 0 ? ' zero' : ''));
   const lbl = $('#traits-remaining-label');
   if (lbl) lbl.textContent = `Punti rimanenti (Lv ${c.livello || 1})`;
+  const bonus = traitBonusAtLevel(c.livello || 1);
+  const bonusTotal = bonus.capacitaNormali + bonus.capacitaCombattive + bonus.conoscenze;
   const sub = $('#traits-bonus-sub');
   if (sub) {
     sub.textContent = bonusTotal
@@ -785,20 +798,48 @@ function updateTraitsRemaining(c) {
       : `15 punti dalla creazione. Dal Lv 2 la tabella limiti di livello aggiunge punti a Capacità, Capacità Combattive e Conoscenze.`;
   }
 }
+function renderTraitsLockStatus(c) {
+  const el = $('#traits-lock-status');
+  if (!el) return;
+  el.innerHTML = c.traitsConfirmed
+    ? `<div class="row-between"><span class="chip physical">🔒 Tratti confermati</span><span class="helper-text" style="margin:0;">Si sbloccano con un level-up</span></div>`
+    : `<button class="btn btn-primary btn-sm" id="btn-confirm-traits">Conferma tratti</button>`;
+}
+/* Selettore del tool "Tiro tratto": un dado unico (1d20 + valore del
+   tratto) invece di un tasto di tiro per riga, per lasciare spazio in
+   larghezza sul telefono. Elenca solo i tratti posseduti. */
+function renderTraitRollSelect(c) {
+  const sel = $('#trait-roll-select');
+  if (!sel) return;
+  const prevVal = sel.value;
+  const groups = Object.keys(TRAIT_LISTS).map(listKey => {
+    const shown = c.shownTraits[listKey] || [];
+    const rows = shown.map(name => ({ name, value: Number(c.traits[listKey][name]) || 0 }));
+    (c.customTraits[listKey] || []).forEach(t => { if (t.name) rows.push({ name: t.name, value: Number(t.value) || 0 }); });
+    if (!rows.length) return '';
+    const opts = rows.map(r => `<option value="${listKey}::${escapeHtml(r.name)}">${escapeHtml(r.name)} (+${r.value})</option>`).join('');
+    return `<optgroup label="${TRAIT_LIST_LABELS[listKey]}">${opts}</optgroup>`;
+  }).join('');
+  sel.innerHTML = groups || '<option value="">Nessun tratto disponibile</option>';
+  if (prevVal && sel.querySelector(`option[value="${cssEscapeAttr(prevVal)}"]`)) sel.value = prevVal;
+}
+function cssEscapeAttr(v) {
+  return v.replace(/["\\]/g, '\\$&');
+}
 
-function traitRowHtml(listKey, name, value, isCustom, idx) {
-  const dice = diceForValue(Number(value) || 0);
+function traitRowHtml(listKey, name, value, isCustom, idx, locked) {
+  const bonus = Number(value) || 0;
   const nameHtml = isCustom
-    ? `<input type="text" value="${escapeHtml(name)}" data-customname="${listKey}" data-idx="${idx}" placeholder="Nome tratto">`
+    ? `<input type="text" value="${escapeHtml(name)}" data-customname="${listKey}" data-idx="${idx}" ${locked ? 'disabled' : ''} placeholder="Nome tratto">`
     : escapeHtml(name);
   return `<div class="trait-row" data-trait="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''}>
     <div class="t-name">${nameHtml}</div>
-    <span class="t-dice">${dice}</span>
-    <input type="number" value="${value}" min="0" max="50" data-traitvalue="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''}>
-    <button class="btn btn-icon btn-sm btn-ghost btn-roll" data-traitroll="${escapeHtml(name)}" data-list="${listKey}" title="Tira">🎲</button>
+    <span class="t-dice">+${bonus}</span>
+    <input type="number" value="${value}" min="0" max="50" data-traitvalue="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''} ${locked ? 'disabled' : ''}>
+    <button class="btn btn-icon btn-sm btn-ghost btn-roll" data-traitroll="${escapeHtml(name)}" data-list="${listKey}" title="Tira 1d20+valore">🎲</button>
     ${isCustom
-      ? `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-delcustom="${listKey}" data-idx="${idx}" title="Rimuovi">✕</button>`
-      : `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-hidetrait="${escapeHtml(name)}" data-list="${listKey}" title="Rimuovi">✕</button>`}
+      ? `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-delcustom="${listKey}" data-idx="${idx}" title="Rimuovi" ${locked ? 'disabled' : ''}>✕</button>`
+      : `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-hidetrait="${escapeHtml(name)}" data-list="${listKey}" title="Rimuovi" ${locked ? 'disabled' : ''}>✕</button>`}
   </div>`;
 }
 
@@ -827,10 +868,13 @@ function creditLevelAP(c) {
   if (to > from) { for (let l = from + 1; l <= to; l++) delta += apForLevel(l); }
   else { for (let l = from; l > to; l--) delta -= apForLevel(l); }
   c.livelloAP = to;
-  // un level-up sblocca di nuovo le statistiche confermate, per poter
-  // spendere i nuovi AP; vanno riconfermate per bloccarle di nuovo
-  const unlocked = to > from && c.primaryConfirmed;
-  if (unlocked) { c.primaryConfirmed = false; renderPrimaryStats(c); }
+  // un level-up sblocca di nuovo le statistiche/i tratti confermati, per
+  // poter spendere i nuovi punti; vanno riconfermati per bloccarli di nuovo
+  const unlockedPrimary = to > from && c.primaryConfirmed;
+  const unlockedTraits = to > from && c.traitsConfirmed;
+  if (unlockedPrimary) { c.primaryConfirmed = false; renderPrimaryStats(c); }
+  if (unlockedTraits) { c.traitsConfirmed = false; renderTraits(c); }
+  const unlocked = unlockedPrimary || unlockedTraits;
   if (!delta) { if (unlocked) touchActive(); return; }
   c.apDisponibili = (Number(c.apDisponibili) || 0) + delta;
   c.ledger.push({
@@ -843,7 +887,8 @@ function creditLevelAP(c) {
   refreshApUI(c);
   updatePrimaryRemaining(c);
   const base = delta > 0 ? `+${delta} AP disponibili (Lv ${from} → ${to})` : `${delta} AP (Lv ${from} → ${to})`;
-  toast(unlocked ? `${base} — statistiche sbloccate` : base);
+  const unlockedWhat = [unlockedPrimary && 'statistiche', unlockedTraits && 'tratti'].filter(Boolean).join(' e ');
+  toast(unlocked ? `${base} — ${unlockedWhat} sbloccat${unlockedWhat.endsWith('e') ? 'e' : 'i'}` : base);
   touchActive();
 }
 
@@ -1622,6 +1667,39 @@ function wireStaticEvents() {
     $('#primary-confirm').classList.add('hidden');
   });
 
+  // ---- conferma tratti (blocco anti-min-max) ----
+  $('#traits-lock-status').addEventListener('click', e => {
+    if (!e.target.closest('#btn-confirm-traits')) return;
+    const c = getActive(); if (!c) return;
+    const remaining = traitsPool(c) - traitsSum(c);
+    $('#traits-confirm-text').textContent = remaining !== 0
+      ? `Hai ancora ${remaining} punt${remaining === 1 ? 'o' : 'i'} non assegnat${remaining === 1 ? 'o' : 'i'}. Vuoi confermare comunque i tuoi tratti? Una volta confermati resteranno bloccati: potrai modificarli di nuovo solo effettuando un level-up.`
+      : 'Vuoi confermare i tuoi tratti? Una volta confermati resteranno bloccati: potrai modificarli di nuovo solo effettuando un level-up.';
+    $('#traits-confirm').classList.remove('hidden');
+  });
+  $('#traits-confirm-yes').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    $('#traits-confirm').classList.add('hidden');
+    c.traitsConfirmed = true;
+    renderTraits(c);
+    toast('Tratti confermati e bloccati');
+    touchActive();
+  });
+  $('#traits-confirm-no').addEventListener('click', () => {
+    $('#traits-confirm').classList.add('hidden');
+  });
+  $('#trait-roll-btn').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const raw = $('#trait-roll-select').value;
+    if (!raw) return;
+    const sep = raw.indexOf('::');
+    const list = raw.slice(0, sep), name = raw.slice(sep + 2);
+    const val = getTraitValue(c, list, name);
+    const d20 = rollDie(20);
+    $('#trait-roll-result').textContent = d20 + val;
+    $('#trait-roll-detail').textContent = `d20: ${d20} +${val}`;
+  });
+
   // ---- diagramma scheda (fronte) ----
   $('#stat-diagram').addEventListener('input', e => {
     const inp = e.target.closest('[data-dg]');
@@ -1770,6 +1848,7 @@ function wireStaticEvents() {
     const delBtn = e.target.closest('[data-delcustom]');
     const hideBtn = e.target.closest('[data-hidetrait]');
     if (hideBtn) {
+      if (c.traitsConfirmed) { toast('Tratti confermati: si sbloccano solo con un level-up'); return; }
       const list = hideBtn.dataset.list, name = hideBtn.dataset.hidetrait;
       c.shownTraits[list] = (c.shownTraits[list] || []).filter(n => n !== name);
       c.traits[list][name] = 0;
@@ -1780,11 +1859,12 @@ function wireStaticEvents() {
     if (rollBtn) {
       const list = rollBtn.dataset.list, name = rollBtn.dataset.traitroll;
       const val = getTraitValue(c, list, name);
-      const r = rollForValue(val);
-      toast(`${name}: ${r.label} → ${r.result}${r.detail ? ' (' + r.detail + ')' : ''}`);
+      const d20 = rollDie(20);
+      toast(`${name}: 1d20+${val} → ${d20 + val} (dado ${d20})`);
       return;
     }
     if (delBtn) {
+      if (c.traitsConfirmed) { toast('Tratti confermati: si sbloccano solo con un level-up'); return; }
       const list = delBtn.dataset.delcustom, idx = Number(delBtn.dataset.idx);
       c.customTraits[list].splice(idx, 1);
       renderTraits(c);
@@ -1796,6 +1876,7 @@ function wireStaticEvents() {
     const sel = e.target.closest('[data-addtraitsel]');
     if (!sel || !sel.value) return;
     const c = getActive(); if (!c) return;
+    if (c.traitsConfirmed) { toast('Tratti confermati: si sbloccano solo con un level-up'); sel.value = ''; return; }
     const list = sel.dataset.addtraitsel;
     if (sel.value === '__custom__') {
       c.customTraits[list].push({ name: '', value: 0 });
@@ -1811,20 +1892,37 @@ function wireStaticEvents() {
     const nameInput = e.target.closest('[data-customname]');
     if (valInput) {
       const list = valInput.dataset.list;
+      const hasCustomIdx = valInput.dataset.customIdx !== undefined;
+      const idx = hasCustomIdx ? Number(valInput.dataset.customIdx) : null;
+      const oldVal = hasCustomIdx
+        ? (Number(c.customTraits[list][idx].value) || 0)
+        : (Number(c.traits[list][valInput.dataset.traitvalue]) || 0);
       let v = clamp(Math.floor(Number(valInput.value)) || 0, 0, 50);
-      if (valInput.dataset.customIdx !== undefined) {
-        const idx = Number(valInput.dataset.customIdx);
-        c.customTraits[list][idx].value = v;
-      } else {
-        c.traits[list][valInput.dataset.traitvalue] = v;
+      if (c.traitsConfirmed) {
+        toast('Tratti confermati: si sbloccano solo con un level-up');
+        v = oldVal;
+      } else if (v > oldVal) {
+        // fase di creazione/crescita: non si può superare il pool disponibile
+        const sum = traitsSum(c);
+        const pool = traitsPool(c);
+        const maxAllowed = oldVal + Math.max(0, pool - sum);
+        if (v > maxAllowed) {
+          toast(`Punti esauriti: hai già assegnato tutti i ${pool} punti disponibili`);
+          v = maxAllowed;
+        }
       }
+      valInput.value = v;
+      if (hasCustomIdx) c.customTraits[list][idx].value = v;
+      else c.traits[list][valInput.dataset.traitvalue] = v;
       const row = valInput.closest('.trait-row');
-      row.querySelector('.t-dice').textContent = diceForValue(v);
+      row.querySelector('.t-dice').textContent = `+${v}`;
       updateTraitsRemaining(c);
+      renderTraitRollSelect(c);
       touchActive();
       return;
     }
     if (nameInput) {
+      if (c.traitsConfirmed) return;
       const list = nameInput.dataset.customname, idx = Number(nameInput.dataset.idx);
       c.customTraits[list][idx].name = nameInput.value;
       touchActive();
@@ -2689,7 +2787,7 @@ function renderCharView(c) {
   viewingCharId = c.id;
   $('#charview-title').textContent = c.nome || 'Senza nome';
   const b = BUILDS[c.build] || BUILDS.guerriero;
-  const dice = v => diceForValue(Number(v) || 0);
+  const dice = v => `+${Number(v) || 0}`;
   const kvRows = pairs => pairs.filter(p => String(p[1] ?? '').trim() !== '')
     .map(p => `<tr><td class="field" style="white-space:nowrap;color:var(--testo-secondario-dark);">${p[0]}</td><td>${escapeHtml(String(p[1]))}</td></tr>`).join('');
   const section = (title, inner) => inner

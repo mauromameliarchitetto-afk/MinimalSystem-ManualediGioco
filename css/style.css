@@ -731,8 +731,10 @@ body.pdf-lock-scroll{overflow:hidden;}
   border-radius:5px;color:var(--testo-primario-dark);font-family:var(--font-mono);
   text-align:center;padding:6px 2px;flex:none;
 }
+.trait-row input[type=number]:disabled{opacity:.5;}
 .trait-row .btn-roll{flex:none;}
 .trait-row .btn-del{flex:none;opacity:.5;}
+.trait-add-select:disabled{opacity:.4;cursor:not-allowed;}
 .trait-add-select{
   appearance:none;
   -webkit-appearance:none;
