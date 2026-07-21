@@ -1,4 +1,4 @@
-const CACHE_NAME = 'minimal-system-v56';
+const CACHE_NAME = 'minimal-system-v57';
 const APP_SHELL = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const APP_SHELL = [
   './js/vendor/supabase.js',
   './js/supabase-client.js',
   './js/cloud-account.js',
+  './js/cloud-character.js',
   './js/data.js',
   './js/app.js',
   './js/pdfviewer.js',
