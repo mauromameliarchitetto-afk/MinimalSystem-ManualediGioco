@@ -37,6 +37,7 @@
       <button class="cm-item" data-menu-nav="new">Crea nuovo personaggio</button>
       <button class="cm-item" data-menu-nav="master">Area del Narratore</button>
       <button class="cm-item" data-menu-nav="premises">Premesse di gioco</button>
+      <button class="cm-item" data-menu-nav="account">Account cloud</button>
       <div class="cm-sep"></div>
       <div class="cm-label">Scheda personaggio</div>
       <button class="cm-item" data-menu-tab="identita">Identità</button>
@@ -600,6 +601,27 @@
     </div>
   </section>
 
+  <!-- ============ ACCOUNT CLOUD ============ -->
+  <section id="view-account" class="view hidden">
+    <div class="topbar">
+      <button class="btn btn-icon btn-ghost" data-nav="cover" aria-label="Indietro">←</button>
+      <h1>Account cloud</h1>
+      <span style="width:40px;"></span>
+    </div>
+    <div class="list-scroll">
+      <p class="helper-text">Serve solo per salvare nel cloud, creare una campagna o entrare in una storia: il resto dell'app funziona come sempre, solo su questo dispositivo.</p>
+      <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Il tuo account</div>
+      <div class="box"><div class="box-bar"></div><div class="box-pad" id="account-status-box" style="display:flex;flex-direction:column;gap:10px;">
+        <p class="helper-text" style="margin:0;">Verifica in corso…</p>
+      </div></div>
+
+      <div class="section-title" style="margin-top:14px;"><span class="dot neutral"></span>Le tue campagne (Narratore)</div>
+      <div class="box"><div class="box-bar"></div><div class="box-pad" id="account-campaigns-box" style="display:flex;flex-direction:column;gap:10px;">
+        <p class="helper-text" style="margin:0;">Accedi con un account permanente per creare o vedere le tue campagne.</p>
+      </div></div>
+    </div>
+  </section>
+
   <!-- ============ PREMESSE DI GIOCO — elenco storie ============ -->
   <section id="view-premises" class="view hidden">
     <div class="topbar">
@@ -739,6 +761,7 @@
 <script src="js/rules.js"></script>
 <script src="js/vendor/supabase.js"></script>
 <script src="js/supabase-client.js"></script>
+<script src="js/cloud-account.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script type="module" src="js/pdfviewer.js"></script>

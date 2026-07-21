@@ -1,0 +1,258 @@
+/* Account cloud (Supabase): ospite/permanente, upgrade, campagne del
+   Narratore. Punti 1/2/3: l'account serve solo quando serve davvero il
+   cloud (salvataggio, creazione campagna, ingresso in storia) — il resto
+   dell'app resta locale come sempre, questo file non tocca nient'altro. */
+
+/* Nessuna chiamata di rete verso Supabase deve poter bloccare la UI
+   all'infinito (connessione lenta, assente, o che cade a meta'): oltre la
+   soglia si preferisce fallire con un errore visibile all'utente. */
+const CLOUD_TIMEOUT_MS = 10000;
+function withTimeout(promise, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label}: nessuna risposta dal server, riprova`)), CLOUD_TIMEOUT_MS))
+  ]);
+}
+
+let authCapabilitiesCache = null;
+/* Legge /auth/v1/settings (pubblico, nessuna sessione richiesta) per sapere
+   quali metodi di accesso sono davvero attivi sul progetto: mostrare un
+   bottone "Accedi con Google" che poi fallisce sarebbe solo confusione. */
+async function getAuthCapabilities() {
+  if (authCapabilitiesCache) return authCapabilitiesCache;
+  try {
+    // Timeout di sicurezza: su rete lenta/instabile non deve bloccare la UI
+    // all'infinito, meglio degradare ai valori prudenti del catch qui sotto.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 4000);
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_PUBLISHABLE_KEY }, signal: ctrl.signal });
+    clearTimeout(timer);
+    const json = await res.json();
+    authCapabilitiesCache = {
+      anonymous: !!(json.external && json.external.anonymous_users),
+      google: !!(json.external && json.external.google),
+      apple: !!(json.external && json.external.apple),
+      passkey: !!json.passkeys_enabled
+    };
+  } catch (e) {
+    authCapabilitiesCache = { anonymous: false, google: false, apple: false, passkey: false };
+  }
+  return authCapabilitiesCache;
+}
+
+async function currentCloudSession() {
+  const { data } = await withTimeout(sb.auth.getSession(), 'Sessione');
+  return data.session;
+}
+
+function isGuestUser(session) {
+  return !!(session && session.user && session.user.is_anonymous);
+}
+
+/* Crea (o recupera) una sessione ospite, solo se gli accessi anonimi sono
+   attivi sul progetto — altrimenti non forza nulla, l'utente resta senza
+   account finche' non sceglie di accedere con email/Google/Apple. Va
+   richiamata solo nei momenti che davvero richiedono il cloud, non
+   all'avvio dell'app (altrimenti si perderebbe l'attrito zero di chi gioca
+   solo in locale). */
+async function ensureCloudAccount() {
+  const existing = await currentCloudSession();
+  if (existing) return existing;
+  const caps = await getAuthCapabilities();
+  if (!caps.anonymous) return null;
+  const { data, error } = await withTimeout(sb.auth.signInAnonymously(), 'Accesso ospite');
+  if (error) { console.warn('Accesso ospite non disponibile:', error.message); return null; }
+  return data.session;
+}
+
+/* Accesso/registrazione con email + codice temporaneo (nessun link da
+   cliccare: piu' affidabile su mobile e non richiede configurare URL di
+   redirect nel progetto). */
+async function sendEmailCode(email) {
+  const { error } = await withTimeout(sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } }), 'Invio codice');
+  if (error) throw error;
+}
+async function verifyEmailCode(email, token) {
+  const { data, error } = await withTimeout(sb.auth.verifyOtp({ email, token, type: 'email' }), 'Verifica codice');
+  if (error) throw error;
+  return data.session;
+}
+
+/* Ospite -> permanente: collega un'email all'utente anonimo gia' loggato.
+   Supabase invia un'email di conferma con un link: al click l'account
+   diventa permanente (serve che l'URL di redirect dell'app sia impostato in
+   Dashboard → Authentication → URL Configuration). */
+async function upgradeGuestWithEmail(email) {
+  const { error } = await withTimeout(sb.auth.updateUser({ email }), 'Collegamento email');
+  if (error) throw error;
+}
+
+async function signInWithProvider(provider) {
+  const { error } = await withTimeout(sb.auth.signInWithOAuth({ provider }), 'Accesso');
+  if (error) throw error;
+}
+
+async function signOutCloud() {
+  await withTimeout(sb.auth.signOut(), 'Uscita');
+}
+
+/* ------------------------------------------------------- campagne (Narratore) */
+
+async function createCampaign(name) {
+  const session = await currentCloudSession();
+  if (!session) throw new Error('Serve un account per creare una campagna');
+  const { data, error } = await withTimeout(
+    sb.from('campaigns').insert({ name, owner_user_id: session.user.id }).select().single(),
+    'Creazione campagna'
+  );
+  if (error) throw error;
+  return data;
+}
+
+async function listMyCampaigns() {
+  const { data, error } = await withTimeout(
+    sb.from('campaigns').select('id, name, created_at, deleted_at').is('deleted_at', null).order('created_at', { ascending: false }),
+    'Elenco campagne'
+  );
+  if (error) throw error;
+  return data;
+}
+
+/* --------------------------------------------------------------- render */
+
+function accountStatusHtml(session, caps) {
+  if (!session) {
+    return `
+      <p class="helper-text" style="margin:0;">Non sei connesso. Puoi comunque usare l'app in locale su questo dispositivo.</p>
+      <div class="field"><label>Email</label><input type="email" id="acc-email" placeholder="tua@email.it" autocomplete="email"></div>
+      <button class="btn btn-primary btn-sm" id="acc-send-code" style="align-self:flex-start;">Invia codice di accesso</button>
+      <div id="acc-code-row" class="hidden" style="display:flex;flex-direction:column;gap:8px;">
+        <div class="field"><label>Codice ricevuto via email</label><input type="text" inputmode="numeric" id="acc-code" placeholder="123456"></div>
+        <button class="btn btn-primary btn-sm" id="acc-verify-code" style="align-self:flex-start;">Conferma codice</button>
+      </div>
+      ${caps.google ? '<button class="btn btn-ghost btn-sm" id="acc-google">Accedi con Google</button>' : ''}
+      ${caps.apple ? '<button class="btn btn-ghost btn-sm" id="acc-apple">Accedi con Apple</button>' : ''}
+      ${(!caps.google || !caps.apple) ? '<p class="helper-text" style="margin:0;">Google/Apple/Passkey compariranno qui appena attivati dal Narratore nel Dashboard Supabase.</p>' : ''}
+    `;
+  }
+  if (isGuestUser(session)) {
+    return `
+      <p class="helper-text" style="margin:0;">Sei connesso come <strong>ospite</strong> (solo questo dispositivo): senza collegare un'identità, i dati non sincronizzati potrebbero andare persi.</p>
+      <div class="field"><label>Email</label><input type="email" id="acc-email" placeholder="tua@email.it" autocomplete="email"></div>
+      <button class="btn btn-primary btn-sm" id="acc-upgrade" style="align-self:flex-start;">Rendi permanente questo account</button>
+    `;
+  }
+  return `
+    <p class="helper-text" style="margin:0;">Account permanente: <strong>${session.user.email || session.user.id}</strong></p>
+    <button class="btn btn-ghost btn-sm" id="acc-signout" style="align-self:flex-start;">Esci</button>
+  `;
+}
+
+function campaignsBoxHtml(session, campaigns) {
+  if (!session || isGuestUser(session)) {
+    return '<p class="helper-text" style="margin:0;">Accedi con un account permanente per creare o vedere le tue campagne.</p>';
+  }
+  const list = (campaigns || []).map(c => `<div class="row-between" data-campaignid="${c.id}"><span>${c.name}</span></div>`).join('')
+    || '<p class="helper-text" style="margin:0;">Nessuna campagna ancora.</p>';
+  return `
+    <div class="field-row">
+      <div class="field"><label>Nome campagna</label><input type="text" id="acc-new-campaign-name" placeholder="es. La Torre di Vetro"></div>
+    </div>
+    <button class="btn btn-primary btn-sm" id="acc-create-campaign" style="align-self:flex-start;">Crea campagna</button>
+    <div id="acc-campaign-list" style="margin-top:6px;">${list}</div>
+  `;
+}
+
+async function renderAccountArea() {
+  const statusBox = $('#account-status-box');
+  const campaignsBox = $('#account-campaigns-box');
+  statusBox.innerHTML = '<p class="helper-text" style="margin:0;">Verifica in corso…</p>';
+
+  let session, caps;
+  try {
+    [session, caps] = await Promise.all([currentCloudSession(), getAuthCapabilities()]);
+  } catch (e) {
+    statusBox.innerHTML = `<p class="helper-text" style="margin:0;">Impossibile verificare l'account: ${e.message}</p>`;
+    campaignsBox.innerHTML = campaignsBoxHtml(null, null);
+    return;
+  }
+  statusBox.innerHTML = accountStatusHtml(session, caps);
+
+  if (session && !isGuestUser(session)) {
+    try {
+      const campaigns = await listMyCampaigns();
+      campaignsBox.innerHTML = campaignsBoxHtml(session, campaigns);
+    } catch (e) {
+      campaignsBox.innerHTML = `<p class="helper-text" style="margin:0;">Errore nel caricare le campagne: ${e.message}</p>`;
+    }
+  } else {
+    campaignsBox.innerHTML = campaignsBoxHtml(session, null);
+  }
+}
+
+function wireCloudAccountEvents() {
+  $('#account-status-box').addEventListener('click', async e => {
+    const emailInput = $('#acc-email');
+    const email = emailInput ? emailInput.value.trim() : '';
+
+    if (e.target.id === 'acc-send-code') {
+      if (!email) { toast('Inserisci un\'email'); return; }
+      try {
+        await sendEmailCode(email);
+        $('#acc-code-row').classList.remove('hidden');
+        toast('Codice inviato: controlla la tua email');
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.id === 'acc-verify-code') {
+      const code = $('#acc-code').value.trim();
+      if (!code) { toast('Inserisci il codice ricevuto'); return; }
+      try {
+        await verifyEmailCode(email, code);
+        toast('Accesso effettuato');
+        renderAccountArea();
+      } catch (err) { toast('Codice errato: ' + err.message); }
+      return;
+    }
+    if (e.target.id === 'acc-upgrade') {
+      if (!email) { toast('Inserisci un\'email'); return; }
+      try {
+        await upgradeGuestWithEmail(email);
+        toast('Controlla la tua email per confermare e rendere permanente l\'account');
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.id === 'acc-google') {
+      signInWithProvider('google').catch(err => toast('Errore: ' + err.message));
+      return;
+    }
+    if (e.target.id === 'acc-apple') {
+      signInWithProvider('apple').catch(err => toast('Errore: ' + err.message));
+      return;
+    }
+    if (e.target.id === 'acc-signout') {
+      await signOutCloud();
+      toast('Disconnesso');
+      renderAccountArea();
+      return;
+    }
+  });
+
+  $('#account-campaigns-box').addEventListener('click', async e => {
+    if (e.target.id === 'acc-create-campaign') {
+      const nameInput = $('#acc-new-campaign-name');
+      const name = nameInput ? nameInput.value.trim() : '';
+      if (!name) { toast('Dai un nome alla campagna'); return; }
+      try {
+        await createCampaign(name);
+        toast('Campagna creata');
+        renderAccountArea();
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+  });
+
+  sb.auth.onAuthStateChange(() => {
+    if (!$('#view-account').classList.contains('hidden')) renderAccountArea();
+  });
+}
