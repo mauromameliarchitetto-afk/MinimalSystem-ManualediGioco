@@ -225,24 +225,28 @@
         <p class="helper-text">Scegli Taglia e Qualità per lo scudo e per ciascuna arma — Atk, Dif e Durabilità si impostano di conseguenza nel range ufficiale. L'armatura si gestisce nel Retro Scheda. Nel campo Bonus annota effetti come "+2 a Tagliare", "+1 a Rompere", "+1 a Perforare", "+1 a Guardia", "+2 a Danno magico" o "+1d6 a Forza/Destrezza/Mira" (dadi: D4, D6, D8, D10, D20, D100).</p>
         <div class="slot-grid" id="weapon-grid"></div>
 
-        <div class="section-title"><span class="dot neutral"></span>Tiro rapido</div>
+        <div class="section-title"><span class="dot neutral"></span>Tiro tratto</div>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <div class="field-row">
-            <div class="field"><label>Dado</label>
-              <select id="quick-dice">
-                <option value="4">d4</option>
-                <option value="6">d6</option>
-                <option value="8">d8</option>
-                <option value="12">d12</option>
-                <option value="20" selected>d20</option>
-              </select>
-            </div>
-            <div class="field"><label>Bonus/Malus</label><input type="number" id="quick-bonus" value="0"></div>
+          <div class="field"><label>Tratto</label>
+            <select id="trait-roll-select"></select>
           </div>
           <div class="roll-row" style="margin-top:10px;">
-            <button class="btn btn-primary" id="quick-roll-btn">Tira</button>
-            <div class="roll-result" id="quick-roll-result">—</div>
-            <div class="roll-detail" id="quick-roll-detail"></div>
+            <button class="btn btn-primary" id="trait-roll-btn">Tira</button>
+            <div class="roll-result" id="trait-roll-result">—</div>
+            <div class="roll-detail" id="trait-roll-detail"></div>
+          </div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Tiro statistica</div>
+        <p class="helper-text">Prova di un attributo primario: il dado dipende dal suo valore (d4 fino a 10, d6 fino a 20, d8 fino a 30, d12 fino a 40, d12+d8 oltre) e il risultato si somma al valore stesso della statistica.</p>
+        <div class="box"><div class="box-bar"></div><div class="box-pad">
+          <div class="field"><label>Statistica</label>
+            <select id="stat-roll-select"></select>
+          </div>
+          <div class="roll-row" style="margin-top:10px;">
+            <button class="btn btn-primary" id="stat-roll-btn">Tira</button>
+            <div class="roll-result" id="stat-roll-result">—</div>
+            <div class="roll-detail" id="stat-roll-detail"></div>
           </div>
         </div></div>
       </div>
@@ -259,18 +263,6 @@
         </div></div>
         <p class="helper-text">Compaiono solo i tratti che possiedi. Con "+ Aggiungi tratto" scegli dalla lista del manuale (o crei un tratto personalizzato: le liste sono aperte, il manuale include "Etc..."). Il tiro di un tratto è sempre 1d20 + il suo valore (mostrato come "+N"); ✕ rimuove il tratto. Si possono confermare (e bloccare fino al prossimo level-up) solo con "Punti rimanenti" esattamente a zero.</p>
         <div id="trait-lists"></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Tiro tratto</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <div class="field"><label>Tratto</label>
-            <select id="trait-roll-select"></select>
-          </div>
-          <div class="roll-row" style="margin-top:10px;">
-            <button class="btn btn-primary" id="trait-roll-btn">Tira</button>
-            <div class="roll-result" id="trait-roll-result">—</div>
-            <div class="roll-detail" id="trait-roll-detail"></div>
-          </div>
-        </div></div>
       </div>
 
       <!-- ---- RETRO SCHEDA ---- -->
@@ -388,19 +380,6 @@
           <p class="helper-text hidden" id="primary-ap-note" style="margin:-4px 0 8px;"></p>
           <div id="primary-stats"></div>
           <div id="primary-lock-status" style="margin-top:10px;"></div>
-        </div></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Tiro statistica</div>
-        <p class="helper-text">Prova di un attributo primario: il dado dipende dal suo valore (d4 fino a 10, d6 fino a 20, d8 fino a 30, d12 fino a 40, d12+d8 oltre) e il risultato si somma al valore stesso della statistica.</p>
-        <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <div class="field"><label>Statistica</label>
-            <select id="stat-roll-select"></select>
-          </div>
-          <div class="roll-row" style="margin-top:10px;">
-            <button class="btn btn-primary" id="stat-roll-btn">Tira</button>
-            <div class="roll-result" id="stat-roll-result">—</div>
-            <div class="roll-detail" id="stat-roll-detail"></div>
-          </div>
         </div></div>
 
         <div class="section-title"><span class="dot neutral"></span>Statistiche terziarie · 5 punti</div>

@@ -2460,15 +2460,6 @@ function wireStaticEvents() {
     });
   });
 
-  // ---- tiro rapido ----
-  $('#quick-roll-btn').addEventListener('click', () => {
-    const sides = Number($('#quick-dice').value);
-    const bonus = Number($('#quick-bonus').value) || 0;
-    const roll = rollDie(sides);
-    const total = roll + bonus;
-    $('#quick-roll-result').textContent = total;
-    $('#quick-roll-detail').textContent = `d${sides}: ${roll} ${bonus ? (bonus >= 0 ? '+' + bonus : bonus) : ''}`.trim();
-  });
 }
 
 function wireEquipGrid(sel, getSlots, doRender) {
