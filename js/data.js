@@ -183,10 +183,25 @@ function diceForValue(v) {
   return 'd12+d8';
 }
 
-// Attributi Primari (HP/MP/FOR/F.MEN/DIF/D.MEN/Mira/DEX/VEL) e P.R. — dopo il
-// Lv1 crescono tutti con la stessa tabella costi (il rapporto "1 punto
-// base = 1 AP" di HP/MP vale solo durante la creazione, quando il punto
-// base interagisce col moltiplicatore di classe, non dopo)
+// HP e MP — solo in creazione il punteggio base interagisce col
+// moltiplicatore di classe. Dal Lv2 in poi l'incremento è diretto sul
+// totale (nessun moltiplicatore) e segue questa tabella, che raddoppia
+// il costo ogni 100 punti oltre il 400.
+function hpApCostForPoint(n) {
+  if (n <= 100) return 1;
+  if (n <= 250) return 2;
+  if (n <= 400) return 4;
+  const bracket = Math.floor((n - 401) / 100);
+  return 4 * Math.pow(2, bracket + 1);
+}
+function mpApCostForPoint(n) {
+  if (n <= 100) return 1.5;
+  if (n <= 250) return 3;
+  if (n <= 400) return 6;
+  const bracket = Math.floor((n - 401) / 100);
+  return 6 * Math.pow(2, bracket + 1);
+}
+// Attributi primari (FOR/F.MEN/DIF/D.MEN/Mira/DEX/VEL) e P.R.
 function primaryApCostForPoint(n) {
   if (n <= 10) return 2;
   if (n <= 20) return 3;
@@ -196,8 +211,13 @@ function primaryApCostForPoint(n) {
   const decade = Math.floor((n - 51) / 10);
   return 15 + 5 * (decade + 1);
 }
+// Statistiche terziarie (Stile/Carisma/Fortuna): costo diretto da tabella,
+// una voce per ciascun valore di arrivo (da -2 a 20)
+function tertiaryApCostForPoint(n) {
+  return TERTIARY_AP_TABLE[String(n)] || 0;
+}
 function totalGrowthCost(current, target, costFn) {
-  current = Math.max(0, Math.floor(current));
+  current = Math.floor(current);
   target = Math.floor(target);
   if (target <= current) return 0;
   let total = 0;

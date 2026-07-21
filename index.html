@@ -503,19 +503,17 @@
           </div>
         </div></div>
 
-        <div class="section-title"><span class="dot neutral"></span>Registro AP</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <div class="field-row">
-            <div class="field"><label>Descrizione</label><input type="text" id="ledger-desc" placeholder="es. +1 FOR"></div>
-            <div class="field" style="max-width:90px;"><label>AP</label><input type="number" id="ledger-amt" value="0"></div>
-          </div>
-          <button class="btn btn-ghost btn-sm" id="ledger-add" style="margin-top:8px;">Aggiungi movimento</button>
-          <div class="ledger-list" id="ledger-list" style="margin-top:12px;"></div>
-        </div></div>
-
         <div class="section-title"><span class="dot neutral"></span>Calcolatore costi crescita</div>
+        <p class="helper-text">Dal Lv2 in poi ogni statistica cresce spendendo AP secondo la propria tabella: scegli il tipo, il valore attuale e quello obiettivo per calcolare gli AP necessari.</p>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <p class="helper-text" style="margin:0 0 8px;">Dal Lv2 in poi ogni attributo primario (HP e MP inclusi) e i P.R. crescono con la stessa tabella costi: inserisci il valore attuale e quello obiettivo per calcolare gli AP necessari.</p>
+          <div class="field"><label>Tipo</label>
+            <select id="growth-type">
+              <option value="hp">HP (totale)</option>
+              <option value="mp">MP (totale)</option>
+              <option value="primary">Attributo primario (FOR/MIRA/VEL/F.MEN/DEX/DIF/D.MEN) o P.R.</option>
+              <option value="tertiary">Statistica terziaria (Stile/Carisma/Fortuna)</option>
+            </select>
+          </div>
           <div class="field-row" style="margin-top:8px;">
             <div class="field"><label>Valore attuale</label><input type="number" id="growth-current" value="0"></div>
             <div class="field"><label>Valore obiettivo</label><input type="number" id="growth-target" value="0"></div>
