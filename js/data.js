@@ -251,6 +251,21 @@ const BOOST_LEVELS = [
   { lv: 5, costo: 40, mantenimento: '5 PP/turno', durata: '3 Turni o più',  range: '50 metri', limite: '0/500' }
 ];
 
+// Oggetti consumabili (Fronte Scheda): effetti ammessi. "incremento" richiede
+// anche un bersaglio scelto tra le caratteristiche primarie (HP e MP inclusi,
+// per un "+x Hp" che alza il massimo invece di curare i punti correnti).
+const CONSUMABLE_EFFECTS = [
+  { key: 'recuperoHp', label: 'Recupero HP' },
+  { key: 'recuperoMp', label: 'Recupero MP' },
+  { key: 'incremento', label: 'Incremento statistica' }
+];
+
+// Soglia di K.O.: 10% degli HP massimi. Sotto quella soglia l'unica azione
+// possibile è un tiro percentuale (successo oltre il 70%) oppure consumare
+// una risorsa di recupero HP.
+const KO_THRESHOLD_PCT = 0.10;
+const KO_ROLL_SUCCESS = 70;
+
 function uid() {
   return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
 }

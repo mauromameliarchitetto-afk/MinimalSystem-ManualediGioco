@@ -97,7 +97,7 @@
       <!-- ---- FRONTE SCHEDA ---- -->
       <div class="tab-panel active" data-panel="gioco">
         <div class="section-title"><span class="dot"></span>Diagramma della scheda</div>
-        <p class="helper-text">Il fronte della scheda ufficiale, compilabile: tocca un cerchio e scrivi il valore. I cerchi HP e MP mostrano i punti <em>rimanenti</em>: partono dal massimo (moltiplicatore della classe + incrementi dei level-up, modificabile qui sotto nelle barre) e si riducono da soli scrivendo in USO i punti <em>spesi</em> per danni o abilità. K.O. è automatico: 10% del massimo. Caratteristiche, terziarie, LV e Q.I. restano sincronizzati con le rispettive schede.</p>
+        <p class="helper-text">Il fronte della scheda ufficiale, compilabile: tocca un cerchio e scrivi il valore. I cerchi HP e MP mostrano i punti <em>rimanenti</em>: partono dal massimo (moltiplicatore della classe + incrementi dei level-up, modificabile qui sotto nelle barre) e si riducono da soli scrivendo in USO i punti <em>spesi</em> per danni o abilità. K.O. è automatico: 10% del massimo — scendendo a quella soglia o sotto, più giù compare un riquadro con le uniche due azioni possibili (tiro percentuale o consumo di una risorsa di recupero HP). Caratteristiche, terziarie, LV e Q.I. restano sincronizzati con le rispettive schede.</p>
         <div class="box"><div class="box-bar bicolor"></div><div class="box-pad">
           <div class="diagram-wrap" id="stat-diagram">
             <svg viewBox="0 0 320 430" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -158,7 +158,7 @@
 
         <div class="box"><div class="box-bar bicolor"></div><div class="box-pad">
           <div class="bar-row">
-            <div class="bar-top"><span class="bar-name" style="color:var(--fisico-forte)">HP</span><span class="bar-val"><span id="hp-cur">0</span> / <input type="number" id="hp-max" class="inline-max-input" value="0"></span></div>
+            <div class="bar-top"><span class="bar-name" id="hp-bar-name" style="color:var(--fisico-forte)">HP</span><span class="bar-val"><span id="hp-cur">0</span> / <input type="number" id="hp-max" class="inline-max-input" value="0"></span></div>
             <div class="bar-track"><div class="bar-fill physical" id="hp-bar" style="width:0%"></div></div>
             <div class="bar-controls">
               <button class="btn btn-sm btn-ghost" data-adj="hp" data-amt="-5">-5</button>
@@ -168,7 +168,7 @@
             </div>
           </div>
           <div class="bar-row">
-            <div class="bar-top"><span class="bar-name" style="color:var(--magico-forte)">MP</span><span class="bar-val"><span id="mp-cur">0</span> / <input type="number" id="mp-max" class="inline-max-input" value="0"></span></div>
+            <div class="bar-top"><span class="bar-name" id="mp-bar-name" style="color:var(--magico-forte)">MP</span><span class="bar-val"><span id="mp-cur">0</span> / <input type="number" id="mp-max" class="inline-max-input" value="0"></span></div>
             <div class="bar-track"><div class="bar-fill magic" id="mp-bar" style="width:0%"></div></div>
             <div class="bar-controls">
               <button class="btn btn-sm btn-ghost" data-adj="mp" data-amt="-5">-5</button>
@@ -187,6 +187,31 @@
               <button class="btn btn-sm btn-ghost" data-adj="pp" data-amt="5">+5</button>
             </div>
           </div>
+        </div></div>
+
+        <div class="section-title ko-title hidden" id="ko-section-title"><span class="dot" style="background:#FF5C5C;"></span>Soglia K.O.</div>
+        <div class="box hidden" id="ko-box"><div class="box-bar" style="background:#FF5C5C;"></div><div class="box-pad">
+          <p class="helper-text" style="margin:0 0 12px;color:#FF5C5C;" id="ko-status-text">—</p>
+          <div class="roll-row">
+            <button class="btn btn-primary" id="ko-roll-btn">Tiro percentuale</button>
+            <div class="roll-result" id="ko-roll-result">—</div>
+            <div class="roll-detail" id="ko-roll-detail"></div>
+          </div>
+          <p class="helper-text" style="margin:14px 0 6px;">Oppure consuma subito una risorsa di recupero HP:</p>
+          <div id="ko-heal-options"></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Consumo oggetti</div>
+        <p class="helper-text">Oggetti consumabili come bende, pozioni o elisir: scrivi il nome a mano, scegli l'effetto e il valore, imposta le scorte. "Usa" applica l'effetto e scala di 1 le scorte, che non scendono mai sotto zero. Il recupero HP/MP non supera mai il massimo. Un incremento statistica invece resta attivo — e la statistica cambia colore sul diagramma qui sopra — finché non lo sospendi tra gli "Incrementi attivi" qui sotto: avvisane il Narratore, che deciderà quando togliere il bonus.</p>
+        <div class="table-scroll"><table class="data-table edit-table">
+          <thead><tr><th>Nome</th><th>Effetto</th><th>Bersaglio</th><th>Valore</th><th>Scorte</th><th></th><th></th></tr></thead>
+          <tbody id="consum-table"></tbody>
+        </table></div>
+        <button class="btn btn-ghost btn-sm" id="cons-add" style="align-self:flex-start;">+ Aggiungi oggetto consumabile</button>
+
+        <div class="section-title"><span class="dot neutral"></span>Incrementi attivi</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" id="active-buffs">
+          <p class="helper-text" style="margin:0;">Nessun incremento attivo.</p>
         </div></div>
 
         <div class="hud-grid">

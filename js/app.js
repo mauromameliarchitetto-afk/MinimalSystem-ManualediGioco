@@ -198,6 +198,7 @@ function clampSlotToRange(slot) {
 function makeTecnicaRow() { return { nome: '', bonus: '', malus: '', durata: '', utilizzi: '', lv: '' }; }
 function makeAbilitaRow() { return { nome: '', bonus: '', costo: '', durata: '', utilizzi: '', lv: '' }; }
 function makeBoostRow()   { return { bonus: '', range: '', pp: '', costo: '', limite: '', lv: '' }; }
+function makeConsumabileRow() { return { nome: '', effetto: 'recuperoHp', target: '', valore: 0, quantita: 0 }; }
 function defaultBoost() {
   const o = {};
   BOOST_LEVELS.forEach(b => { o[b.lv] = { appreso: false }; });
@@ -277,6 +278,8 @@ function newCharacter(nome) {
     boostRowsShown: 1,
     boost: defaultBoost(),
     inventario: [],
+    consumabili: [],
+    statBuffs: [],
     portrait: null,
     bg: defaultBg(),
     note: { aspetto: '', morale: '', background: '', libere: '' }
@@ -517,13 +520,15 @@ function renderPrimaryStats(c) {
   const locked = c.primaryConfirmed;
   wrap.innerHTML = PRIMARY_STATS.map(stat => {
     const val = c.primary[stat.key];
+    const buff = buffTotal(c, stat.key);
     return `<div class="stat-row">
-      <div class="stat-label ${stat.axis}"><span class="abbr">${stat.label}</span><span class="full">${stat.full}</span></div>
+      <div class="stat-label ${stat.axis}${buff ? ' buffed' : ''}"><span class="abbr">${stat.label}</span><span class="full">${stat.full}</span></div>
       <div class="stepper">
         <button data-pstat="${stat.key}" data-dir="-1" aria-label="Diminuisci" ${locked ? 'disabled' : ''}>−</button>
         <input type="number" data-pstat-input="${stat.key}" value="${val}" min="${PRIMARY_MIN}" ${locked ? 'disabled' : ''}>
         <button data-pstat="${stat.key}" data-dir="1" aria-label="Aumenta" ${locked ? 'disabled' : ''}>+</button>
       </div>
+      ${buff ? `<span class="chip buff-chip" title="Incremento attivo da consumabile">+${buff}</span>` : ''}
     </div>`;
   }).join('');
   updatePrimaryRemaining(c);
@@ -581,6 +586,23 @@ function currentMpMult(c) {
   return b.mpMult;
 }
 
+/* --------------------------------------------------------- oggetti consumabili */
+
+function statLabel(key) {
+  const s = PRIMARY_STATS.find(st => st.key === key);
+  return s ? s.label : key;
+}
+/* Somma degli incrementi attivi su una caratteristica (0 se nessuno): gli
+   incrementi non toccano il valore base salvato, restano un bonus reversibile
+   finché non viene sospeso */
+function buffTotal(c, key) {
+  return (c.statBuffs || []).filter(b => b.target === key).reduce((s, b) => s + (Number(b.valore) || 0), 0);
+}
+function effectiveHpMax(c) { return (c.hpMaxTracked || 0) + buffTotal(c, 'hp'); }
+function effectiveMpMax(c) { return (c.mpMaxTracked || 0) + buffTotal(c, 'mp'); }
+/* Soglia di K.O.: 10% degli HP massimi effettivi (incrementi attivi inclusi) */
+function koThreshold(c) { return Math.ceil(effectiveHpMax(c) * KO_THRESHOLD_PCT); }
+
 function updateDerived(c) {
   const hpMult = currentHpMult(c), mpMult = currentMpMult(c);
   const hpMax = Number(c.primary.hp || 0) * hpMult;
@@ -632,13 +654,17 @@ function updateDerived(c) {
 function updatePlayBars(c) {
   const ppMax = (c.hpMaxTracked || 0) / 2 + (c.mpMaxTracked || 0) / 2;
   if (c.ppCur === null || c.ppCur === undefined) c.ppCur = ppMax;
+  const hpMaxEff = effectiveHpMax(c), mpMaxEff = effectiveMpMax(c);
 
-  $('#hp-max').value = c.hpMaxTracked || 0;
-  $('#mp-max').value = c.mpMaxTracked || 0;
+  // il campo mostra il massimo effettivo (incrementi attivi inclusi); se
+  // l'utente lo modifica a mano, l'eventuale incremento resta scorporato
+  // dal massimo base tracciato
+  $('#hp-max').value = hpMaxEff;
+  $('#mp-max').value = mpMaxEff;
   $('#hud-pr-max').value = c.prMaxTracked || 0;
 
-  c.hpCur = clamp(c.hpCur, 0, c.hpMaxTracked || 0);
-  c.mpCur = clamp(c.mpCur, 0, c.mpMaxTracked || 0);
+  c.hpCur = clamp(c.hpCur, 0, hpMaxEff);
+  c.mpCur = clamp(c.mpCur, 0, mpMaxEff);
   c.ppCur = clamp(c.ppCur, 0, ppMax);
   c.prCur = clamp(c.prCur, 0, c.prMaxTracked || 0);
 
@@ -648,9 +674,12 @@ function updatePlayBars(c) {
   $('#pp-max').textContent = ppMax;
   $('#hud-pr').textContent = c.prCur;
 
-  $('#hp-bar').style.width = pct(c.hpCur, c.hpMaxTracked) + '%';
-  $('#mp-bar').style.width = pct(c.mpCur, c.mpMaxTracked) + '%';
+  $('#hp-bar').style.width = pct(c.hpCur, hpMaxEff) + '%';
+  $('#mp-bar').style.width = pct(c.mpCur, mpMaxEff) + '%';
   $('#pp-bar').style.width = pct(c.ppCur, ppMax) + '%';
+  $('#hp-bar-name').classList.toggle('buffed', buffTotal(c, 'hp') !== 0);
+  $('#mp-bar-name').classList.toggle('buffed', buffTotal(c, 'mp') !== 0);
+  renderKoStatus(c);
   renderDiagram(c);
 }
 function pct(cur, max) { return max > 0 ? clamp((cur / max) * 100, 0, 100) : 0; }
@@ -688,26 +717,35 @@ function initDiagram() {
 }
 
 function diagramValue(c, key) {
-  if (key.startsWith('p:')) return c.primary[key.slice(2)];
+  // gli incrementi da consumabile si sommano al valore base finché attivi
+  if (key.startsWith('p:')) return c.primary[key.slice(2)] + buffTotal(c, key.slice(2));
   if (key.startsWith('t:')) return c.tertiary[key.slice(2)];
   if (key === 'lv') return c.livello;
   if (key === 'qi') return c.qi;
-  // HP/MP: punti rimanenti — partono dal massimo (moltiplicatore + level-up)
-  // e si riducono in base a quanto scritto in USO
+  // HP/MP: punti rimanenti — partono dal massimo (moltiplicatore + level-up
+  // + eventuali incrementi attivi) e si riducono in base a quanto scritto in USO
   if (key === 'hprim') return c.hpCur;
   if (key === 'mprim') return c.mpCur;
   // USO: punti spesi (danni subiti / abilità usate) = max - correnti
-  if (key === 'hpuso') return Math.max(0, (c.hpMaxTracked || 0) - (c.hpCur || 0));
-  if (key === 'mpuso') return Math.max(0, (c.mpMaxTracked || 0) - (c.mpCur || 0));
+  if (key === 'hpuso') return Math.max(0, effectiveHpMax(c) - (c.hpCur || 0));
+  if (key === 'mpuso') return Math.max(0, effectiveMpMax(c) - (c.mpCur || 0));
   // K.O.: soglia di cedimento = 10% del massimo (calcolo automatico)
-  if (key === 'hpko') return Math.ceil((c.hpMaxTracked || 0) * 0.1);
-  if (key === 'mpko') return Math.ceil((c.mpMaxTracked || 0) * 0.1);
+  if (key === 'hpko') return koThreshold(c);
+  if (key === 'mpko') return Math.ceil(effectiveMpMax(c) * KO_THRESHOLD_PCT);
   if (key === 'prcur') return c.prCur;
   return null;
 }
 
+function diagramBuffed(c, key) {
+  if (key.startsWith('p:')) return buffTotal(c, key.slice(2)) !== 0;
+  if (key === 'hprim' || key === 'hpuso' || key === 'hpko') return buffTotal(c, 'hp') !== 0;
+  if (key === 'mprim' || key === 'mpuso' || key === 'mpko') return buffTotal(c, 'mp') !== 0;
+  return false;
+}
+
 function renderDiagram(c) {
   $$('#stat-diagram [data-dg]').forEach(inp => {
+    inp.classList.toggle('dg-buffed', diagramBuffed(c, inp.dataset.dg));
     if (inp === document.activeElement) return;
     const v = diagramValue(c, inp.dataset.dg);
     inp.value = (v === null || v === undefined) ? '' : v;
@@ -1162,6 +1200,85 @@ function renderInventario(c) {
     </tr>`).join('') || `<tr><td colspan="2" class="helper-text">Nessun oggetto.</td></tr>`;
 }
 
+/* ------------------------------------------------------- consumo oggetti */
+
+function renderConsumabili(c) {
+  $('#consum-table').innerHTML = c.consumabili.map((r, i) => {
+    const isIncrement = r.effetto === 'incremento';
+    const targetCell = isIncrement
+      ? `<select data-cons="target" data-idx="${i}">
+          <option value="">— scegli —</option>
+          ${PRIMARY_STATS.map(s => `<option value="${s.key}" ${r.target === s.key ? 'selected' : ''}>${s.label}</option>`).join('')}
+        </select>`
+      : '<span class="helper-text" style="margin:0;">—</span>';
+    return `<tr>
+      <td class="col-wide"><input type="text" value="${escapeHtml(r.nome)}" data-cons="nome" data-idx="${i}" placeholder="Nome oggetto"></td>
+      <td><select data-cons="effetto" data-idx="${i}">
+        ${CONSUMABLE_EFFECTS.map(ef => `<option value="${ef.key}" ${r.effetto === ef.key ? 'selected' : ''}>${ef.label}</option>`).join('')}
+      </select></td>
+      <td>${targetCell}</td>
+      <td class="col-narrow"><input type="number" value="${r.valore}" min="0" data-cons="valore" data-idx="${i}"></td>
+      <td class="col-narrow"><input type="number" value="${r.quantita}" min="0" data-cons="quantita" data-idx="${i}"></td>
+      <td><button class="btn btn-sm btn-primary" data-cons-use="${i}" ${(isIncrement && !r.target) || Number(r.quantita) <= 0 ? 'disabled' : ''}>Usa</button></td>
+      <td><button class="btn btn-icon btn-sm btn-ghost" data-cons-del="${i}" aria-label="Rimuovi oggetto">✕</button></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="7" class="helper-text">Nessun oggetto consumabile.</td></tr>`;
+}
+
+function renderActiveBuffs(c) {
+  const wrap = $('#active-buffs');
+  if (!c.statBuffs.length) {
+    wrap.innerHTML = `<p class="helper-text" style="margin:0;">Nessun incremento attivo.</p>`;
+    return;
+  }
+  wrap.innerHTML = c.statBuffs.map(b => `
+    <div class="row-between buff-row">
+      <span class="helper-text" style="margin:0;">${escapeHtml(b.nome || 'Oggetto')} → <strong class="buff-amt">+${b.valore} ${statLabel(b.target)}</strong></span>
+      <button class="btn btn-ghost btn-sm" data-buff-suspend="${b.id}">Sospendi</button>
+    </div>`).join('');
+}
+
+/* Applica l'effetto di un consumabile e scala di 1 le scorte (mai sotto zero) */
+function useConsumable(c, idx) {
+  const item = c.consumabili[idx];
+  if (!item || Number(item.quantita) <= 0) return;
+  const valore = Number(item.valore) || 0;
+  if (item.effetto === 'recuperoHp') {
+    c.hpCur = clamp(c.hpCur + valore, 0, effectiveHpMax(c));
+  } else if (item.effetto === 'recuperoMp') {
+    c.mpCur = clamp(c.mpCur + valore, 0, effectiveMpMax(c));
+  } else if (item.effetto === 'incremento') {
+    if (!item.target) { toast('Scegli prima la statistica da incrementare'); return; }
+    c.statBuffs.push({ id: uid(), nome: item.nome || 'Oggetto', target: item.target, valore });
+    toast(`Incremento attivo: +${valore} a ${statLabel(item.target)}. Avvisa il Narratore.`);
+  }
+  item.quantita = Math.max(0, Number(item.quantita) - 1);
+  renderConsumabili(c);
+  renderActiveBuffs(c);
+  updatePlayBars(c);
+  renderPrimaryStats(c);
+  renderDiagram(c);
+}
+
+/* Stato K.O.: sotto il 10% degli HP massimi restano possibili solo un tiro
+   percentuale (agisce se supera il 70%) o il consumo di una risorsa di
+   recupero HP */
+function renderKoStatus(c) {
+  const hpMax = effectiveHpMax(c);
+  const inKo = hpMax > 0 && c.hpCur <= koThreshold(c);
+  $('#ko-section-title').classList.toggle('hidden', !inKo);
+  $('#ko-box').classList.toggle('hidden', !inKo);
+  if (!inKo) return;
+  $('#ko-status-text').textContent =
+    `HP ${c.hpCur} / ${hpMax} — soglia K.O. (${koThreshold(c)}) raggiunta: puoi solo tentare un tiro percentuale (agisci se superi il ${KO_ROLL_SUCCESS}%) oppure consumare una risorsa di recupero HP.`;
+  const healables = c.consumabili
+    .map((r, i) => ({ r, i }))
+    .filter(x => x.r.effetto === 'recuperoHp' && Number(x.r.quantita) > 0);
+  $('#ko-heal-options').innerHTML = healables.length
+    ? healables.map(x => `<button class="btn btn-ghost btn-sm" data-cons-use="${x.i}" style="margin:0 6px 6px 0;">${escapeHtml(x.r.nome || 'Oggetto')} (+${Number(x.r.valore) || 0} HP · ${x.r.quantita} rimasti)</button>`).join('')
+    : `<p class="helper-text" style="margin:0;">Nessuna risorsa di recupero HP disponibile.</p>`;
+}
+
 /* ---------------------------------------------------------------- note */
 
 function renderNote(c) {
@@ -1242,6 +1359,8 @@ function renderSheet() {
   renderBoostRows(c);
   renderBoost(c);
   renderInventario(c);
+  renderConsumabili(c);
+  renderActiveBuffs(c);
   renderNote(c);
 }
 
@@ -2138,6 +2257,89 @@ function wireStaticEvents() {
     touchActive();
   });
 
+  // ---- consumo oggetti ----
+  $('#cons-add').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    c.consumabili.push(makeConsumabileRow());
+    renderConsumabili(c);
+    touchActive();
+  });
+  // testo/numeri: aggiorna solo il dato (niente re-render, per non perdere
+  // il focus mentre si digita, come per l'inventario)
+  $('#consum-table').addEventListener('input', e => {
+    const input = e.target.closest('[data-cons]');
+    if (!input) return;
+    const c = getActive(); if (!c) return;
+    const idx = Number(input.dataset.idx), field = input.dataset.cons;
+    const row = c.consumabili[idx]; if (!row) return;
+    if (field === 'nome') { row.nome = input.value; touchActive(); return; }
+    // le scorte e il valore non possono mai scendere sotto zero
+    if (field === 'valore') { row.valore = Math.max(0, Number(input.value) || 0); }
+    else if (field === 'quantita') {
+      row.quantita = Math.max(0, Number(input.value) || 0);
+      const useBtn = $(`#consum-table [data-cons-use="${idx}"]`);
+      if (useBtn) useBtn.disabled = (row.effetto === 'incremento' && !row.target) || row.quantita <= 0;
+    } else return;
+    renderKoStatus(c);
+    touchActive();
+  });
+  // select (effetto/bersaglio): il cambio non interrompe la digitazione,
+  // quindi qui si può ridisegnare la riga per intero
+  $('#consum-table').addEventListener('change', e => {
+    const sel = e.target.closest('select[data-cons]');
+    if (!sel) return;
+    const c = getActive(); if (!c) return;
+    const idx = Number(sel.dataset.idx), field = sel.dataset.cons;
+    const row = c.consumabili[idx]; if (!row) return;
+    if (field === 'effetto') { row.effetto = sel.value; if (row.effetto !== 'incremento') row.target = ''; }
+    else if (field === 'target') row.target = sel.value;
+    renderConsumabili(c);
+    renderKoStatus(c);
+    touchActive();
+  });
+  $('#consum-table').addEventListener('click', e => {
+    const delBtn = e.target.closest('[data-cons-del]');
+    if (delBtn) {
+      const c = getActive(); if (!c) return;
+      c.consumabili.splice(Number(delBtn.dataset.consDel), 1);
+      renderConsumabili(c);
+      touchActive();
+      return;
+    }
+  });
+  // il bottone "Usa" compare anche nel riquadro K.O., per questo è delegato
+  // a livello di scheda invece che alla sola tabella
+  $('.sheet-body').addEventListener('click', e => {
+    const useBtn = e.target.closest('[data-cons-use]');
+    if (!useBtn) return;
+    const c = getActive(); if (!c) return;
+    useConsumable(c, Number(useBtn.dataset.consUse));
+    touchActive();
+  });
+  $('#active-buffs').addEventListener('click', e => {
+    const btn = e.target.closest('[data-buff-suspend]');
+    if (!btn) return;
+    const c = getActive(); if (!c) return;
+    c.statBuffs = c.statBuffs.filter(b => b.id !== btn.dataset.buffSuspend);
+    renderActiveBuffs(c);
+    renderConsumabili(c);
+    updatePlayBars(c);
+    renderPrimaryStats(c);
+    renderDiagram(c);
+    touchActive();
+  });
+
+  // ---- soglia K.O. ----
+  $('#ko-roll-btn').addEventListener('click', () => {
+    const roll = rollDie(100);
+    const success = roll > KO_ROLL_SUCCESS;
+    $('#ko-roll-result').textContent = roll;
+    $('#ko-roll-result').style.color = success ? 'var(--magico-forte)' : '#FF5C5C';
+    $('#ko-roll-detail').textContent = success
+      ? `Superato (>${KO_ROLL_SUCCESS}%): il personaggio può agire questo turno.`
+      : `Fallito: il personaggio non può agire questo turno.`;
+  });
+
   // ---- volto del personaggio ----
   $('#portrait-frame').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
@@ -2195,8 +2397,8 @@ function wireStaticEvents() {
     if (!btn) return;
     const c = getActive(); if (!c) return;
     const kind = btn.dataset.adj, amt = Number(btn.dataset.amt);
-    if (kind === 'hp') c.hpCur = clamp(c.hpCur + amt, 0, c.hpMaxTracked);
-    if (kind === 'mp') c.mpCur = clamp(c.mpCur + amt, 0, c.mpMaxTracked);
+    if (kind === 'hp') c.hpCur = clamp(c.hpCur + amt, 0, effectiveHpMax(c));
+    if (kind === 'mp') c.mpCur = clamp(c.mpCur + amt, 0, effectiveMpMax(c));
     if (kind === 'pp') c.ppCur = clamp(c.ppCur + amt, 0, (c.hpMaxTracked / 2 + c.mpMaxTracked / 2));
     updatePlayBars(c);
     touchActive();
@@ -2204,8 +2406,11 @@ function wireStaticEvents() {
   ['#hp-max', '#mp-max', '#hud-pr-max'].forEach(sel => {
     $(sel).addEventListener('change', () => {
       const c = getActive(); if (!c) return;
-      if (sel === '#hp-max') c.hpMaxTracked = Number($(sel).value) || 0;
-      if (sel === '#mp-max') c.mpMaxTracked = Number($(sel).value) || 0;
+      // il campo mostra il massimo effettivo (base + incrementi attivi): la
+      // modifica manuale aggiorna solo il massimo base, senza inglobare
+      // per sempre un incremento temporaneo
+      if (sel === '#hp-max') c.hpMaxTracked = Math.max(0, (Number($(sel).value) || 0) - buffTotal(c, 'hp'));
+      if (sel === '#mp-max') c.mpMaxTracked = Math.max(0, (Number($(sel).value) || 0) - buffTotal(c, 'mp'));
       if (sel === '#hud-pr-max') c.prMaxTracked = Number($(sel).value) || 0;
       updatePlayBars(c);
       touchActive();
@@ -2865,6 +3070,17 @@ function renderCharView(c) {
   };
   const bg = kvRows(Object.keys(BG_LABELS).map(k => [BG_LABELS[k], (c.bg || {})[k]]));
 
+  const hpMaxEff = effectiveHpMax(c), mpMaxEff = effectiveMpMax(c);
+  const consumabiliRows = (c.consumabili || []).filter(r => r.nome).map(r => {
+    const eff = CONSUMABLE_EFFECTS.find(e => e.key === r.effetto);
+    const effTxt = r.effetto === 'incremento'
+      ? `Incremento +${Number(r.valore) || 0} ${statLabel(r.target)}`
+      : `${eff ? eff.label : r.effetto} +${Number(r.valore) || 0}`;
+    return `<tr><td class="field">${escapeHtml(r.nome)}</td><td>${effTxt}</td><td class="num">${Number(r.quantita) || 0}</td></tr>`;
+  }).join('');
+  const buffRows = (c.statBuffs || []).map(b2 =>
+    `<tr><td class="field">${escapeHtml(b2.nome || 'Oggetto')}</td><td>+${Number(b2.valore) || 0} ${statLabel(b2.target)}</td></tr>`).join('');
+
   $('#charview-body').innerHTML = `
     ${section('Identità', table(kvRows([
       ['Storia', c.storia], ['Build', b.label], ['Livello', c.livello],
@@ -2873,8 +3089,9 @@ function renderCharView(c) {
       ['Q.I.', c.qi], ['AP disponibili', c.apDisponibili]
     ])))}
     ${section('Risorse', table(kvRows([
-      ['HP', `${c.hpCur ?? '—'} / ${c.hpMaxTracked ?? '—'}`],
-      ['MP', `${c.mpCur ?? '—'} / ${c.mpMaxTracked ?? '—'}`],
+      ['HP', `${c.hpCur ?? '—'} / ${hpMaxEff}${hpMaxEff !== (c.hpMaxTracked || 0) ? ` (base ${c.hpMaxTracked || 0})` : ''}`],
+      ['MP', `${c.mpCur ?? '—'} / ${mpMaxEff}${mpMaxEff !== (c.mpMaxTracked || 0) ? ` (base ${c.mpMaxTracked || 0})` : ''}`],
+      ['Soglia K.O.', koThreshold(c)],
       ['PP', c.ppCur], ['P.R.', `${c.prCur ?? '—'} / ${c.prMaxTracked ?? '—'}`]
     ])))}
     ${section('Caratteristiche primarie', table(primarie))}
@@ -2885,6 +3102,8 @@ function renderCharView(c) {
     ${section('Tecniche (Nome · Bonus · Malus · Durata · Utilizzi · Lv)', tecniche ? table(tecniche) : '')}
     ${section('Abilità (Nome · Bonus · Costo · Durata · Utilizzi · Lv)', abilita ? table(abilita) : '')}
     ${section('Boost (Bonus · Range · PP · Costo · Limite · Lv)', boosts ? table(boosts) : '')}
+    ${section('Oggetti consumabili (Nome · Effetto · Scorte)', consumabiliRows ? table(consumabiliRows) : '')}
+    ${section('Incrementi attivi (da sospendere quando concordato)', buffRows ? table(buffRows) : '')}
     ${section('Background', bg ? table(bg) : '')}
     ${section('Note libere', c.note && c.note.libere ? `<div class="box-lore">${escapeHtml(c.note.libere)}</div>` : '')}
     <div class="helper-text" style="margin-top:14px;">Scheda in sola lettura, importata dal giocatore${c.updatedAt ? ' · ultimo aggiornamento ' + new Date(c.updatedAt).toLocaleString('it-IT') : ''}.</div>
