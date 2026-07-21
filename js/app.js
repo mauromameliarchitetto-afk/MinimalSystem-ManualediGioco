@@ -1477,6 +1477,7 @@ function wireStaticEvents() {
     showView(target);
   }));
   $('#btn-char-menu').addEventListener('click', charMenu);
+  wireCloudAccountEvents();
 
   // ---- banner aggiornamento ----
   $('#update-banner-btn').addEventListener('click', () => {
@@ -1514,6 +1515,7 @@ function wireStaticEvents() {
     if (item.dataset.menuNav === 'new') { createCharacterFlow(); return; }
     if (item.dataset.menuNav === 'master') { renderMasterArea(); showView('master'); return; }
     if (item.dataset.menuNav === 'premises') { renderPremisesArea(); showView('premises'); return; }
+    if (item.dataset.menuNav === 'account') { renderAccountArea(); showView('account'); return; }
     if (item.dataset.menuTab) openSheetAtTab(item.dataset.menuTab);
   });
 
