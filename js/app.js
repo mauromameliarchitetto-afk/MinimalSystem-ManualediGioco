@@ -199,6 +199,7 @@ function makeTecnicaRow() { return { nome: '', bonus: '', malus: '', durata: '',
 function makeAbilitaRow() { return { nome: '', bonus: '', costo: '', durata: '', utilizzi: '', lv: '' }; }
 function makeBoostRow()   { return { bonus: '', range: '', pp: '', costo: '', limite: '', lv: '' }; }
 function makeConsumabileRow() { return { nome: '', effetto: 'recuperoHp', target: '', valore: 0, quantita: 0 }; }
+function makeRelazioneRow() { return { nome: '', relazione: '', descrizione: '' }; }
 function defaultBoost() {
   const o = {};
   BOOST_LEVELS.forEach(b => { o[b.lv] = { appreso: false }; });
@@ -281,6 +282,7 @@ function newCharacter(nome) {
     consumabili: [],
     statBuffs: [],
     portrait: null,
+    relazioni: [],
     bg: defaultBg(),
     note: { aspetto: '', morale: '', background: '', libere: '' }
   };
@@ -294,8 +296,7 @@ function defaultBg() {
     'altezza', 'peso', 'pelle', 'acconciatura', 'occhi', 'segni', 'corporatura', 'postura', 'vestiario', 'oggetto',
     'incompetenze', 'debolezze', 'hobby', 'abitudini',
     'personalita', 'morale', 'autocontrollo', 'motivazione', 'scoraggiamento', 'sicurezza', 'filosofia', 'paura', 'obiettivoBreve', 'obiettivoLungo',
-    'infanzia', 'eventoImportante', 'segreto', 'peggiorMomento', 'migliorMomento',
-    'relazioni'];
+    'infanzia', 'eventoImportante', 'segreto', 'peggiorMomento', 'migliorMomento'];
   const o = {};
   keys.forEach(k => { o[k] = ''; });
   return o;
@@ -341,6 +342,13 @@ function ensureShape(c) {
   const dbg = defaultBg();
   if (!c.bg) c.bg = {};
   Object.keys(dbg).forEach(k => { if (c.bg[k] === undefined) c.bg[k] = ''; });
+  // relazioni: da campo unico di testo libero a elenco di N schede (Nome,
+  // Relazione, Descrizione); il vecchio testo confluisce nella prima scheda
+  if (!Array.isArray(c.relazioni)) c.relazioni = [];
+  if (c.bg.relazioni) {
+    c.relazioni.push({ nome: '', relazione: '', descrizione: c.bg.relazioni });
+    delete c.bg.relazioni;
+  }
   if (c.note.morale && !c.bg.morale) { c.bg.morale = c.note.morale; c.note.morale = ''; }
   if (c.note.background && !c.bg.infanzia) { c.bg.infanzia = c.note.background; c.note.background = ''; }
   if (c.note.aspetto) {
@@ -1330,6 +1338,22 @@ function renderKoStatus(c) {
 function renderNote(c) {
   $$('[data-bg]').forEach(el => { el.value = c.bg[el.dataset.bg] || ''; });
   $('#n-libere').value = c.note.libere;
+  renderRelazioni(c);
+}
+/* Relazioni: N schede libere (familiari, amici, colleghi...), ciascuna con
+   Nome, Relazione (che rapporto lega l'NPC al personaggio) e Descrizione. */
+function renderRelazioni(c) {
+  const wrap = $('#relazioni-list');
+  wrap.innerHTML = (c.relazioni || []).map((r, i) => `
+    <div class="box relazione-card"><div class="box-bar"></div><div class="box-pad">
+      <div class="field-row">
+        <div class="field"><label>Nome</label><input type="text" value="${escapeHtml(r.nome)}" data-relazione="nome" data-idx="${i}" placeholder="Nome dell'NPC"></div>
+        <div class="field"><label>Relazione</label><input type="text" value="${escapeHtml(r.relazione)}" data-relazione="relazione" data-idx="${i}" placeholder="Es. Fratello, Amico, Collega..."></div>
+      </div>
+      <div class="field" style="margin-top:8px;"><label>Descrizione</label><textarea data-relazione="descrizione" data-idx="${i}" placeholder="Che rapporto lega il personaggio a questo NPC">${escapeHtml(r.descrizione)}</textarea></div>
+      <button class="btn btn-ghost btn-sm" data-del-relazione="${i}" style="align-self:flex-start;margin-top:8px;">✕ Rimuovi relazione</button>
+    </div></div>`).join('')
+    || `<p class="helper-text" style="margin:0;">Nessuna relazione ancora — aggiungine una qui sotto.</p>`;
 }
 
 function renderPortrait(c) {
@@ -2338,6 +2362,30 @@ function wireStaticEvents() {
     touchActive();
   });
 
+  // ---- relazioni ----
+  $('#relazioni-add').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    c.relazioni.push(makeRelazioneRow());
+    renderRelazioni(c);
+    touchActive();
+  });
+  $('#relazioni-list').addEventListener('input', e => {
+    const input = e.target.closest('[data-relazione]');
+    if (!input) return;
+    const c = getActive(); if (!c) return;
+    const idx = Number(input.dataset.idx), field = input.dataset.relazione;
+    c.relazioni[idx][field] = input.value;
+    touchActive();
+  });
+  $('#relazioni-list').addEventListener('click', e => {
+    const btn = e.target.closest('[data-del-relazione]');
+    if (!btn) return;
+    const c = getActive(); if (!c) return;
+    c.relazioni.splice(Number(btn.dataset.delRelazione), 1);
+    renderRelazioni(c);
+    touchActive();
+  });
+
   // ---- consumo oggetti ----
   $('#cons-add').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
@@ -3156,9 +3204,11 @@ function renderCharView(c) {
     scoraggiamento: 'Scoraggiamento', sicurezza: 'Sicurezza', filosofia: 'Filosofia', paura: 'Paura più grande',
     obiettivoBreve: 'Obiettivo breve', obiettivoLungo: 'Obiettivo lungo',
     infanzia: 'Infanzia', eventoImportante: 'Evento importante', segreto: 'Segreto',
-    peggiorMomento: 'Peggior momento', migliorMomento: 'Miglior momento', relazioni: 'Relazioni'
+    peggiorMomento: 'Peggior momento', migliorMomento: 'Miglior momento'
   };
   const bg = kvRows(Object.keys(BG_LABELS).map(k => [BG_LABELS[k], (c.bg || {})[k]]));
+  const relazioni = (c.relazioni || []).filter(r => r.nome || r.relazione || r.descrizione)
+    .map(r => `<tr><td class="field">${escapeHtml(r.nome)}</td><td>${escapeHtml(r.relazione)}</td><td>${escapeHtml(r.descrizione)}</td></tr>`).join('');
 
   const hpMaxEff = effectiveHpMax(c), mpMaxEff = effectiveMpMax(c);
   const consumabiliRows = (c.consumabili || []).filter(r => r.nome).map(r => {
@@ -3195,6 +3245,7 @@ function renderCharView(c) {
     ${section('Oggetti consumabili (Nome · Effetto · Scorte)', consumabiliRows ? table(consumabiliRows) : '')}
     ${section('Incrementi attivi (da sospendere quando concordato)', buffRows ? table(buffRows) : '')}
     ${section('Background', bg ? table(bg) : '')}
+    ${section('Relazioni (Nome · Relazione · Descrizione)', relazioni ? table(relazioni) : '')}
     ${section('Note libere', c.note && c.note.libere ? `<div class="box-lore">${escapeHtml(c.note.libere)}</div>` : '')}
     <div class="helper-text" style="margin-top:14px;">Scheda in sola lettura, importata dal giocatore${c.updatedAt ? ' · ultimo aggiornamento ' + new Date(c.updatedAt).toLocaleString('it-IT') : ''}.</div>
   `;
