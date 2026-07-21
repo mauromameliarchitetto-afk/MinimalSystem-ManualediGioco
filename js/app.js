@@ -175,13 +175,11 @@ function defaultSlots() {
   return ['Capo', 'Busto', 'Braccio Sx', 'Braccio Dx', 'Gamba Sx', 'Gamba Dx']
     .map(name => ({ name, kind: 'armatura', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 }));
 }
-/* Fronte scheda: 1 scudo + 3 armi */
+/* Fronte scheda: 1 scudo + 1 arma, equipaggiabili insieme */
 function defaultWeaponSlots() {
   return [
     { name: 'Scudo', kind: 'scudo', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 },
-    { name: 'Arma 1', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 },
-    { name: 'Arma 2', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 },
-    { name: 'Arma 3', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 }
+    { name: 'Arma 1', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 }
   ];
 }
 /* Se taglia/qualità sono entrambe scelte, riporta atk/dif/dur nel range
@@ -370,6 +368,8 @@ function ensureShape(c) {
     if (s.quality === undefined) s.quality = '';
   });
   (c.weaponSlots || []).forEach(s => { if (s.quality === undefined) s.quality = ''; });
+  // rimosse le locazioni Arma 2/Arma 3: restano solo Scudo e Arma 1, equipaggiabili insieme
+  if (c.weaponSlots) c.weaponSlots = c.weaponSlots.filter(s => s.name !== 'Arma 2' && s.name !== 'Arma 3');
   return c;
 }
 
@@ -1069,23 +1069,13 @@ const DIAGRAM_PM_SPEC = [
 ];
 
 function renderTertiaryPlusMinus(c) {
-  const html = TERTIARY_STATS.map(s => {
-    const pm = c.tertiaryPM[s.key];
-    return `<div class="row-between" style="margin-bottom:8px;" data-pmrow="${s.key}">
-      <span style="font-family:var(--font-title);font-weight:600;font-size:12.5px;">${s.label} <span style="color:var(--testo-secondario-dark);font-family:var(--font-mono);">(${c.tertiary[s.key]})</span></span>
-      <span>
-        <button class="btn btn-sm btn-ghost" data-pm="${s.key}" data-pmtype="minus">− (${pm.minus}/3)</button>
-        <button class="btn btn-sm btn-primary" data-pm="${s.key}" data-pmtype="plus">+ (${pm.plus}/3)</button>
-      </span>
-    </div>`;
-  }).join('');
   const diagramHtml = DIAGRAM_PM_SPEC.map(f => {
     const pm = c.tertiaryPM[f.key];
     return `<button class="dg-pm-btn dg-pm-minus" data-pm="${f.key}" data-pmtype="minus" style="left:${(f.mx / 320 * 100).toFixed(2)}%;top:${(f.my / 430 * 100).toFixed(2)}%;" aria-label="${f.label}: esito negativo (${pm.minus}/3)" title="${f.label} −">−</button>
       <button class="dg-pm-btn dg-pm-plus" data-pm="${f.key}" data-pmtype="plus" style="left:${(f.px / 320 * 100).toFixed(2)}%;top:${(f.py / 430 * 100).toFixed(2)}%;" aria-label="${f.label}: esito positivo (${pm.plus}/3)" title="${f.label} +">+</button>`;
   }).join('');
   $$('.tertiary-pm-wrap').forEach(wrap => {
-    wrap.innerHTML = wrap.dataset.pmStyle === 'diagram' ? diagramHtml : html;
+    wrap.innerHTML = diagramHtml;
   });
 }
 const GROWTH_COST_FN = {
