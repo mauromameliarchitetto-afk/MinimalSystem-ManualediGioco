@@ -118,6 +118,69 @@ async function listMyCampaigns() {
   return data;
 }
 
+/* Profili (solo nome visualizzato) per una lista di user_id: usata per
+   mostrare "chi" ha fatto una richiesta o possiede un personaggio, senza
+   esporre email/altri dati (profiles non li contiene comunque). */
+async function fetchDisplayNames(userIds) {
+  const ids = [...new Set(userIds)].filter(Boolean);
+  if (!ids.length) return {};
+  const { data, error } = await withTimeout(
+    sb.from('profiles').select('id, display_name').in('id', ids),
+    'Nomi giocatori'
+  );
+  if (error) throw error;
+  const byId = {};
+  (data || []).forEach(p => { byId[p.id] = p.display_name; });
+  return byId;
+}
+
+async function listPendingJoinRequests(campaignId) {
+  const { data: requests, error } = await withTimeout(
+    sb.from('campaign_join_requests').select('id, character_id, requested_by, created_at')
+      .eq('campaign_id', campaignId).eq('status', 'pending').order('created_at'),
+    'Richieste in attesa'
+  );
+  if (error) throw error;
+  if (!requests.length) return [];
+  const charIds = requests.map(r => r.character_id);
+  const { data: chars, error: charErr } = await withTimeout(
+    sb.from('characters').select('id, name').in('id', charIds),
+    'Personaggi richiedenti'
+  );
+  if (charErr) throw charErr;
+  const names = await fetchDisplayNames(requests.map(r => r.requested_by));
+  const charById = {}; (chars || []).forEach(ch => { charById[ch.id] = ch.name; });
+  return requests.map(r => ({
+    ...r,
+    characterName: charById[r.character_id] || '(personaggio)',
+    playerName: names[r.requested_by] || 'Avventuriero'
+  }));
+}
+
+async function listCampaignCharacters(campaignId) {
+  const { data: chars, error } = await withTimeout(
+    sb.from('characters').select('id, name, level, sheet_status, updated_at, owner_user_id')
+      .eq('campaign_id', campaignId).order('name'),
+    'Personaggi in gioco'
+  );
+  if (error) throw error;
+  const names = await fetchDisplayNames((chars || []).map(c => c.owner_user_id));
+  return (chars || []).map(c => ({ ...c, playerName: names[c.owner_user_id] || 'Avventuriero' }));
+}
+
+async function approveJoinRequestCloud(requestId) {
+  const { error } = await withTimeout(sb.rpc('approve_join_request', { p_request_id: requestId }), 'Approvazione richiesta');
+  if (error) throw error;
+}
+async function rejectJoinRequestCloud(requestId) {
+  const { error } = await withTimeout(sb.rpc('reject_join_request', { p_request_id: requestId }), 'Rifiuto richiesta');
+  if (error) throw error;
+}
+async function narratoreSetLevelCloud(characterId, newLevel) {
+  const { error } = await withTimeout(sb.rpc('narratore_set_level', { p_character_id: characterId, p_new_level: newLevel }), 'Assegnazione livello');
+  if (error) throw error;
+}
+
 /* --------------------------------------------------------------- render */
 
 function accountStatusHtml(session, caps) {
@@ -152,8 +215,13 @@ function campaignsBoxHtml(session, campaigns) {
   if (!session || isGuestUser(session)) {
     return '<p class="helper-text" style="margin:0;">Accedi con un account permanente per creare o vedere le tue campagne.</p>';
   }
-  const list = (campaigns || []).map(c => `<div class="row-between" data-campaignid="${c.id}"><span>${c.name}</span></div>`).join('')
-    || '<p class="helper-text" style="margin:0;">Nessuna campagna ancora.</p>';
+  const list = (campaigns || []).map(c => `
+    <div class="row-between cm-campaign-row" data-campaignid="${c.id}" data-campaignname="${c.name}" style="cursor:pointer;padding:6px 0;">
+      <span>${c.name}</span>
+      <span class="helper-text" style="margin:0;">codice: ${c.id.slice(0, 8)}… ▾</span>
+    </div>
+    <div class="cm-campaign-detail hidden" data-detailfor="${c.id}"></div>
+  `).join('') || '<p class="helper-text" style="margin:0;">Nessuna campagna ancora.</p>';
   return `
     <div class="field-row">
       <div class="field"><label>Nome campagna</label><input type="text" id="acc-new-campaign-name" placeholder="es. La Torre di Vetro"></div>
@@ -161,6 +229,46 @@ function campaignsBoxHtml(session, campaigns) {
     <button class="btn btn-primary btn-sm" id="acc-create-campaign" style="align-self:flex-start;">Crea campagna</button>
     <div id="acc-campaign-list" style="margin-top:6px;">${list}</div>
   `;
+}
+
+function joinRequestRowHtml(r) {
+  return `<div class="row-between" style="padding:4px 0;">
+    <span>${r.characterName} <span class="helper-text" style="margin:0;">(${r.playerName})</span></span>
+    <span>
+      <button class="btn btn-sm btn-primary" data-approve="${r.id}">Accetta</button>
+      <button class="btn btn-sm btn-ghost" data-reject="${r.id}">Rifiuta</button>
+    </span>
+  </div>`;
+}
+
+function campaignCharacterRowHtml(ch) {
+  return `<div class="row-between" style="padding:4px 0;" data-charrow="${ch.id}">
+    <span>${ch.name} <span class="helper-text" style="margin:0;">(${ch.playerName}) — Lv ${ch.level}</span></span>
+    <span style="display:flex;gap:4px;align-items:center;">
+      <input type="number" min="1" max="20" value="${ch.level}" data-levelinput="${ch.id}" style="width:52px;">
+      <button class="btn btn-sm btn-ghost" data-setlevel="${ch.id}">Assegna</button>
+    </span>
+  </div>`;
+}
+
+async function campaignDetailHtml(campaignId) {
+  try {
+    const [pending, chars] = await Promise.all([listPendingJoinRequests(campaignId), listCampaignCharacters(campaignId)]);
+    const pendingHtml = pending.length
+      ? pending.map(joinRequestRowHtml).join('')
+      : '<p class="helper-text" style="margin:0;">Nessuna richiesta in attesa.</p>';
+    const charsHtml = chars.length
+      ? chars.map(campaignCharacterRowHtml).join('')
+      : '<p class="helper-text" style="margin:0;">Nessun personaggio ancora in questa storia.</p>';
+    return `
+      <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Richieste in attesa</div>
+      ${pendingHtml}
+      <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Personaggi in gioco</div>
+      ${charsHtml}
+    `;
+  } catch (e) {
+    return `<p class="helper-text" style="margin:0;">Errore: ${e.message}</p>`;
+  }
 }
 
 async function renderAccountArea() {
@@ -247,6 +355,44 @@ function wireCloudAccountEvents() {
         await createCampaign(name);
         toast('Campagna creata');
         renderAccountArea();
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+
+    const row = e.target.closest('.cm-campaign-row');
+    if (row) {
+      const detail = $(`.cm-campaign-detail[data-detailfor="${row.dataset.campaignid}"]`);
+      if (!detail) return;
+      const opening = detail.classList.contains('hidden');
+      $$('.cm-campaign-detail').forEach(d => d.classList.add('hidden'));
+      if (opening) {
+        detail.classList.remove('hidden');
+        detail.innerHTML = '<p class="helper-text" style="margin:0;">Caricamento…</p>';
+        detail.innerHTML = await campaignDetailHtml(row.dataset.campaignid);
+      }
+      return;
+    }
+
+    if (e.target.dataset.approve) {
+      try { await approveJoinRequestCloud(e.target.dataset.approve); toast('Richiesta accettata'); e.target.closest('.cm-campaign-detail').innerHTML = await campaignDetailHtml(e.target.closest('.cm-campaign-detail').dataset.detailfor); }
+      catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.reject) {
+      try { await rejectJoinRequestCloud(e.target.dataset.reject); toast('Richiesta rifiutata'); e.target.closest('.cm-campaign-detail').innerHTML = await campaignDetailHtml(e.target.closest('.cm-campaign-detail').dataset.detailfor); }
+      catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.setlevel) {
+      const charId = e.target.dataset.setlevel;
+      const input = $(`[data-levelinput="${charId}"]`);
+      const newLevel = Number(input.value);
+      if (!newLevel || newLevel < 1 || newLevel > 20) { toast('Livello non valido (1-20)'); return; }
+      try {
+        await narratoreSetLevelCloud(charId, newLevel);
+        toast(`Livello assegnato: Lv ${newLevel}`);
+        const detail = e.target.closest('.cm-campaign-detail');
+        detail.innerHTML = await campaignDetailHtml(detail.dataset.detailfor);
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }

@@ -264,6 +264,12 @@ function newCharacter(nome) {
     livelloAP: 1,
     apDisponibili: 0,
     ledger: [],
+    cloudCharacterId: null,
+    cloudCampaignId: null,
+    cloudCampaignName: null,
+    cloudJoinRequestId: null,
+    cloudJoinCampaignId: null,
+    cloudJoinCampaignName: null,
     traits: defaultTraits(),
     customTraits: defaultCustomTraits(),
     shownTraits: defaultShownTraits(),
@@ -1414,6 +1420,7 @@ function renderSheet() {
   $('#f-ruolo').value = c.ruolo;
   $('#f-storia').value = c.storia;
   renderStoriaSelect(c);
+  renderCloudStoryBox(c);
   $('#f-bellezza-manuale').value = c.bellezzaManuale !== null ? c.bellezzaManuale : '';
   $('#bellezza-result').textContent = c.bellezzaTirata !== null ? c.bellezzaTirata : '—';
   renderPrimaryStats(c);
@@ -1478,6 +1485,7 @@ function wireStaticEvents() {
   }));
   $('#btn-char-menu').addEventListener('click', charMenu);
   wireCloudAccountEvents();
+  wireCloudCharacterEvents();
 
   // ---- banner aggiornamento ----
   $('#update-banner-btn').addEventListener('click', () => {
