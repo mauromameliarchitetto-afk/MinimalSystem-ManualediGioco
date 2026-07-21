@@ -843,16 +843,6 @@ table.edit-table thead th{white-space:nowrap;}
   color:var(--testo-primario-dark);
 }
 
-/* ---------- Ledger AP ---------- */
-.ledger-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;}
-.ledger-item{
-  display:flex;justify-content:space-between;align-items:center;
-  font-size:12px;padding:7px 10px;background:var(--antracite-1);border-radius:6px;
-}
-.ledger-item .amt{font-family:var(--font-mono);}
-.ledger-item .amt.pos{color:var(--magico-forte);}
-.ledger-item .amt.neg{color:var(--fisico-forte);}
-
 /* ---------- Note toast ---------- */
 #toast{
   position:fixed;left:50%;bottom:calc(20px + var(--safe-bottom));

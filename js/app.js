@@ -526,14 +526,21 @@ function renderBuildGrid(c) {
 function renderPrimaryStats(c) {
   const wrap = $('#primary-stats');
   const locked = c.primaryConfirmed;
+  // dal Lv2 in poi HP/MP crescono in diretta sul totale (niente più
+  // moltiplicatore): il campo mostra e modifica il totale, non il
+  // punteggio base impostato in creazione (che resta congelato)
+  const grown = Number(c.livello) > 1;
   wrap.innerHTML = PRIMARY_STATS.map(stat => {
-    const val = c.primary[stat.key];
+    const isHpMp = stat.key === 'hp' || stat.key === 'mp';
+    const val = (isHpMp && grown) ? (stat.key === 'hp' ? c.hpMaxTracked : c.mpMaxTracked) || 0 : c.primary[stat.key];
+    const min = (isHpMp && grown) ? 0 : PRIMARY_MIN;
     const buff = buffTotal(c, stat.key);
+    const fullLabel = (isHpMp && grown) ? `${stat.full} (totale)` : stat.full;
     return `<div class="stat-row">
-      <div class="stat-label ${stat.axis}${buff ? ' buffed' : ''}"><span class="abbr">${stat.label}</span><span class="full">${stat.full}</span></div>
+      <div class="stat-label ${stat.axis}${buff ? ' buffed' : ''}"><span class="abbr">${stat.label}</span><span class="full">${fullLabel}</span></div>
       <div class="stepper">
         <button data-pstat="${stat.key}" data-dir="-1" aria-label="Diminuisci" ${locked ? 'disabled' : ''}>−</button>
-        <input type="number" data-pstat-input="${stat.key}" value="${val}" min="${PRIMARY_MIN}" ${locked ? 'disabled' : ''}>
+        <input type="number" data-pstat-input="${stat.key}" value="${val}" min="${min}" ${locked ? 'disabled' : ''}>
         <button data-pstat="${stat.key}" data-dir="1" aria-label="Aumenta" ${locked ? 'disabled' : ''}>+</button>
       </div>
       ${buff ? `<span class="chip buff-chip" title="Incremento attivo da consumabile">+${buff}</span>` : ''}
@@ -945,7 +952,6 @@ function refreshApUI(c) {
   $('#f-ap-disponibili').value = c.apDisponibili;
   const t = $('#derived-ap');
   if (t) t.textContent = c.apDisponibili;
-  renderLedger(c);
 }
 
 /* Accredita (o storna) automaticamente gli AP dei livelli attraversati.
@@ -984,26 +990,32 @@ function creditLevelAP(c) {
 
 /* Cambia un attributo primario. Al Lv1 gli attributi si assegnano ancora
    liberamente coi 40 punti di partenza (scegliere/confermare la classe non
-   chiude questa fase, ma non si può comunque superare il pool): il rapporto
-   "1 punto base = 1 AP" di HP/MP vale solo in questa fase, perché il punto
-   base interagisce col moltiplicatore di classe. Solo dopo il primo Lv Up
-   ogni attributo — HP/MP compresi — si compra con gli AP guadagnati a level
-   up, secondo la stessa tabella di costo generica degli altri attributi
-   primari: la spesa è automatica, la riduzione rimborsa, e senza AP il
-   cambio è bloccato. Una volta confermate (primaryConfirmed), le statistiche
-   sono bloccate del tutto finché un level-up non le sblocca di nuovo.
+   chiude questa fase, ma non si può comunque superare il pool): il punteggio
+   base di HP/MP in questa fase interagisce col moltiplicatore di classe.
+   Solo dopo il primo Lv Up ogni attributo si compra con gli AP guadagnati a
+   level up: HP e MP smettono di usare il moltiplicatore e crescono in
+   diretta sul totale (c.hpMaxTracked/c.mpMaxTracked, congelando il
+   punteggio base scelto in creazione) secondo la loro tabella dedicata; gli
+   altri attributi (e i P.R., gestiti a parte) seguono la tabella generica.
+   La spesa è automatica, la riduzione rimborsa, e senza AP il cambio è
+   bloccato. Una volta confermate (primaryConfirmed), le statistiche sono
+   bloccate del tutto finché un level-up non le sblocca di nuovo.
    Restituisce il valore applicato o null se bloccato. */
 function changePrimary(c, key, newVal) {
-  const oldVal = Number(c.primary[key]) || 0;
+  const isHpMp = key === 'hp' || key === 'mp';
+  const grown = isHpMp && Number(c.livello) > 1;
+  const trackedKey = key === 'hp' ? 'hpMaxTracked' : 'mpMaxTracked';
+  const oldVal = grown ? (Number(c[trackedKey]) || 0) : (Number(c.primary[key]) || 0);
   newVal = Math.floor(Number(newVal));
-  if (isNaN(newVal) || newVal < PRIMARY_MIN) newVal = PRIMARY_MIN;
+  const floor = grown ? 0 : PRIMARY_MIN;
+  if (isNaN(newVal) || newVal < floor) newVal = floor;
   if (newVal === oldVal) return newVal;
   if (c.primaryConfirmed) {
     toast('Statistiche confermate: si sbloccano solo con un level-up');
     return null;
   }
   if (Number(c.livello) > 1) {
-    const costFn = primaryApCostForPoint;
+    const costFn = key === 'hp' ? hpApCostForPoint : key === 'mp' ? mpApCostForPoint : primaryApCostForPoint;
     let cost = 0;
     if (newVal > oldVal) { for (let n = oldVal + 1; n <= newVal; n++) cost += costFn(n); }
     else { for (let n = oldVal; n > newVal; n--) cost -= costFn(n); }
@@ -1021,6 +1033,7 @@ function changePrimary(c, key, newVal) {
       ts: Date.now()
     });
     refreshApUI(c);
+    if (grown) { c[trackedKey] = newVal; updatePlayBars(c); return newVal; }
   } else if (newVal > oldVal) {
     // fase di creazione (Lv1): non si può superare il pool di 40 punti
     const sum = PRIMARY_STATS.reduce((s, k) => s + Number(c.primary[k.key] || 0), 0);
@@ -1040,20 +1053,6 @@ function renderLevelTable() {
 }
 function highlightCurrentLevel(c) {
   $$('#level-table-body tr').forEach(tr => tr.classList.toggle('current-row', Number(tr.dataset.lv) === Number(c.livello) + 1));
-}
-function renderLedger(c) {
-  const wrap = $('#ledger-list');
-  if (!c.ledger.length) { wrap.innerHTML = `<div class="helper-text">Nessun movimento registrato.</div>`; return; }
-  wrap.innerHTML = [...c.ledger].reverse().map(item => {
-    // effetto sul disponibile: i guadagni (gain) lo aumentano, le spese lo riducono
-    const delta = item.gain ? (Number(item.amt) || 0) : -(Number(item.amt) || 0);
-    return `
-    <div class="ledger-item" data-ledgerid="${item.id}">
-      <span>${escapeHtml(item.desc || 'Movimento')}</span>
-      <span class="amt ${delta >= 0 ? 'pos' : 'neg'}">${delta >= 0 ? '+' : ''}${delta} AP</span>
-      <button class="btn btn-icon btn-sm btn-ghost" data-delledger="${item.id}" title="Rimuovi">✕</button>
-    </div>`;
-  }).join('');
 }
 function renderTertiaryCostTable() {
   $('#tertiary-cost-table').innerHTML = Object.entries(TERTIARY_AP_TABLE)
@@ -1089,11 +1088,19 @@ function renderTertiaryPlusMinus(c) {
     wrap.innerHTML = wrap.dataset.pmStyle === 'diagram' ? diagramHtml : html;
   });
 }
+const GROWTH_COST_FN = {
+  hp: hpApCostForPoint,
+  mp: mpApCostForPoint,
+  primary: primaryApCostForPoint,
+  tertiary: tertiaryApCostForPoint
+};
 function updateGrowthCost() {
   const c = getActive(); if (!c) return;
+  const type = $('#growth-type').value;
   const cur = Number($('#growth-current').value) || 0;
   const tgt = Number($('#growth-target').value) || 0;
-  const cost = totalGrowthCost(cur, tgt, primaryApCostForPoint);
+  const costFn = GROWTH_COST_FN[type] || primaryApCostForPoint;
+  const cost = totalGrowthCost(cur, tgt, costFn);
   $('#growth-cost-chip').textContent = `${cost} AP`;
 }
 
@@ -1415,7 +1422,6 @@ function renderSheet() {
   renderTraits(c);
   $('#f-livello').value = c.livello;
   $('#f-ap-disponibili').value = c.apDisponibili;
-  renderLedger(c);
   renderLevelTable();
   highlightCurrentLevel(c);
   renderTertiaryCostTable();
@@ -2011,8 +2017,12 @@ function wireStaticEvents() {
     if (!btn) return;
     const c = getActive(); if (!c) return;
     const key = btn.dataset.pstat, dir = Number(btn.dataset.dir);
-    const next = Number(c.primary[key]) + dir;
-    if (next < PRIMARY_MIN) { toast(`Valore minimo raggiunto (${PRIMARY_MIN})`); return; }
+    const grown = (key === 'hp' || key === 'mp') && Number(c.livello) > 1;
+    const trackedKey = key === 'hp' ? 'hpMaxTracked' : 'mpMaxTracked';
+    const current = grown ? (Number(c[trackedKey]) || 0) : Number(c.primary[key]);
+    const floor = grown ? 0 : PRIMARY_MIN;
+    const next = current + dir;
+    if (next < floor) { toast(`Valore minimo raggiunto (${floor})`); return; }
     const applied = changePrimary(c, key, next);
     if (applied === null) return; // AP insufficienti (toast già mostrato da changePrimary)
     $(`#primary-stats input[data-pstat-input="${key}"]`).value = applied;
@@ -2025,8 +2035,10 @@ function wireStaticEvents() {
     if (!input) return;
     const c = getActive(); if (!c) return;
     const key = input.dataset.pstatInput;
+    const grown = (key === 'hp' || key === 'mp') && Number(c.livello) > 1;
+    const trackedKey = key === 'hp' ? 'hpMaxTracked' : 'mpMaxTracked';
     const applied = changePrimary(c, key, input.value);
-    if (applied === null) { input.value = c.primary[key]; return; } // AP insufficienti
+    if (applied === null) { input.value = grown ? (Number(c[trackedKey]) || 0) : c.primary[key]; return; } // AP insufficienti
     updatePrimaryRemaining(c);
     updateDerived(c);
     touchActive();
@@ -2037,12 +2049,15 @@ function wireStaticEvents() {
       toast('Conferma prima le statistiche primarie');
       return;
     }
-    const hpMax = Number(c.primary.hp || 0) * currentHpMult(c);
-    const mpMax = Number(c.primary.mp || 0) * currentMpMult(c);
-    c.hpMaxTracked = hpMax;
-    c.mpMaxTracked = mpMax;
-    c.prMaxTracked = BUILDS[c.build].prIniziali;
-    c.hpCur = hpMax; c.mpCur = mpMax; c.prCur = c.prMaxTracked;
+    // Dal Lv2 in poi HP/MP/P.R. crescono in diretta con gli AP: risincronizzare
+    // qui non deve ricalcolarli dal moltiplicatore (cancellerebbe la crescita),
+    // si limita a riportare i punti attuali al massimo già raggiunto
+    if (Number(c.livello) <= 1) {
+      c.hpMaxTracked = Number(c.primary.hp || 0) * currentHpMult(c);
+      c.mpMaxTracked = Number(c.primary.mp || 0) * currentMpMult(c);
+      c.prMaxTracked = BUILDS[c.build].prIniziali;
+    }
+    c.hpCur = c.hpMaxTracked || 0; c.mpCur = c.mpMaxTracked || 0; c.prCur = c.prMaxTracked || 0;
     updatePlayBars(c);
     touchActive();
     toast('Sincronizzato');
@@ -2225,36 +2240,7 @@ function wireStaticEvents() {
     if (c) $('#derived-ap').textContent = Number(c.apDisponibili) || 0;
   });
 
-  $('#ledger-add').addEventListener('click', () => {
-    const c = getActive(); if (!c) return;
-    const desc = $('#ledger-desc').value.trim();
-    const amt = Number($('#ledger-amt').value) || 0;
-    if (!desc && !amt) return;
-    c.ledger.push({ id: uid(), desc: desc || 'Movimento', amt, ts: Date.now() });
-    c.apDisponibili = (Number(c.apDisponibili) || 0) - amt; // spesa AP positiva riduce il disponibile
-    $('#ledger-desc').value = '';
-    $('#ledger-amt').value = 0;
-    $('#f-ap-disponibili').value = c.apDisponibili;
-    renderLedger(c);
-    touchActive();
-  });
-  $('#ledger-list').addEventListener('click', e => {
-    const del = e.target.closest('[data-delledger]');
-    if (!del) return;
-    const c = getActive(); if (!c) return;
-    const id = del.dataset.delledger;
-    const item = c.ledger.find(i => i.id === id);
-    c.ledger = c.ledger.filter(i => i.id !== id);
-    if (item) {
-      // annulla l'effetto del movimento: storna i guadagni, rimborsa le spese
-      const delta = item.gain ? (Number(item.amt) || 0) : -(Number(item.amt) || 0);
-      c.apDisponibili = (Number(c.apDisponibili) || 0) - delta;
-    }
-    refreshApUI(c);
-    touchActive();
-  });
-
-  ['#growth-current', '#growth-target'].forEach(sel => {
+  ['#growth-type', '#growth-current', '#growth-target'].forEach(sel => {
     $(sel).addEventListener('input', updateGrowthCost);
     $(sel).addEventListener('change', updateGrowthCost);
   });
