@@ -527,7 +527,6 @@ function renderPrimaryStats(c) {
     </div>`;
   }).join('');
   updatePrimaryRemaining(c);
-  renderPrimaryLockStatus(c);
 }
 function primaryRemaining(c) {
   const sum = PRIMARY_STATS.reduce((s, k) => s + Number(c.primary[k.key] || 0), 0);
@@ -536,6 +535,10 @@ function primaryRemaining(c) {
 /* Il bottone di conferma resta disabilitato se "Punti rimanenti" è
    negativo (può succedere con dati importati o corretti a mano): non si
    può blindare una scheda già fuori dalle regole. */
+/* Si può confermare solo a punti rimanenti esattamente zero, ma solo in
+   fase di creazione (Lv1): dal Lv2 il pool dei 40 punti diventa solo
+   indicativo (la crescita passa agli AP) e resterebbe quasi sempre
+   negativo, bloccando la conferma per sempre se lo usassimo come gate. */
 function renderPrimaryLockStatus(c) {
   const el = $('#primary-lock-status');
   if (!el) return;
@@ -543,9 +546,14 @@ function renderPrimaryLockStatus(c) {
     el.innerHTML = `<div class="row-between"><span class="chip physical">🔒 Statistiche confermate</span><span class="helper-text" style="margin:0;">Si sbloccano con un level-up</span></div>`;
     return;
   }
-  const negative = primaryRemaining(c) < 0;
-  el.innerHTML = `<button class="btn btn-primary btn-sm" id="btn-confirm-primary" ${negative ? 'disabled' : ''}>Conferma statistiche</button>`
-    + (negative ? `<p class="helper-text" style="margin:6px 0 0;color:var(--fisico-forte);">Punti rimanenti negativo: riduci qualche attributo prima di confermare.</p>` : '');
+  const remaining = primaryRemaining(c);
+  const creationPhase = Number(c.livello) <= 1;
+  const blocked = creationPhase && remaining !== 0;
+  let note = '';
+  if (creationPhase && remaining > 0) note = `Hai ancora ${remaining} punt${remaining === 1 ? 'o' : 'i'} da spendere prima di poter confermare.`;
+  else if (creationPhase && remaining < 0) note = 'Punti rimanenti negativo: riduci qualche attributo prima di confermare.';
+  el.innerHTML = `<button class="btn btn-primary btn-sm" id="btn-confirm-primary" ${blocked ? 'disabled' : ''}>Conferma statistiche</button>`
+    + (note ? `<p class="helper-text" style="margin:6px 0 0;color:var(--fisico-forte);">${note}</p>` : '');
 }
 function updatePrimaryRemaining(c) {
   const remaining = primaryRemaining(c);
@@ -559,6 +567,7 @@ function updatePrimaryRemaining(c) {
   if (leveled) {
     note.textContent = `Dal Lv ${c.livello}: ogni attributo (HP, MP inclusi) cresce spendendo AP secondo i costi ufficiali di crescita (AP disponibili: ${Number(c.apDisponibili) || 0}). "Punti rimanenti" resta solo indicativo del totale assegnato in fase di creazione.`;
   }
+  renderPrimaryLockStatus(c);
 }
 
 function currentHpMult(c) {
@@ -774,7 +783,6 @@ function renderTraits(c) {
       </select>`;
   }).join('');
   updateTraitsRemaining(c);
-  renderTraitsLockStatus(c);
   renderTraitRollSelect(c);
 }
 /* Pool punti tratti al livello attuale (15 alla creazione + bonus level-up) */
@@ -807,6 +815,7 @@ function updateTraitsRemaining(c) {
       ? `Include +${bonusTotal} dai level-up (Capacità +${bonus.capacitaNormali} · Combattive +${bonus.capacitaCombattive} · Conoscenze +${bonus.conoscenze}), su un totale di ${pool} punti.`
       : `15 punti dalla creazione. Dal Lv 2 la tabella limiti di livello aggiunge punti a Capacità, Capacità Combattive e Conoscenze.`;
   }
+  renderTraitsLockStatus(c);
 }
 /* Il bottone di conferma resta disabilitato se "Punti rimanenti" è
    negativo (può succedere con dati importati, con il livello ridotto a
@@ -819,9 +828,13 @@ function renderTraitsLockStatus(c) {
     el.innerHTML = `<div class="row-between"><span class="chip physical">🔒 Tratti confermati</span><span class="helper-text" style="margin:0;">Si sbloccano con un level-up</span></div>`;
     return;
   }
-  const negative = (traitsPool(c) - traitsSum(c)) < 0;
-  el.innerHTML = `<button class="btn btn-primary btn-sm" id="btn-confirm-traits" ${negative ? 'disabled' : ''}>Conferma tratti</button>`
-    + (negative ? `<p class="helper-text" style="margin:6px 0 0;color:var(--fisico-forte);">Punti rimanenti negativo: riduci qualche tratto prima di confermare.</p>` : '');
+  const remaining = traitsPool(c) - traitsSum(c);
+  const blocked = remaining !== 0;
+  let note = '';
+  if (remaining > 0) note = `Hai ancora ${remaining} punt${remaining === 1 ? 'o' : 'i'} da spendere prima di poter confermare.`;
+  else if (remaining < 0) note = 'Punti rimanenti negativo: riduci qualche tratto prima di confermare.';
+  el.innerHTML = `<button class="btn btn-primary btn-sm" id="btn-confirm-traits" ${blocked ? 'disabled' : ''}>Conferma tratti</button>`
+    + (note ? `<p class="helper-text" style="margin:6px 0 0;color:var(--fisico-forte);">${note}</p>` : '');
 }
 /* Selettore del tool "Tiro tratto": un dado unico (1d20 + valore del
    tratto) invece di un tasto di tiro per riga, per lasciare spazio in
@@ -1666,17 +1679,14 @@ function wireStaticEvents() {
   $('#primary-lock-status').addEventListener('click', e => {
     if (!e.target.closest('#btn-confirm-primary')) return;
     const c = getActive(); if (!c) return;
-    const remaining = primaryRemaining(c);
-    if (remaining < 0) { toast('Punti rimanenti negativo: riduci qualche attributo prima di confermare'); return; }
-    $('#primary-confirm-text').textContent = remaining !== 0
-      ? `Hai ancora ${remaining} punt${remaining === 1 ? 'o' : 'i'} non assegnat${remaining === 1 ? 'o' : 'i'}. Vuoi confermare comunque le statistiche? Una volta confermate resteranno bloccate: potrai modificarle di nuovo solo effettuando un level-up.`
-      : 'Vuoi confermare le tue statistiche primarie? Una volta confermate resteranno bloccate: potrai modificarle di nuovo solo effettuando un level-up.';
+    if (Number(c.livello) <= 1 && primaryRemaining(c) !== 0) { toast('Puoi confermare solo con "Punti rimanenti" a zero'); return; }
+    $('#primary-confirm-text').textContent = 'Vuoi confermare le tue statistiche primarie? Una volta confermate resteranno bloccate: potrai modificarle di nuovo solo effettuando un level-up.';
     $('#primary-confirm').classList.remove('hidden');
   });
   $('#primary-confirm-yes').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
     $('#primary-confirm').classList.add('hidden');
-    if (primaryRemaining(c) < 0) { toast('Punti rimanenti negativo: riduci qualche attributo prima di confermare'); return; }
+    if (Number(c.livello) <= 1 && primaryRemaining(c) !== 0) { toast('Puoi confermare solo con "Punti rimanenti" a zero'); return; }
     c.primaryConfirmed = true;
     renderPrimaryStats(c);
     toast('Statistiche confermate e bloccate');
@@ -1691,16 +1701,14 @@ function wireStaticEvents() {
     if (!e.target.closest('#btn-confirm-traits')) return;
     const c = getActive(); if (!c) return;
     const remaining = traitsPool(c) - traitsSum(c);
-    if (remaining < 0) { toast('Punti rimanenti negativo: riduci qualche tratto prima di confermare'); return; }
-    $('#traits-confirm-text').textContent = remaining !== 0
-      ? `Hai ancora ${remaining} punt${remaining === 1 ? 'o' : 'i'} non assegnat${remaining === 1 ? 'o' : 'i'}. Vuoi confermare comunque i tuoi tratti? Una volta confermati resteranno bloccati: potrai modificarli di nuovo solo effettuando un level-up.`
-      : 'Vuoi confermare i tuoi tratti? Una volta confermati resteranno bloccati: potrai modificarli di nuovo solo effettuando un level-up.';
+    if (remaining !== 0) { toast('Puoi confermare solo con "Punti rimanenti" a zero'); return; }
+    $('#traits-confirm-text').textContent = 'Vuoi confermare i tuoi tratti? Una volta confermati resteranno bloccati: potrai modificarli di nuovo solo effettuando un level-up.';
     $('#traits-confirm').classList.remove('hidden');
   });
   $('#traits-confirm-yes').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
     $('#traits-confirm').classList.add('hidden');
-    if (traitsPool(c) - traitsSum(c) < 0) { toast('Punti rimanenti negativo: riduci qualche tratto prima di confermare'); return; }
+    if (traitsPool(c) - traitsSum(c) !== 0) { toast('Puoi confermare solo con "Punti rimanenti" a zero'); return; }
     c.traitsConfirmed = true;
     renderTraits(c);
     toast('Tratti confermati e bloccati');
