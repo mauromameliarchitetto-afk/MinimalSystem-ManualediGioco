@@ -172,23 +172,7 @@ function qiLimite(qi) {
   return 8;
 }
 
-// Dado in base al valore del tratto
-function diceForValue(v) {
-  if (v <= 10) return 'd4';
-  if (v <= 20) return 'd6';
-  if (v <= 30) return 'd8';
-  if (v <= 40) return 'd12';
-  return 'd12+d8';
-}
 function rollDie(sides) { return 1 + Math.floor(Math.random() * sides); }
-function rollForValue(v) {
-  if (v <= 10) return { label: 'd4', result: rollDie(4) };
-  if (v <= 20) return { label: 'd6', result: rollDie(6) };
-  if (v <= 30) return { label: 'd8', result: rollDie(8) };
-  if (v <= 40) return { label: 'd12', result: rollDie(12) };
-  const a = rollDie(12), b = rollDie(8);
-  return { label: 'd12+d8', result: a + b, detail: `${a}+${b}` };
-}
 
 // Attributi Primari (HP/MP/FOR/F.MEN/DIF/D.MEN/Mira/DEX/VEL) e P.R. — dopo il
 // Lv1 crescono tutti con la stessa tabella costi (il rapporto "1 punto

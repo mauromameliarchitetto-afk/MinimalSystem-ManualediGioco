@@ -40,10 +40,10 @@
       <div class="cm-sep"></div>
       <div class="cm-label">Scheda personaggio</div>
       <button class="cm-item" data-menu-tab="gioco">Fronte Scheda</button>
+      <button class="cm-item" data-menu-tab="tratti">Tratti</button>
       <button class="cm-item" data-menu-tab="retro">Retro Scheda</button>
       <button class="cm-item" data-menu-tab="identita">Identità</button>
       <button class="cm-item" data-menu-tab="statistiche">Statistiche</button>
-      <button class="cm-item" data-menu-tab="tratti">Tratti</button>
       <button class="cm-item" data-menu-tab="livelli">Livelli</button>
       <button class="cm-item" data-menu-tab="note">Background</button>
     </nav>
@@ -84,10 +84,10 @@
 
     <nav class="tabs" id="tabs">
       <button class="tab-btn active" data-tab="gioco">Fronte Scheda</button>
+      <button class="tab-btn" data-tab="tratti">Tratti</button>
       <button class="tab-btn" data-tab="retro">Retro Scheda</button>
       <button class="tab-btn" data-tab="identita">Identità</button>
       <button class="tab-btn" data-tab="statistiche">Statistiche</button>
-      <button class="tab-btn" data-tab="tratti">Tratti</button>
       <button class="tab-btn" data-tab="livelli">Livelli</button>
       <button class="tab-btn" data-tab="note">Background</button>
     </nav>
@@ -221,6 +221,33 @@
           </div>
         </div></div>
       </div>
+      <!-- ---- TRATTI ---- -->
+      <div class="tab-panel" data-panel="tratti">
+        <div class="section-title"><span class="dot neutral"></span>Capacità e Conoscenze</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad">
+          <div class="pointbuy-header">
+            <span class="label" id="traits-remaining-label">Punti rimanenti (Lv 1)</span>
+            <span class="remaining" id="traits-remaining">15</span>
+          </div>
+          <p class="helper-text" style="margin:0;" id="traits-bonus-sub">15 punti dalla creazione. Dal Lv 2 la tabella limiti di livello aggiunge punti a Capacità, Capacità Combattive e Conoscenze.</p>
+          <div id="traits-lock-status" style="margin-top:10px;"></div>
+        </div></div>
+        <p class="helper-text">Compaiono solo i tratti che possiedi. Con "+ Aggiungi tratto" scegli dalla lista del manuale (o crei un tratto personalizzato: le liste sono aperte, il manuale include "Etc..."). Il tiro di un tratto è sempre 1d20 + il suo valore (mostrato come "+N"); ✕ rimuove il tratto. Confermando i tratti si bloccano: si sbloccano solo con un level-up.</p>
+        <div id="trait-lists"></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Tiro tratto</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad">
+          <div class="field"><label>Tratto</label>
+            <select id="trait-roll-select"></select>
+          </div>
+          <div class="roll-row" style="margin-top:10px;">
+            <button class="btn btn-primary" id="trait-roll-btn">Tira</button>
+            <div class="roll-result" id="trait-roll-result">—</div>
+            <div class="roll-detail" id="trait-roll-detail"></div>
+          </div>
+        </div></div>
+      </div>
+
       <!-- ---- RETRO SCHEDA ---- -->
       <div class="tab-panel" data-panel="retro">
         <p class="helper-text" id="retro-build-note">—</p>
@@ -381,20 +408,6 @@
             <div class="field"><label>Progresso apprendimento</label><input type="number" id="f-qi-progresso" value="0" min="0"></div>
           </div>
         </div></div>
-      </div>
-
-      <!-- ---- TRATTI ---- -->
-      <div class="tab-panel" data-panel="tratti">
-        <div class="section-title"><span class="dot neutral"></span>Capacità e Conoscenze</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <div class="pointbuy-header">
-            <span class="label" id="traits-remaining-label">Punti rimanenti (Lv 1)</span>
-            <span class="remaining" id="traits-remaining">15</span>
-          </div>
-          <p class="helper-text" style="margin:0;" id="traits-bonus-sub">15 punti dalla creazione. Dal Lv 2 la tabella limiti di livello aggiunge punti a Capacità, Capacità Combattive e Conoscenze.</p>
-        </div></div>
-        <p class="helper-text">Compaiono solo i tratti che possiedi. Con "+ Aggiungi tratto" scegli dalla lista del manuale (o crei un tratto personalizzato: le liste sono aperte, il manuale include "Etc..."). Il dado si aggiorna in base al valore; ✕ rimuove il tratto.</p>
-        <div id="trait-lists"></div>
       </div>
 
       <!-- ---- LIVELLI ---- -->
@@ -655,6 +668,17 @@
     <div class="cc-actions">
       <button class="btn btn-primary" id="primary-confirm-yes">Sì</button>
       <button class="btn btn-ghost" id="primary-confirm-no">No</button>
+    </div>
+  </div>
+</div>
+
+<div id="traits-confirm" class="hidden confirm-modal">
+  <div class="cc-box">
+    <div class="cc-title">Conferma tratti</div>
+    <p id="traits-confirm-text">Vuoi confermare i tuoi tratti (Conoscenze, Capacità Normali, Capacità Combattive)? Una volta confermati resteranno bloccati: potrai modificarli di nuovo solo effettuando un level-up.</p>
+    <div class="cc-actions">
+      <button class="btn btn-primary" id="traits-confirm-yes">Sì</button>
+      <button class="btn btn-ghost" id="traits-confirm-no">No</button>
     </div>
   </div>
 </div>
