@@ -327,7 +327,7 @@
       <!-- ---- STATISTICHE (Primarie + Terziarie) ---- -->
       <div class="tab-panel" data-panel="statistiche">
         <div class="section-title"><span class="dot neutral"></span>Caratteristiche primarie · 40 punti</div>
-        <p class="helper-text">Minimo 2 per caratteristica. HP e MP qui sono i valori <em>base</em>: il totale reale si ottiene moltiplicandoli per i moltiplicatori della build (sotto). Dopo la conferma della classe, aumentare un attributo spende automaticamente gli AP guadagnati con i level-up (costi di crescita ufficiali); ridurlo li rimborsa.</p>
+        <p class="helper-text">Minimo 2 per caratteristica. HP e MP qui sono i valori <em>base</em>: il totale reale si ottiene moltiplicandoli per i moltiplicatori della build (sotto). Non si può superare il totale di punti disponibili. Dopo la conferma della classe, aumentare un attributo spende automaticamente gli AP guadagnati con i level-up (costi di crescita ufficiali); ridurlo li rimborsa. Confermando le statistiche si bloccano: si sbloccano solo con un level-up, per evitare di rimescolarle a piacere.</p>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
           <div class="pointbuy-header">
             <span class="label">Punti rimanenti</span>
@@ -335,6 +335,7 @@
           </div>
           <p class="helper-text hidden" id="primary-ap-note" style="margin:-4px 0 8px;"></p>
           <div id="primary-stats"></div>
+          <div id="primary-lock-status" style="margin-top:10px;"></div>
         </div></div>
 
         <div class="section-title"><span class="dot neutral"></span>Statistiche terziarie · 5 punti</div>
@@ -355,7 +356,7 @@
         <p class="helper-text">Esito sempre a discrezione del Narratore.</p>
 
         <div class="section-title"><span class="dot"></span>Valori derivati alla creazione</div>
-        <p class="helper-text">Formula: base × moltiplicatore build. In "Fronte Scheda" HP/MP/P.R. massimi sono tracciati liberamente (crescono col Level Up) — usa "Sincronizza" per riportarli al valore qui sotto.</p>
+        <p class="helper-text">Formula: base × moltiplicatore build. In "Fronte Scheda" HP/MP/P.R. massimi sono tracciati liberamente (crescono col Level Up) — usa "Sincronizza" per riportarli al valore qui sotto (richiede statistiche primarie confermate).</p>
         <div class="hud-grid">
           <div class="hud-tile physical"><div class="ht-label">HP max (base×mult)</div><div class="ht-value" id="derived-hpmax">0</div><div class="ht-sub" id="derived-hpmax-sub"></div></div>
           <div class="hud-tile magic"><div class="ht-label">MP max (base×mult)</div><div class="ht-value" id="derived-mpmax">0</div><div class="ht-sub" id="derived-mpmax-sub"></div></div>
@@ -636,13 +637,24 @@
     <div class="list-scroll" id="charview-body"></div>
   </section>
 
-<div id="class-confirm" class="hidden">
+<div id="class-confirm" class="hidden confirm-modal">
   <div class="cc-box">
     <div class="cc-title">Conferma classe</div>
     <p id="class-confirm-text">Sei sicuro di voler scegliere questa classe?</p>
     <div class="cc-actions">
       <button class="btn btn-primary" id="class-yes">Sì</button>
       <button class="btn btn-ghost" id="class-no">No</button>
+    </div>
+  </div>
+</div>
+
+<div id="primary-confirm" class="hidden confirm-modal">
+  <div class="cc-box">
+    <div class="cc-title">Conferma statistiche</div>
+    <p id="primary-confirm-text">Vuoi confermare le tue statistiche primarie? Una volta confermate resteranno bloccate: potrai modificarle di nuovo solo effettuando un level-up.</p>
+    <div class="cc-actions">
+      <button class="btn btn-primary" id="primary-confirm-yes">Sì</button>
+      <button class="btn btn-ghost" id="primary-confirm-no">No</button>
     </div>
   </div>
 </div>
