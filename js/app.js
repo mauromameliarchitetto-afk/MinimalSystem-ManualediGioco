@@ -532,6 +532,17 @@ function renderPrimaryStats(c) {
     </div>`;
   }).join('');
   updatePrimaryRemaining(c);
+  renderStatRollSelect();
+}
+/* Selettore del tool "Tiro statistica": elenca gli attributi primari
+   tirabili (esclusi HP/MP, riserve di punti e non prove). Opzioni fisse,
+   non dipendono dal personaggio. */
+function renderStatRollSelect() {
+  const sel = $('#stat-roll-select');
+  if (!sel || sel.options.length) return;
+  sel.innerHTML = PRIMARY_STATS
+    .filter(s => s.key !== 'hp' && s.key !== 'mp')
+    .map(s => `<option value="${s.key}">${s.label} — ${s.full}</option>`).join('');
 }
 function primaryRemaining(c) {
   const sum = PRIMARY_STATS.reduce((s, k) => s + Number(c.primary[k.key] || 0), 0);
@@ -876,7 +887,9 @@ function renderTraitsLockStatus(c) {
 }
 /* Selettore del tool "Tiro tratto": un dado unico (1d20 + valore del
    tratto) invece di un tasto di tiro per riga, per lasciare spazio in
-   larghezza sul telefono. Elenca solo i tratti posseduti. */
+   larghezza sul telefono. Elenca i tratti posseduti, più un'opzione per
+   un tiro non addestrato (1d100, nessun modificatore) su qualcosa che
+   non è in scheda. */
 function renderTraitRollSelect(c) {
   const sel = $('#trait-roll-select');
   if (!sel) return;
@@ -889,7 +902,7 @@ function renderTraitRollSelect(c) {
     const opts = rows.map(r => `<option value="${listKey}::${escapeHtml(r.name)}">${escapeHtml(r.name)} (+${r.value})</option>`).join('');
     return `<optgroup label="${TRAIT_LIST_LABELS[listKey]}">${opts}</optgroup>`;
   }).join('');
-  sel.innerHTML = groups || '<option value="">Nessun tratto disponibile</option>';
+  sel.innerHTML = '<option value="__unknown__">Altro (non in scheda) — d100</option>' + groups;
   if (prevVal && sel.querySelector(`option[value="${cssEscapeAttr(prevVal)}"]`)) sel.value = prevVal;
 }
 function cssEscapeAttr(v) {
@@ -1840,12 +1853,42 @@ function wireStaticEvents() {
     const c = getActive(); if (!c) return;
     const raw = $('#trait-roll-select').value;
     if (!raw) return;
+    const resultEl = $('#trait-roll-result'), detailEl = $('#trait-roll-detail');
+    resultEl.className = 'roll-result';
+    if (raw === '__unknown__') {
+      const d100 = rollDie(100);
+      const success = d100 > 70;
+      resultEl.textContent = d100;
+      resultEl.classList.add(success ? 'success' : 'fail');
+      detailEl.innerHTML = `d100: ${d100} — <span class="${success ? 'success-note' : 'fail-note'}">${success ? 'Successo' : 'Fallimento'}</span>`;
+      return;
+    }
     const sep = raw.indexOf('::');
     const list = raw.slice(0, sep), name = raw.slice(sep + 2);
     const val = getTraitValue(c, list, name);
     const d20 = rollDie(20);
-    $('#trait-roll-result').textContent = d20 + val;
-    $('#trait-roll-detail').textContent = `d20: ${d20} +${val}`;
+    resultEl.textContent = d20 + val;
+    detailEl.textContent = `d20: ${d20} +${val}`;
+  });
+
+  $('#stat-roll-btn').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const key = $('#stat-roll-select').value;
+    if (!key) return;
+    const stat = PRIMARY_STATS.find(s => s.key === key);
+    const val = Number(c.primary[key]) || 0;
+    const label = diceForValue(val);
+    const resultEl = $('#stat-roll-result'), detailEl = $('#stat-roll-detail');
+    if (label === 'd12+d8') {
+      const a = rollDie(12), b = rollDie(8);
+      resultEl.textContent = a + b + val;
+      detailEl.textContent = `${stat.label}: d12+d8 ${a}+${b} +${val}`;
+    } else {
+      const sides = Number(label.slice(1));
+      const roll = rollDie(sides);
+      resultEl.textContent = roll + val;
+      detailEl.textContent = `${stat.label}: ${label} ${roll} +${val}`;
+    }
   });
 
   // ---- diagramma scheda (fronte) ----

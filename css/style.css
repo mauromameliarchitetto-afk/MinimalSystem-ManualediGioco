@@ -698,7 +698,11 @@ body.pdf-lock-scroll{overflow:hidden;}
   font-family:var(--font-mono);font-size:24px;color:var(--bianco-artico);
   min-width:52px;text-align:center;
 }
+.roll-result.success{color:var(--magico-forte);}
+.roll-result.fail{color:#FF5C5C;}
 .roll-detail{font-size:10.5px;color:var(--testo-secondario-dark);}
+.roll-detail .success-note{color:var(--magico-forte);font-weight:600;}
+.roll-detail .fail-note{color:#FF5C5C;font-weight:600;}
 
 /* ---------- Form fields generic ---------- */
 .field{display:flex;flex-direction:column;gap:6px;min-width:0;}
