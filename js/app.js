@@ -270,6 +270,8 @@ function newCharacter(nome) {
     cloudJoinRequestId: null,
     cloudJoinCampaignId: null,
     cloudJoinCampaignName: null,
+    cloudCampaignTrashedAt: null,
+    cloudCampaignPurgeAt: null,
     traits: defaultTraits(),
     customTraits: defaultCustomTraits(),
     shownTraits: defaultShownTraits(),

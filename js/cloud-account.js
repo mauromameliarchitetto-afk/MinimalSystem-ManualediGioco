@@ -181,6 +181,29 @@ async function narratoreSetLevelCloud(characterId, newLevel) {
   if (error) throw error;
 }
 
+/* ------------------------------------------------------------- cestino */
+
+async function trashCampaignCloud(campaignId) {
+  const { error } = await withTimeout(sb.rpc('trash_campaign', { p_campaign_id: campaignId }), 'Eliminazione campagna');
+  if (error) throw error;
+}
+async function restoreCampaignCloud(campaignId) {
+  const { error } = await withTimeout(sb.rpc('restore_campaign', { p_campaign_id: campaignId }), 'Ripristino campagna');
+  if (error) throw error;
+}
+async function listTrashedCampaigns() {
+  const { data, error } = await withTimeout(
+    sb.from('campaigns').select('id, name, deleted_at, purge_at').not('deleted_at', 'is', null).order('purge_at'),
+    'Cestino campagne'
+  );
+  if (error) throw error;
+  return data;
+}
+function daysRemaining(purgeAt) {
+  const ms = new Date(purgeAt).getTime() - Date.now();
+  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+}
+
 /* --------------------------------------------------------------- render */
 
 function accountStatusHtml(session, caps) {
@@ -265,15 +288,28 @@ async function campaignDetailHtml(campaignId) {
       ${pendingHtml}
       <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Personaggi in gioco</div>
       ${charsHtml}
+      <button class="btn btn-ghost btn-sm" data-trashcampaign="${campaignId}" style="align-self:flex-start;margin-top:10px;color:var(--fisico-forte);">🗑 Elimina campagna</button>
     `;
   } catch (e) {
     return `<p class="helper-text" style="margin:0;">Errore: ${e.message}</p>`;
   }
 }
 
+function trashBoxHtml(session, trashed) {
+  if (!session || isGuestUser(session)) return '<p class="helper-text" style="margin:0;">—</p>';
+  if (!trashed || !trashed.length) return '<p class="helper-text" style="margin:0;">Il cestino è vuoto.</p>';
+  return trashed.map(t => `
+    <div class="row-between" style="padding:4px 0;">
+      <span>${t.name} <span class="helper-text" style="margin:0;">(${daysRemaining(t.purge_at)} giorni rimasti)</span></span>
+      <button class="btn btn-sm btn-ghost" data-restorecampaign="${t.id}">Ripristina</button>
+    </div>
+  `).join('');
+}
+
 async function renderAccountArea() {
   const statusBox = $('#account-status-box');
   const campaignsBox = $('#account-campaigns-box');
+  const trashBox = $('#account-trash-box');
   statusBox.innerHTML = '<p class="helper-text" style="margin:0;">Verifica in corso…</p>';
 
   let session, caps;
@@ -282,6 +318,7 @@ async function renderAccountArea() {
   } catch (e) {
     statusBox.innerHTML = `<p class="helper-text" style="margin:0;">Impossibile verificare l'account: ${e.message}</p>`;
     campaignsBox.innerHTML = campaignsBoxHtml(null, null);
+    if (trashBox) trashBox.innerHTML = trashBoxHtml(null, null);
     return;
   }
   statusBox.innerHTML = accountStatusHtml(session, caps);
@@ -293,8 +330,17 @@ async function renderAccountArea() {
     } catch (e) {
       campaignsBox.innerHTML = `<p class="helper-text" style="margin:0;">Errore nel caricare le campagne: ${e.message}</p>`;
     }
+    if (trashBox) {
+      try {
+        const trashed = await listTrashedCampaigns();
+        trashBox.innerHTML = trashBoxHtml(session, trashed);
+      } catch (e) {
+        trashBox.innerHTML = `<p class="helper-text" style="margin:0;">Errore nel caricare il cestino: ${e.message}</p>`;
+      }
+    }
   } else {
     campaignsBox.innerHTML = campaignsBoxHtml(session, null);
+    if (trashBox) trashBox.innerHTML = trashBoxHtml(session, null);
   }
 }
 
@@ -393,6 +439,28 @@ function wireCloudAccountEvents() {
         toast(`Livello assegnato: Lv ${newLevel}`);
         const detail = e.target.closest('.cm-campaign-detail');
         detail.innerHTML = await campaignDetailHtml(detail.dataset.detailfor);
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.trashcampaign) {
+      const campaignId = e.target.dataset.trashcampaign;
+      const campaignName = e.target.closest('.cm-campaign-detail')?.previousElementSibling?.dataset?.campaignname || 'questa campagna';
+      if (!confirm(`Eliminare "${campaignName}"? Entrerà nel cestino per 30 giorni, recuperabile in ogni momento; i giocatori riceveranno un avviso.`)) return;
+      try {
+        await trashCampaignCloud(campaignId);
+        toast('Campagna spostata nel cestino');
+        renderAccountArea();
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+  });
+
+  $('#account-trash-box').addEventListener('click', async e => {
+    if (e.target.dataset.restorecampaign) {
+      try {
+        await restoreCampaignCloud(e.target.dataset.restorecampaign);
+        toast('Campagna ripristinata');
+        renderAccountArea();
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }

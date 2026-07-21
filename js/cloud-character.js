@@ -66,8 +66,9 @@ async function requestJoinCampaign(c, campaignId, campaignName) {
 }
 
 /* Controlla lo stato reale della scheda cloud: la richiesta e' stata
-   accettata? Il Narratore ha assegnato un nuovo livello? In tal caso applica
-   in locale lo stesso identico accredito AP di un level-up manuale
+   accettata? Il Narratore ha assegnato un nuovo livello? La storia e' stata
+   eliminata (cestino) o svuotata definitivamente? In tal caso applica in
+   locale lo stesso identico accredito AP di un level-up manuale
    (creditLevelAP), cosi' la formula resta unica e non duplicata. */
 async function syncCharacterFromCloud(c) {
   if (!c.cloudCharacterId) return false;
@@ -79,11 +80,42 @@ async function syncCharacterFromCloud(c) {
 
   let changed = false;
 
+  // La campagna a cui eravamo iscritti non esiste piu': o e' stata svuotata
+  // definitivamente (purge, dopo 30 giorni nel cestino), oppure il Narratore
+  // l'ha eliminata. La scheda resta comunque nostra, solo scollegata.
+  if (c.cloudCampaignId && !data.campaign_id) {
+    toast(`La storia «${c.cloudCampaignName || ''}» è stata eliminata definitivamente: la tua scheda resta nel tuo archivio.`);
+    c.cloudCampaignId = null;
+    c.cloudCampaignName = null;
+    c.cloudCampaignTrashedAt = null;
+    c.cloudCampaignPurgeAt = null;
+    changed = true;
+  }
+
   if (data.campaign_id && c.cloudCampaignId !== data.campaign_id) {
     c.cloudCampaignId = data.campaign_id;
+    c.cloudCampaignName = c.cloudJoinCampaignName;
     c.cloudJoinRequestId = null;
     toast(`Il Narratore ha accettato la tua richiesta: sei in «${c.cloudJoinCampaignName || 'storia'}»!`);
     changed = true;
+  }
+
+  // Se siamo in una campagna, controlliamo anche se e' nel cestino (la RLS
+  // permette ai membri di leggerla comunque, finche' non viene svuotata).
+  if (data.campaign_id) {
+    try {
+      const { data: camp } = await withTimeout(
+        sb.from('campaigns').select('deleted_at, purge_at').eq('id', data.campaign_id).single(),
+        'Stato campagna'
+      );
+      const wasTrashed = !!c.cloudCampaignTrashedAt;
+      c.cloudCampaignTrashedAt = (camp && camp.deleted_at) || null;
+      c.cloudCampaignPurgeAt = (camp && camp.purge_at) || null;
+      if (c.cloudCampaignTrashedAt && !wasTrashed) {
+        toast(`Il Narratore ha eliminato «${c.cloudCampaignName || 'la storia'}»: recuperabile ancora per qualche giorno. Esporta la tua scheda per sicurezza.`);
+      }
+      changed = changed || (!!c.cloudCampaignTrashedAt !== wasTrashed);
+    } catch (e) { /* nessun problema se non leggibile: restiamo con lo stato precedente */ }
   }
 
   const cloudLevel = Number(data.level) || 1;
@@ -99,6 +131,20 @@ async function syncCharacterFromCloud(c) {
   return changed;
 }
 
+/* Esporta la scheda come JSON scaricabile (punto 6: il giocatore puo'
+   sempre portarsi via i propri dati, anche se la campagna e' nel cestino). */
+function exportCharacterJson(c) {
+  const blob = new Blob([JSON.stringify(characterCloudPayload(c), null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(c.nome || 'personaggio').replace(/[^a-z0-9]+/gi, '_')}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 /* --------------------------------------------------------------- render */
 
 function cloudStoryBoxHtml(c) {
@@ -106,6 +152,16 @@ function cloudStoryBoxHtml(c) {
     return `
       <p class="helper-text" style="margin:0;">Salva il personaggio nel cloud per poter entrare nella storia di un Narratore (serve un account, anche solo ospite).</p>
       <button class="btn btn-primary btn-sm" id="cs-save-cloud" style="align-self:flex-start;">Salva nel cloud</button>
+    `;
+  }
+  if (c.cloudCampaignId && c.cloudCampaignTrashedAt) {
+    const giorni = c.cloudCampaignPurgeAt ? daysRemaining(c.cloudCampaignPurgeAt) : '?';
+    return `
+      <p class="helper-text" style="margin:0;color:var(--fisico-forte);">Il Narratore ha eliminato «${c.cloudCampaignName || c.cloudJoinCampaignName || 'questa storia'}»: recuperabile ancora per ${giorni} giorni, poi la storia viene rimossa (la tua scheda resta comunque tua).</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" id="cs-export">Esporta la mia scheda</button>
+        <button class="btn btn-ghost btn-sm" id="cs-sync">Sincronizza</button>
+      </div>
     `;
   }
   if (c.cloudCampaignId) {
@@ -172,6 +228,11 @@ function wireCloudCharacterEvents() {
         renderCloudStoryBox(c);
         if (!changed) toast('Nessuna novità');
       } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.id === 'cs-export') {
+      exportCharacterJson(c);
+      toast('Scheda esportata');
       return;
     }
   });
