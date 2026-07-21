@@ -250,6 +250,7 @@ function newCharacter(nome) {
     storiaId: null,
     build: 'guerriero',
     buildConfirmed: false,
+    primaryConfirmed: false,
     eclecticoHpMult: 7,
     primary: defaultPrimary(),
     tertiary: defaultTertiary(),
@@ -304,6 +305,10 @@ function ensureShape(c) {
   // mantengono la loro classe come già confermata (regola: non modificabile)
   const hadBuildConfirmed = c.buildConfirmed !== undefined;
   const hadLivelloAP = c.livelloAP !== undefined;
+  // i personaggi creati prima dell'introduzione del blocco statistiche
+  // restano sbloccati (comportamento libero già in uso): il blocco vale solo
+  // da quando il giocatore lo conferma esplicitamente per la prima volta,
+  // Object.keys(d) sotto imposta già primaryConfirmed:false di default
   Object.keys(d).forEach(k => { if (c[k] === undefined) c[k] = d[k]; });
   if (!hadBuildConfirmed) c.buildConfirmed = true;
   // i personaggi esistenti non ricevono AP retroattivi: il conteggio
@@ -508,18 +513,27 @@ function renderBuildGrid(c) {
 
 function renderPrimaryStats(c) {
   const wrap = $('#primary-stats');
+  const locked = c.primaryConfirmed;
   wrap.innerHTML = PRIMARY_STATS.map(stat => {
     const val = c.primary[stat.key];
     return `<div class="stat-row">
       <div class="stat-label ${stat.axis}"><span class="abbr">${stat.label}</span><span class="full">${stat.full}</span></div>
       <div class="stepper">
-        <button data-pstat="${stat.key}" data-dir="-1" aria-label="Diminuisci">−</button>
-        <input type="number" data-pstat-input="${stat.key}" value="${val}" min="${PRIMARY_MIN}">
-        <button data-pstat="${stat.key}" data-dir="1" aria-label="Aumenta">+</button>
+        <button data-pstat="${stat.key}" data-dir="-1" aria-label="Diminuisci" ${locked ? 'disabled' : ''}>−</button>
+        <input type="number" data-pstat-input="${stat.key}" value="${val}" min="${PRIMARY_MIN}" ${locked ? 'disabled' : ''}>
+        <button data-pstat="${stat.key}" data-dir="1" aria-label="Aumenta" ${locked ? 'disabled' : ''}>+</button>
       </div>
     </div>`;
   }).join('');
   updatePrimaryRemaining(c);
+  renderPrimaryLockStatus(c);
+}
+function renderPrimaryLockStatus(c) {
+  const el = $('#primary-lock-status');
+  if (!el) return;
+  el.innerHTML = c.primaryConfirmed
+    ? `<div class="row-between"><span class="chip physical">🔒 Statistiche confermate</span><span class="helper-text" style="margin:0;">Si sbloccano con un level-up</span></div>`
+    : `<button class="btn btn-primary btn-sm" id="btn-confirm-primary">Conferma statistiche</button>`;
 }
 function updatePrimaryRemaining(c) {
   const sum = PRIMARY_STATS.reduce((s, k) => s + Number(c.primary[k.key] || 0), 0);
@@ -813,7 +827,11 @@ function creditLevelAP(c) {
   if (to > from) { for (let l = from + 1; l <= to; l++) delta += apForLevel(l); }
   else { for (let l = from; l > to; l--) delta -= apForLevel(l); }
   c.livelloAP = to;
-  if (!delta) return;
+  // un level-up sblocca di nuovo le statistiche confermate, per poter
+  // spendere i nuovi AP; vanno riconfermate per bloccarle di nuovo
+  const unlocked = to > from && c.primaryConfirmed;
+  if (unlocked) { c.primaryConfirmed = false; renderPrimaryStats(c); }
+  if (!delta) { if (unlocked) touchActive(); return; }
   c.apDisponibili = (Number(c.apDisponibili) || 0) + delta;
   c.ledger.push({
     id: uid(),
@@ -824,24 +842,31 @@ function creditLevelAP(c) {
   });
   refreshApUI(c);
   updatePrimaryRemaining(c);
-  toast(delta > 0 ? `+${delta} AP disponibili (Lv ${from} → ${to})` : `${delta} AP (Lv ${from} → ${to})`);
+  const base = delta > 0 ? `+${delta} AP disponibili (Lv ${from} → ${to})` : `${delta} AP (Lv ${from} → ${to})`;
+  toast(unlocked ? `${base} — statistiche sbloccate` : base);
   touchActive();
 }
 
 /* Cambia un attributo primario. Al Lv1 gli attributi si assegnano ancora
    liberamente coi 40 punti di partenza (scegliere/confermare la classe non
-   chiude questa fase): il rapporto "1 punto base = 1 AP" di HP/MP vale solo
-   in questa fase, perché il punto base interagisce col moltiplicatore di
-   classe. Solo dopo il primo Lv Up ogni attributo — HP/MP compresi — si
-   compra con gli AP guadagnati a level up, secondo la stessa tabella di
-   costo generica degli altri attributi primari: la spesa è automatica, la
-   riduzione rimborsa, e senza AP il cambio è bloccato. Restituisce il
-   valore applicato o null se bloccato. */
+   chiude questa fase, ma non si può comunque superare il pool): il rapporto
+   "1 punto base = 1 AP" di HP/MP vale solo in questa fase, perché il punto
+   base interagisce col moltiplicatore di classe. Solo dopo il primo Lv Up
+   ogni attributo — HP/MP compresi — si compra con gli AP guadagnati a level
+   up, secondo la stessa tabella di costo generica degli altri attributi
+   primari: la spesa è automatica, la riduzione rimborsa, e senza AP il
+   cambio è bloccato. Una volta confermate (primaryConfirmed), le statistiche
+   sono bloccate del tutto finché un level-up non le sblocca di nuovo.
+   Restituisce il valore applicato o null se bloccato. */
 function changePrimary(c, key, newVal) {
   const oldVal = Number(c.primary[key]) || 0;
   newVal = Math.floor(Number(newVal));
   if (isNaN(newVal) || newVal < PRIMARY_MIN) newVal = PRIMARY_MIN;
   if (newVal === oldVal) return newVal;
+  if (c.primaryConfirmed) {
+    toast('Statistiche confermate: si sbloccano solo con un level-up');
+    return null;
+  }
   if (Number(c.livello) > 1) {
     const costFn = primaryApCostForPoint;
     let cost = 0;
@@ -861,6 +886,13 @@ function changePrimary(c, key, newVal) {
       ts: Date.now()
     });
     refreshApUI(c);
+  } else if (newVal > oldVal) {
+    // fase di creazione (Lv1): non si può superare il pool di 40 punti
+    const sum = PRIMARY_STATS.reduce((s, k) => s + Number(c.primary[k.key] || 0), 0);
+    if (sum + (newVal - oldVal) > PRIMARY_POOL) {
+      toast(`Punti esauriti: hai già assegnato tutti i ${PRIMARY_POOL} punti disponibili`);
+      return null;
+    }
   }
   c.primary[key] = newVal;
   return newVal;
@@ -1567,6 +1599,29 @@ function wireStaticEvents() {
     touchActive();
   });
 
+  // ---- conferma statistiche primarie (blocco anti-min-max) ----
+  $('#primary-lock-status').addEventListener('click', e => {
+    if (!e.target.closest('#btn-confirm-primary')) return;
+    const c = getActive(); if (!c) return;
+    const sum = PRIMARY_STATS.reduce((s, k) => s + Number(c.primary[k.key] || 0), 0);
+    const remaining = PRIMARY_POOL - sum;
+    $('#primary-confirm-text').textContent = remaining !== 0
+      ? `Hai ancora ${remaining} punt${remaining === 1 ? 'o' : 'i'} non assegnat${remaining === 1 ? 'o' : 'i'}. Vuoi confermare comunque le statistiche? Una volta confermate resteranno bloccate: potrai modificarle di nuovo solo effettuando un level-up.`
+      : 'Vuoi confermare le tue statistiche primarie? Una volta confermate resteranno bloccate: potrai modificarle di nuovo solo effettuando un level-up.';
+    $('#primary-confirm').classList.remove('hidden');
+  });
+  $('#primary-confirm-yes').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    $('#primary-confirm').classList.add('hidden');
+    c.primaryConfirmed = true;
+    renderPrimaryStats(c);
+    toast('Statistiche confermate e bloccate');
+    touchActive();
+  });
+  $('#primary-confirm-no').addEventListener('click', () => {
+    $('#primary-confirm').classList.add('hidden');
+  });
+
   // ---- diagramma scheda (fronte) ----
   $('#stat-diagram').addEventListener('input', e => {
     const inp = e.target.closest('[data-dg]');
@@ -1652,6 +1707,10 @@ function wireStaticEvents() {
   });
   $('#btn-sync-derived').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
+    if (!c.primaryConfirmed) {
+      toast('Conferma prima le statistiche primarie');
+      return;
+    }
     const hpMax = Number(c.primary.hp || 0) * currentHpMult(c);
     const mpMax = Number(c.primary.mp || 0) * currentMpMult(c);
     c.hpMaxTracked = hpMax;

@@ -378,14 +378,14 @@ input,select,textarea{font-family:var(--font-body);}
 .build-card.locked{opacity:.35;pointer-events:none;}
 .bc-stats{display:flex;gap:16px;font-family:var(--font-mono);font-size:12px;color:var(--testo-secondario-dark-2);}
 
-/* Dialogo di conferma classe */
-#class-confirm{
+/* Dialogo di conferma (classe, statistiche primarie...) */
+.confirm-modal{
   position:fixed;inset:0;z-index:90;
   background:rgba(8,9,11,0.8);
   display:flex;align-items:center;justify-content:center;
   padding:24px;
 }
-#class-confirm .cc-box{
+.confirm-modal .cc-box{
   background:var(--antracite-2);
   border:1px solid var(--bordo-scuro);
   border-radius:var(--radius);
@@ -393,13 +393,13 @@ input,select,textarea{font-family:var(--font-body);}
   max-width:340px;width:100%;
   box-shadow:0 18px 50px rgba(0,0,0,.6);
 }
-#class-confirm .cc-title{
+.confirm-modal .cc-title{
   font-family:var(--font-title);font-weight:700;font-size:15px;
   text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;
 }
-#class-confirm p{font-size:13px;color:var(--testo-secondario-dark-2);line-height:1.55;margin:0 0 16px;}
-#class-confirm .cc-actions{display:flex;gap:10px;}
-#class-confirm .cc-actions .btn{flex:1;}
+.confirm-modal p{font-size:13px;color:var(--testo-secondario-dark-2);line-height:1.55;margin:0 0 16px;}
+.confirm-modal .cc-actions{display:flex;gap:10px;}
+.confirm-modal .cc-actions .btn{flex:1;}
 .bc-stats b{color:var(--testo-primario-dark);}
 .bc-meta{font-size:11.5px;color:var(--testo-secondario-dark);}
 .swap-row{display:flex;align-items:center;gap:10px;margin-top:4px;}
@@ -635,11 +635,13 @@ body.pdf-lock-scroll{overflow:hidden;}
   color:var(--testo-primario-dark);font-size:16px;line-height:1;
   display:flex;align-items:center;justify-content:center;cursor:pointer;
 }
+.stepper button:disabled{opacity:.35;cursor:not-allowed;}
 .stepper input{
   width:42px;text-align:center;background:transparent;border:none;
   font-family:var(--font-mono);font-size:15px;color:var(--testo-primario-dark);
   -moz-appearance:textfield;
 }
+.stepper input:disabled{opacity:.5;}
 .stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
 
 /* ---------- Stat readouts (derived values, HUD-style) ---------- */
@@ -884,7 +886,7 @@ table.edit-table thead th{white-space:nowrap;}
   }
   /* i popup a schermo intero (e il toast) restano dentro la "cornice" del
      telefono invece di coprire tutta la finestra del browser */
-  #class-confirm,#prem-popup,#portrait-lightbox,#pdf-viewer,#toast{
+  .confirm-modal,#prem-popup,#portrait-lightbox,#pdf-viewer,#toast{
     position:absolute;
   }
 }
