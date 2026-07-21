@@ -1078,19 +1078,18 @@ function renderTertiaryPlusMinus(c) {
     wrap.innerHTML = diagramHtml;
   });
 }
-const GROWTH_COST_FN = {
-  hp: hpApCostForPoint,
-  mp: mpApCostForPoint,
-  primary: primaryApCostForPoint,
-  tertiary: tertiaryApCostForPoint
-};
-// HP/MP hanno un solo valore in scheda: alla selezione, "Valore attuale" lo
-// richiama dal Fronte Scheda al netto di bonus/malus attivi (hpMaxTracked/
-// mpMaxTracked, non l'effettivo con i buff). Per attributo primario/P.R. e
-// terziarie non c'è un'unica statistica da richiamare: il campo resta libero.
+const GROWTH_COST_FN = { hp: hpApCostForPoint, mp: mpApCostForPoint, pr: primaryApCostForPoint };
+PRIMARY_STATS.forEach(s => { if (s.key !== 'hp' && s.key !== 'mp') GROWTH_COST_FN[s.key] = primaryApCostForPoint; });
+TERTIARY_STATS.forEach(s => { GROWTH_COST_FN[s.key] = tertiaryApCostForPoint; });
+// Ogni voce del selettore è una statistica precisa: alla selezione, "Valore
+// attuale" richiama la cifra corrispondente dal Fronte Scheda al netto di
+// bonus/malus attivi (base/tracked, non l'effettivo con i buff dei consumabili)
 function growthCurrentFromSheet(c, type) {
   if (type === 'hp') return Number(c.hpMaxTracked) || 0;
   if (type === 'mp') return Number(c.mpMaxTracked) || 0;
+  if (type === 'pr') return Number(c.prMaxTracked) || 0;
+  if (PRIMARY_STATS.some(s => s.key === type)) return Number(c.primary[type]) || 0;
+  if (TERTIARY_STATS.some(s => s.key === type)) return Number(c.tertiary[type]) || 0;
   return null;
 }
 function syncGrowthCurrent() {
