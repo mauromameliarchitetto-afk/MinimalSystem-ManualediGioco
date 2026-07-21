@@ -680,7 +680,18 @@ body.pdf-lock-scroll{overflow:hidden;}
 .bar-fill.physical{background:linear-gradient(90deg,var(--fisico),var(--fisico-forte));}
 .bar-fill.magic{background:linear-gradient(90deg,var(--magico),var(--magico-forte));}
 .bar-fill.neutral{background:linear-gradient(90deg,#7C828C,var(--testo-secondario-dark-2));}
-.bar-controls{display:flex;justify-content:flex-end;gap:6px;margin-top:2px;}
+.bar-controls{display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap;}
+.bar-controls input[type=number]{
+  width:64px;background:var(--antracite-1);border:1px solid var(--bordo-scuro);
+  border-radius:var(--radius-sm);color:var(--testo-primario-dark);
+  font-family:var(--font-mono);font-size:12px;text-align:center;padding:7px 4px;
+}
+.bar-controls select{
+  flex:1 1 auto;min-width:0;max-width:220px;
+  background:var(--antracite-1);border:1px solid var(--bordo-scuro);
+  border-radius:var(--radius-sm);color:var(--testo-primario-dark);
+  font-size:12px;padding:7px 8px;
+}
 
 .inline-max-input{
   width:52px;background:transparent;border:none;border-bottom:1px dashed var(--bordo-scuro);

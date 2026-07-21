@@ -39,13 +39,13 @@
       <button class="cm-item" data-menu-nav="premises">Premesse di gioco</button>
       <div class="cm-sep"></div>
       <div class="cm-label">Scheda personaggio</div>
+      <button class="cm-item" data-menu-tab="identita">Identità</button>
+      <button class="cm-item" data-menu-tab="note">Background</button>
       <button class="cm-item" data-menu-tab="gioco">Fronte Scheda</button>
       <button class="cm-item" data-menu-tab="tratti">Tratti</button>
       <button class="cm-item" data-menu-tab="retro">Retro Scheda</button>
-      <button class="cm-item" data-menu-tab="identita">Identità</button>
       <button class="cm-item" data-menu-tab="statistiche">Statistiche</button>
       <button class="cm-item" data-menu-tab="livelli">Livelli</button>
-      <button class="cm-item" data-menu-tab="note">Background</button>
     </nav>
 
     <div class="cover-content">
@@ -83,16 +83,145 @@
     </div>
 
     <nav class="tabs" id="tabs">
+      <button class="tab-btn" data-tab="identita">Identità</button>
+      <button class="tab-btn" data-tab="note">Background</button>
       <button class="tab-btn active" data-tab="gioco">Fronte Scheda</button>
       <button class="tab-btn" data-tab="tratti">Tratti</button>
       <button class="tab-btn" data-tab="retro">Retro Scheda</button>
-      <button class="tab-btn" data-tab="identita">Identità</button>
       <button class="tab-btn" data-tab="statistiche">Statistiche</button>
       <button class="tab-btn" data-tab="livelli">Livelli</button>
-      <button class="tab-btn" data-tab="note">Background</button>
     </nav>
 
     <div class="sheet-body">
+
+      <!-- ---- IDENTITÀ ---- -->
+      <div class="tab-panel" data-panel="identita">
+        <div class="section-title"><span class="dot neutral"></span>Volto del personaggio</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad portrait-pad">
+          <div class="portrait-frame" id="portrait-frame" role="button" aria-label="Volto del personaggio"><span class="portrait-placeholder" id="portrait-placeholder">Nessuna immagine<br>tocca per caricare</span></div>
+          <div class="portrait-actions">
+            <div class="field"><label>Nome del personaggio</label><input type="text" id="f-nome2" placeholder="Nome e Cognome" maxlength="40"></div>
+            <input type="file" id="portrait-file" accept="image/*" class="hidden">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-ghost btn-sm" id="portrait-load">Carica immagine</button>
+              <button class="btn btn-ghost btn-sm hidden" id="portrait-remove">✕ Rimuovi</button>
+            </div>
+            <p class="helper-text" style="margin:0;">Tocca l'immagine per ingrandirla.</p>
+          </div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Anagrafica</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field-row">
+            <div class="field"><label>Razza</label><input type="text" id="f-razza" placeholder="es. Umano"></div>
+            <div class="field" style="max-width:110px;"><label>Età</label><input type="text" id="f-eta" placeholder="es. 27"></div>
+          </div>
+          <div class="field"><label>Ruolo / occupazione</label><input type="text" id="f-ruolo" placeholder="es. Barista, mercenaria..."></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Storia</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field">
+            <div class="row-between" style="margin-bottom:2px;">
+              <label style="margin:0;">Storie pubblicate dal Narratore</label>
+              <button class="btn btn-icon btn-ghost btn-sm" id="btn-refresh-stories" title="Aggiorna elenco" style="width:24px;height:24px;">🔄</button>
+            </div>
+            <select id="f-storia-select"><option value="">— scegli dall'elenco, oppure scrivi il nome sotto —</option></select>
+          </div>
+          <div class="field"><label>Storia a cui partecipa</label><input type="text" id="f-storia" placeholder="Il nome della storia concordato col Narratore"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" id="btn-share-master">📋 Copia per il Narratore</button>
+            <button class="btn btn-ghost btn-sm" id="btn-premesse">📜 Premesse della storia</button>
+          </div>
+          <p class="helper-text" style="margin:0;">Copia la scheda negli appunti (senza l'immagine del volto): incollala nella chat col Narratore, che la importerà nella sua Area. Ricopiala dopo ogni aggiornamento importante.</p>
+        </div></div>
+
+        <div class="section-title"><span class="dot"></span>Classe</div>
+        <p class="helper-text" id="build-helper">La classe determina i moltiplicatori di HP/MP, la dotazione iniziale e i P.R. di partenza.</p>
+        <div class="build-grid" id="build-grid"></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Bellezza</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad">
+          <p class="helper-text">Se non definita nel background: 1d20.</p>
+          <div class="roll-row">
+            <button class="btn btn-magic" id="roll-bellezza-btn">Tira Bellezza</button>
+            <div class="roll-result" id="bellezza-result">—</div>
+          </div>
+          <div class="field" style="margin-top:10px;"><label>Oppure imposta manualmente</label><input type="number" id="f-bellezza-manuale" placeholder="valore da background"></div>
+        </div></div>
+      </div>
+
+      <!-- ---- BACKGROUND ---- -->
+      <div class="tab-panel" data-panel="note">
+        <p class="helper-text">Il testo grigio in ogni campo è un consiglio di compilazione: sparisce appena scrivi qualcosa di tuo.</p>
+
+        <div class="section-title"><span class="dot neutral"></span>Dati generali</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field-row">
+            <div class="field"><label>Data di nascita</label><input type="text" data-bg="nascitaData" placeholder="Quando è nato/a"></div>
+            <div class="field"><label>Luogo di nascita</label><input type="text" data-bg="nascitaLuogo" placeholder="Dove è nato/a e com'è quel luogo"></div>
+          </div>
+          <div class="field"><label>Origini</label><input type="text" data-bg="origini" placeholder="Radici familiari, culturali o etniche"></div>
+          <div class="field"><label>Descrizione in una frase</label><input type="text" data-bg="frase" placeholder="Una frase che lo/la riassume, es. «Meglio sporcarsi le mani che restare a guardare!»"></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Aspetto</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field-row">
+            <div class="field"><label>Altezza</label><input type="text" data-bg="altezza" placeholder="es. 1,70"></div>
+            <div class="field"><label>Peso</label><input type="text" data-bg="peso" placeholder="es. 68 kg"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Colore della pelle</label><input type="text" data-bg="pelle" placeholder="es. carnagione olivastra"></div>
+            <div class="field"><label>Acconciatura</label><input type="text" data-bg="acconciatura" placeholder="Taglio, colore, come porta i capelli"></div>
+          </div>
+          <div class="field"><label>Colore degli occhi</label><textarea data-bg="occhi" placeholder="Colore o particolarità degli occhi (anche impianti e innesti)"></textarea></div>
+          <div class="field"><label>Segni particolari</label><textarea data-bg="segni" placeholder="Cicatrici, tatuaggi, innesti, marchi..."></textarea></div>
+          <div class="field"><label>Tipo di corporatura</label><textarea data-bg="corporatura" placeholder="Fisico e costituzione, es. muscoloso e asciutto per l'addestramento"></textarea></div>
+          <div class="field"><label>Postura</label><textarea data-bg="postura" placeholder="Come si tiene e si muove: cosa comunica il suo corpo"></textarea></div>
+          <div class="field"><label>Vestiario</label><textarea data-bg="vestiario" placeholder="Come si veste di solito: colori, capi e dettagli ricorrenti"></textarea></div>
+          <div class="field"><label>Qualcosa che porta sempre con sé</label><textarea data-bg="oggetto" placeholder="Un oggetto da cui non si separa mai, e perché conta per lui/lei"></textarea></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Vita</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field"><label>Incompetenze</label><textarea data-bg="incompetenze" placeholder="Cosa non sa fare: lacune e limiti"></textarea></div>
+          <div class="field"><label>Debolezze</label><textarea data-bg="debolezze" placeholder="Punti deboli fisici o mentali, dipendenze e il loro prezzo"></textarea></div>
+          <div class="field"><label>Hobby</label><textarea data-bg="hobby" placeholder="Passatempi e attività fuori dall'avventura"></textarea></div>
+          <div class="field"><label>Abitudini</label><textarea data-bg="abitudini" placeholder="Routine e piccoli rituali quotidiani"></textarea></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Atteggiamento</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field"><label>Personalità</label><textarea data-bg="personalita" placeholder="Com'è di carattere e come si comporta con gli altri"></textarea></div>
+          <div class="field"><label>Morale</label><textarea data-bg="morale" placeholder="La sua bussola morale: cosa è giusto per lui/lei, che codice segue"></textarea></div>
+          <div class="field"><label>Autocontrollo</label><textarea data-bg="autocontrollo" placeholder="Come reagisce sotto pressione e nel pericolo"></textarea></div>
+          <div class="field"><label>Motivazione</label><textarea data-bg="motivazione" placeholder="Cosa lo/la spinge ad agire"></textarea></div>
+          <div class="field"><label>Scoraggiamento</label><textarea data-bg="scoraggiamento" placeholder="Cosa lo/la abbatte e come reagisce allo sconforto"></textarea></div>
+          <div class="field"><label>Livello di sicurezza</label><textarea data-bg="sicurezza" placeholder="Quanta fiducia ha in sé: quella che mostra e quella vera"></textarea></div>
+          <div class="field"><label>Filosofia</label><textarea data-bg="filosofia" placeholder="La sua visione del mondo in poche righe"></textarea></div>
+          <div class="field"><label>Paura più grande / Fobia</label><textarea data-bg="paura" placeholder="Cosa teme più di ogni altra cosa"></textarea></div>
+          <div class="field"><label>Obiettivo a breve termine</label><textarea data-bg="obiettivoBreve" placeholder="Cosa vuole ottenere adesso"></textarea></div>
+          <div class="field"><label>Obiettivo a lungo termine</label><textarea data-bg="obiettivoLungo" placeholder="Il traguardo della sua vita"></textarea></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Passato</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="field"><label>Infanzia</label><textarea data-bg="infanzia" placeholder="Dove e come è cresciuto/a: famiglia, ambiente, primi valori"></textarea></div>
+          <div class="field"><label>Evento passato importante</label><textarea data-bg="eventoImportante" placeholder="Uno o più eventi che l'hanno segnato/a profondamente"></textarea></div>
+          <div class="field"><label>Segreto</label><textarea data-bg="segreto" placeholder="Cosa nasconde a tutti, e perché"></textarea></div>
+          <div class="field"><label>Peggior momento</label><textarea data-bg="peggiorMomento" placeholder="Il giorno più difficile della sua vita"></textarea></div>
+          <div class="field"><label>Miglior momento</label><textarea data-bg="migliorMomento" placeholder="Il ricordo più felice"></textarea></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Relazioni</div>
+        <div class="box"><div class="box-bar"></div><div class="box-pad">
+          <div class="field"><label>Familiari, amici, conoscenti</label><textarea data-bg="relazioni" style="min-height:110px;" placeholder="Per ogni relazione importante indica: Nome · Relazione (che rapporto li lega) · Descrizione (com'è fatto/a)"></textarea></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Note libere</div>
+        <div class="field"><textarea id="n-libere" placeholder="Qualsiasi altra annotazione di gioco..."></textarea></div>
+      </div>
 
       <!-- ---- FRONTE SCHEDA ---- -->
       <div class="tab-panel active" data-panel="gioco">
@@ -161,30 +290,24 @@
             <div class="bar-top"><span class="bar-name" id="hp-bar-name" style="color:var(--fisico-forte)">HP</span><span class="bar-val"><span id="hp-cur">0</span> / <input type="number" id="hp-max" class="inline-max-input" value="0"></span></div>
             <div class="bar-track"><div class="bar-fill physical" id="hp-bar" style="width:0%"></div></div>
             <div class="bar-controls">
-              <button class="btn btn-sm btn-ghost" data-adj="hp" data-amt="-5">-5</button>
-              <button class="btn btn-sm btn-ghost" data-adj="hp" data-amt="-1">-1</button>
-              <button class="btn btn-sm btn-ghost" data-adj="hp" data-amt="1">+1</button>
-              <button class="btn btn-sm btn-ghost" data-adj="hp" data-amt="5">+5</button>
+              <input type="number" id="hp-dmg-input" min="0" placeholder="Danno">
+              <button class="btn btn-sm btn-ghost" id="hp-dmg-apply">Applica a Uso</button>
             </div>
           </div>
           <div class="bar-row">
             <div class="bar-top"><span class="bar-name" id="mp-bar-name" style="color:var(--magico-forte)">MP</span><span class="bar-val"><span id="mp-cur">0</span> / <input type="number" id="mp-max" class="inline-max-input" value="0"></span></div>
             <div class="bar-track"><div class="bar-fill magic" id="mp-bar" style="width:0%"></div></div>
             <div class="bar-controls">
-              <button class="btn btn-sm btn-ghost" data-adj="mp" data-amt="-5">-5</button>
-              <button class="btn btn-sm btn-ghost" data-adj="mp" data-amt="-1">-1</button>
-              <button class="btn btn-sm btn-ghost" data-adj="mp" data-amt="1">+1</button>
-              <button class="btn btn-sm btn-ghost" data-adj="mp" data-amt="5">+5</button>
+              <select id="mp-cost-select"><option value="">Nessuna abilità con costo</option></select>
+              <button class="btn btn-sm btn-ghost" id="mp-cost-apply">Applica a Uso</button>
             </div>
           </div>
           <div class="bar-row">
             <div class="bar-top"><span class="bar-name" style="color:var(--testo-secondario-dark-2)">PP · Boost</span><span class="bar-val"><span id="pp-cur">0</span> / <span id="pp-max">0</span></span></div>
             <div class="bar-track"><div class="bar-fill neutral" id="pp-bar" style="width:0%"></div></div>
             <div class="bar-controls">
-              <button class="btn btn-sm btn-ghost" data-adj="pp" data-amt="-5">-5</button>
-              <button class="btn btn-sm btn-ghost" data-adj="pp" data-amt="-1">-1</button>
-              <button class="btn btn-sm btn-ghost" data-adj="pp" data-amt="1">+1</button>
-              <button class="btn btn-sm btn-ghost" data-adj="pp" data-amt="5">+5</button>
+              <select id="boost-activate-select"><option value="">Nessun boost appreso</option></select>
+              <button class="btn btn-sm btn-ghost" id="boost-activate-btn">Attiva</button>
             </div>
           </div>
         </div></div>
@@ -250,6 +373,7 @@
           </div>
         </div></div>
       </div>
+
       <!-- ---- TRATTI ---- -->
       <div class="tab-panel" data-panel="tratti">
         <div class="section-title"><span class="dot neutral"></span>Capacità e Conoscenze</div>
@@ -308,64 +432,6 @@
           <tbody id="inventario-table"></tbody>
         </table></div>
         <button class="btn btn-ghost btn-sm" id="inv-add" style="align-self:flex-start;">+ Aggiungi oggetto</button>
-      </div>
-
-
-      <!-- ---- IDENTITÀ ---- -->
-      <div class="tab-panel" data-panel="identita">
-        <div class="section-title"><span class="dot neutral"></span>Volto del personaggio</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad portrait-pad">
-          <div class="portrait-frame" id="portrait-frame" role="button" aria-label="Volto del personaggio"><span class="portrait-placeholder" id="portrait-placeholder">Nessuna immagine<br>tocca per caricare</span></div>
-          <div class="portrait-actions">
-            <div class="field"><label>Nome del personaggio</label><input type="text" id="f-nome2" placeholder="Nome e Cognome" maxlength="40"></div>
-            <input type="file" id="portrait-file" accept="image/*" class="hidden">
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="btn btn-ghost btn-sm" id="portrait-load">Carica immagine</button>
-              <button class="btn btn-ghost btn-sm hidden" id="portrait-remove">✕ Rimuovi</button>
-            </div>
-            <p class="helper-text" style="margin:0;">Tocca l'immagine per ingrandirla.</p>
-          </div>
-        </div></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Anagrafica</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field-row">
-            <div class="field"><label>Razza</label><input type="text" id="f-razza" placeholder="es. Umano"></div>
-            <div class="field" style="max-width:110px;"><label>Età</label><input type="text" id="f-eta" placeholder="es. 27"></div>
-          </div>
-          <div class="field"><label>Ruolo / occupazione</label><input type="text" id="f-ruolo" placeholder="es. Barista, mercenaria..."></div>
-        </div></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Storia</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field">
-            <div class="row-between" style="margin-bottom:2px;">
-              <label style="margin:0;">Storie pubblicate dal Narratore</label>
-              <button class="btn btn-icon btn-ghost btn-sm" id="btn-refresh-stories" title="Aggiorna elenco" style="width:24px;height:24px;">🔄</button>
-            </div>
-            <select id="f-storia-select"><option value="">— scegli dall'elenco, oppure scrivi il nome sotto —</option></select>
-          </div>
-          <div class="field"><label>Storia a cui partecipa</label><input type="text" id="f-storia" placeholder="Il nome della storia concordato col Narratore"></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-ghost btn-sm" id="btn-share-master">📋 Copia per il Narratore</button>
-            <button class="btn btn-ghost btn-sm" id="btn-premesse">📜 Premesse della storia</button>
-          </div>
-          <p class="helper-text" style="margin:0;">Copia la scheda negli appunti (senza l'immagine del volto): incollala nella chat col Narratore, che la importerà nella sua Area. Ricopiala dopo ogni aggiornamento importante.</p>
-        </div></div>
-
-        <div class="section-title"><span class="dot"></span>Classe</div>
-        <p class="helper-text" id="build-helper">La classe determina i moltiplicatori di HP/MP, la dotazione iniziale e i P.R. di partenza.</p>
-        <div class="build-grid" id="build-grid"></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Bellezza</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <p class="helper-text">Se non definita nel background: 1d20.</p>
-          <div class="roll-row">
-            <button class="btn btn-magic" id="roll-bellezza-btn">Tira Bellezza</button>
-            <div class="roll-result" id="bellezza-result">—</div>
-          </div>
-          <div class="field" style="margin-top:10px;"><label>Oppure imposta manualmente</label><input type="number" id="f-bellezza-manuale" placeholder="valore da background"></div>
-        </div></div>
       </div>
 
       <!-- ---- STATISTICHE (Primarie + Terziarie) ---- -->
@@ -472,78 +538,6 @@
           <thead><tr><th>Lv</th><th class="num">AP</th><th>Perk (Capacità/Combattive/Conoscenze)</th><th>Nota</th></tr></thead>
           <tbody id="level-table-body"></tbody>
         </table></div>
-      </div>
-
-      <!-- ---- BACKGROUND ---- -->
-      <div class="tab-panel" data-panel="note">
-        <p class="helper-text">Il testo grigio in ogni campo è un consiglio di compilazione: sparisce appena scrivi qualcosa di tuo.</p>
-
-        <div class="section-title"><span class="dot neutral"></span>Dati generali</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field-row">
-            <div class="field"><label>Data di nascita</label><input type="text" data-bg="nascitaData" placeholder="Quando è nato/a"></div>
-            <div class="field"><label>Luogo di nascita</label><input type="text" data-bg="nascitaLuogo" placeholder="Dove è nato/a e com'è quel luogo"></div>
-          </div>
-          <div class="field"><label>Origini</label><input type="text" data-bg="origini" placeholder="Radici familiari, culturali o etniche"></div>
-          <div class="field"><label>Descrizione in una frase</label><input type="text" data-bg="frase" placeholder="Una frase che lo/la riassume, es. «Meglio sporcarsi le mani che restare a guardare!»"></div>
-        </div></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Aspetto</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field-row">
-            <div class="field"><label>Altezza</label><input type="text" data-bg="altezza" placeholder="es. 1,70"></div>
-            <div class="field"><label>Peso</label><input type="text" data-bg="peso" placeholder="es. 68 kg"></div>
-          </div>
-          <div class="field-row">
-            <div class="field"><label>Colore della pelle</label><input type="text" data-bg="pelle" placeholder="es. carnagione olivastra"></div>
-            <div class="field"><label>Acconciatura</label><input type="text" data-bg="acconciatura" placeholder="Taglio, colore, come porta i capelli"></div>
-          </div>
-          <div class="field"><label>Colore degli occhi</label><textarea data-bg="occhi" placeholder="Colore o particolarità degli occhi (anche impianti e innesti)"></textarea></div>
-          <div class="field"><label>Segni particolari</label><textarea data-bg="segni" placeholder="Cicatrici, tatuaggi, innesti, marchi..."></textarea></div>
-          <div class="field"><label>Tipo di corporatura</label><textarea data-bg="corporatura" placeholder="Fisico e costituzione, es. muscoloso e asciutto per l'addestramento"></textarea></div>
-          <div class="field"><label>Postura</label><textarea data-bg="postura" placeholder="Come si tiene e si muove: cosa comunica il suo corpo"></textarea></div>
-          <div class="field"><label>Vestiario</label><textarea data-bg="vestiario" placeholder="Come si veste di solito: colori, capi e dettagli ricorrenti"></textarea></div>
-          <div class="field"><label>Qualcosa che porta sempre con sé</label><textarea data-bg="oggetto" placeholder="Un oggetto da cui non si separa mai, e perché conta per lui/lei"></textarea></div>
-        </div></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Vita</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field"><label>Incompetenze</label><textarea data-bg="incompetenze" placeholder="Cosa non sa fare: lacune e limiti"></textarea></div>
-          <div class="field"><label>Debolezze</label><textarea data-bg="debolezze" placeholder="Punti deboli fisici o mentali, dipendenze e il loro prezzo"></textarea></div>
-          <div class="field"><label>Hobby</label><textarea data-bg="hobby" placeholder="Passatempi e attività fuori dall'avventura"></textarea></div>
-          <div class="field"><label>Abitudini</label><textarea data-bg="abitudini" placeholder="Routine e piccoli rituali quotidiani"></textarea></div>
-        </div></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Atteggiamento</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field"><label>Personalità</label><textarea data-bg="personalita" placeholder="Com'è di carattere e come si comporta con gli altri"></textarea></div>
-          <div class="field"><label>Morale</label><textarea data-bg="morale" placeholder="La sua bussola morale: cosa è giusto per lui/lei, che codice segue"></textarea></div>
-          <div class="field"><label>Autocontrollo</label><textarea data-bg="autocontrollo" placeholder="Come reagisce sotto pressione e nel pericolo"></textarea></div>
-          <div class="field"><label>Motivazione</label><textarea data-bg="motivazione" placeholder="Cosa lo/la spinge ad agire"></textarea></div>
-          <div class="field"><label>Scoraggiamento</label><textarea data-bg="scoraggiamento" placeholder="Cosa lo/la abbatte e come reagisce allo sconforto"></textarea></div>
-          <div class="field"><label>Livello di sicurezza</label><textarea data-bg="sicurezza" placeholder="Quanta fiducia ha in sé: quella che mostra e quella vera"></textarea></div>
-          <div class="field"><label>Filosofia</label><textarea data-bg="filosofia" placeholder="La sua visione del mondo in poche righe"></textarea></div>
-          <div class="field"><label>Paura più grande / Fobia</label><textarea data-bg="paura" placeholder="Cosa teme più di ogni altra cosa"></textarea></div>
-          <div class="field"><label>Obiettivo a breve termine</label><textarea data-bg="obiettivoBreve" placeholder="Cosa vuole ottenere adesso"></textarea></div>
-          <div class="field"><label>Obiettivo a lungo termine</label><textarea data-bg="obiettivoLungo" placeholder="Il traguardo della sua vita"></textarea></div>
-        </div></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Passato</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field"><label>Infanzia</label><textarea data-bg="infanzia" placeholder="Dove e come è cresciuto/a: famiglia, ambiente, primi valori"></textarea></div>
-          <div class="field"><label>Evento passato importante</label><textarea data-bg="eventoImportante" placeholder="Uno o più eventi che l'hanno segnato/a profondamente"></textarea></div>
-          <div class="field"><label>Segreto</label><textarea data-bg="segreto" placeholder="Cosa nasconde a tutti, e perché"></textarea></div>
-          <div class="field"><label>Peggior momento</label><textarea data-bg="peggiorMomento" placeholder="Il giorno più difficile della sua vita"></textarea></div>
-          <div class="field"><label>Miglior momento</label><textarea data-bg="migliorMomento" placeholder="Il ricordo più felice"></textarea></div>
-        </div></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Relazioni</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <div class="field"><label>Familiari, amici, conoscenti</label><textarea data-bg="relazioni" style="min-height:110px;" placeholder="Per ogni relazione importante indica: Nome · Relazione (che rapporto li lega) · Descrizione (com'è fatto/a)"></textarea></div>
-        </div></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Note libere</div>
-        <div class="field"><textarea id="n-libere" placeholder="Qualsiasi altra annotazione di gioco..."></textarea></div>
       </div>
 
     </div>
