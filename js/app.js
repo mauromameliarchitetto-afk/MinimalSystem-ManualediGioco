@@ -1084,6 +1084,20 @@ const GROWTH_COST_FN = {
   primary: primaryApCostForPoint,
   tertiary: tertiaryApCostForPoint
 };
+// HP/MP hanno un solo valore in scheda: alla selezione, "Valore attuale" lo
+// richiama dal Fronte Scheda al netto di bonus/malus attivi (hpMaxTracked/
+// mpMaxTracked, non l'effettivo con i buff). Per attributo primario/P.R. e
+// terziarie non c'è un'unica statistica da richiamare: il campo resta libero.
+function growthCurrentFromSheet(c, type) {
+  if (type === 'hp') return Number(c.hpMaxTracked) || 0;
+  if (type === 'mp') return Number(c.mpMaxTracked) || 0;
+  return null;
+}
+function syncGrowthCurrent() {
+  const c = getActive(); if (!c) return;
+  const val = growthCurrentFromSheet(c, $('#growth-type').value);
+  if (val !== null) $('#growth-current').value = val;
+}
 function updateGrowthCost() {
   const c = getActive(); if (!c) return;
   const type = $('#growth-type').value;
@@ -1416,6 +1430,7 @@ function renderSheet() {
   highlightCurrentLevel(c);
   renderTertiaryCostTable();
   renderTertiaryPlusMinus(c);
+  syncGrowthCurrent();
   updateGrowthCost();
   renderSlots(c);
   renderWeaponSlots(c);
@@ -2234,6 +2249,7 @@ function wireStaticEvents() {
     $(sel).addEventListener('input', updateGrowthCost);
     $(sel).addEventListener('change', updateGrowthCost);
   });
+  $('#growth-type').addEventListener('change', () => { syncGrowthCurrent(); updateGrowthCost(); });
 
   $$('.tertiary-pm-wrap').forEach(wrap => wrap.addEventListener('click', e => {
     const btn = e.target.closest('[data-pm]');
