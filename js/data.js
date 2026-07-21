@@ -174,6 +174,15 @@ function qiLimite(qi) {
 
 function rollDie(sides) { return 1 + Math.floor(Math.random() * sides); }
 
+// Dado per il tiro di una statistica primaria, in base al suo valore
+function diceForValue(v) {
+  if (v <= 10) return 'd4';
+  if (v <= 20) return 'd6';
+  if (v <= 30) return 'd8';
+  if (v <= 40) return 'd12';
+  return 'd12+d8';
+}
+
 // Attributi Primari (HP/MP/FOR/F.MEN/DIF/D.MEN/Mira/DEX/VEL) e P.R. — dopo il
 // Lv1 crescono tutti con la stessa tabella costi (il rapporto "1 punto
 // base = 1 AP" di HP/MP vale solo durante la creazione, quando il punto
