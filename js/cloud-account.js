@@ -603,18 +603,23 @@ function renderPlayerStoriesBox() {
   }
   box.innerHTML = characters.map(c => {
     let status;
+    let canReadPremise = false;
     if (c.cloudCampaignId && c.cloudCampaignTrashedAt) {
       status = `«${c.cloudCampaignName || c.cloudJoinCampaignName}» — eliminata dal Narratore, nel cestino`;
     } else if (c.cloudCampaignId) {
       status = `«${c.cloudCampaignName || c.cloudJoinCampaignName || 'storia'}» — in gioco (Lv ${c.livello || 1})`;
+      canReadPremise = !!c.cloudCampaignPremisePublished;
     } else if (c.cloudJoinRequestId) {
       status = `«${c.cloudJoinCampaignName || 'storia'}» — in attesa di conferma del Narratore`;
     } else {
       status = 'Nessuna storia — apri la scheda, tab Identità, per entrare in una';
     }
-    return `<div class="row-between" data-openchar="${c.id}" style="cursor:pointer;padding:4px 0;">
+    return `<div class="row-between" data-openchar="${c.id}" style="cursor:pointer;padding:4px 0;flex-wrap:wrap;gap:6px;">
       <span>${escapeHtml(c.nome || 'Senza nome')}</span>
-      <span class="helper-text" style="margin:0;text-align:right;">${status}</span>
+      <span style="display:flex;align-items:center;gap:8px;">
+        <span class="helper-text" style="margin:0;text-align:right;">${status}</span>
+        ${canReadPremise ? `<button type="button" class="btn btn-ghost btn-sm" data-readpremise="${c.id}" title="Leggi la premessa senza aprire la scheda">📖 Premessa</button>` : ''}
+      </span>
     </div>`;
   }).join('');
 }
@@ -628,9 +633,20 @@ function wireCloudAccountEvents() {
     $('#account-mode-giocatore').classList.toggle('active', btn.dataset.accmode === 'giocatore');
   });
 
-  $('#account-mode-giocatore').addEventListener('click', e => {
+  $('#account-mode-giocatore').addEventListener('click', async e => {
     if (e.target.id === 'acc-goto-new-char') { createCharacterFlow(); return; }
     if (e.target.id === 'acc-goto-char-list') { renderCharList(); showView('list'); return; }
+    const readBtn = e.target.closest('[data-readpremise]');
+    if (readBtn) {
+      const c = characters.find(x => x.id === readBtn.dataset.readpremise);
+      if (!c || !c.cloudCampaignId) return;
+      try {
+        const bytes = await downloadCampaignPremiseBytes(c.cloudCampaignId);
+        const title = c.cloudCampaignPremiseTitle || c.cloudJoinCampaignName || 'Premessa';
+        if (window.MSPdfViewer) window.MSPdfViewer.open({ bytes, title, label: c.nome || 'Giocatore' });
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
     const row = e.target.closest('[data-openchar]');
     if (row) { openCharacter(row.dataset.openchar); showTab('identita'); return; }
   });

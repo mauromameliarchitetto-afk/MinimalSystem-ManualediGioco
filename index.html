@@ -34,8 +34,6 @@
       <div class="cm-label">Indice</div>
       <button class="cm-item" data-menu-nav="account">Account</button>
       <button class="cm-item" data-menu-nav="rules">Le regole</button>
-      <button class="cm-item" data-menu-nav="master">Area del Narratore</button>
-      <button class="cm-item" data-menu-nav="premises">Premesse di gioco</button>
       <div class="cm-sep"></div>
       <div class="cm-label">Scheda personaggio</div>
       <button class="cm-item" data-menu-tab="identita">Identità</button>
@@ -118,22 +116,24 @@
           <div class="field"><label>Ruolo / occupazione</label><input type="text" id="f-ruolo" placeholder="es. Barista, mercenaria..."></div>
         </div></div>
 
-        <div class="section-title"><span class="dot neutral"></span>Storia</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field">
-            <div class="row-between" style="margin-bottom:2px;">
-              <label style="margin:0;">Storie pubblicate dal Narratore</label>
-              <button class="btn btn-icon btn-ghost btn-sm" id="btn-refresh-stories" title="Aggiorna elenco" style="width:24px;height:24px;">🔄</button>
+        <div id="storia-legacy-section">
+          <div class="section-title"><span class="dot neutral"></span>Storia</div>
+          <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+            <div class="field">
+              <div class="row-between" style="margin-bottom:2px;">
+                <label style="margin:0;">Storie pubblicate dal Narratore</label>
+                <button class="btn btn-icon btn-ghost btn-sm" id="btn-refresh-stories" title="Aggiorna elenco" style="width:24px;height:24px;">🔄</button>
+              </div>
+              <select id="f-storia-select"><option value="">— scegli dall'elenco, oppure scrivi il nome sotto —</option></select>
             </div>
-            <select id="f-storia-select"><option value="">— scegli dall'elenco, oppure scrivi il nome sotto —</option></select>
-          </div>
-          <div class="field"><label>Storia a cui partecipa</label><input type="text" id="f-storia" placeholder="Il nome della storia concordato col Narratore"></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-ghost btn-sm" id="btn-share-master">📋 Copia per il Narratore</button>
-            <button class="btn btn-ghost btn-sm" id="btn-premesse">📜 Premesse della storia</button>
-          </div>
-          <p class="helper-text" style="margin:0;">Copia la scheda negli appunti (senza l'immagine del volto): incollala nella chat col Narratore, che la importerà nella sua Area. Ricopiala dopo ogni aggiornamento importante.</p>
-        </div></div>
+            <div class="field"><label>Storia a cui partecipa</label><input type="text" id="f-storia" placeholder="Il nome della storia concordato col Narratore"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-ghost btn-sm" id="btn-share-master">📋 Copia per il Narratore</button>
+              <button class="btn btn-ghost btn-sm" id="btn-premesse">📜 Premesse della storia</button>
+            </div>
+            <p class="helper-text" style="margin:0;">Copia la scheda negli appunti (senza l'immagine del volto): incollala nella chat col Narratore, che la importerà nella sua Area. Ricopiala dopo ogni aggiornamento importante.</p>
+          </div></div>
+        </div>
 
         <div class="section-title"><span class="dot neutral"></span>Storia in cloud</div>
         <div class="box"><div class="box-bar"></div><div class="box-pad" id="cloud-story-box" style="display:flex;flex-direction:column;gap:12px;">
@@ -313,6 +313,24 @@
               <select id="boost-activate-select"><option value="">Nessun boost appreso</option></select>
               <button class="btn btn-sm btn-ghost" id="boost-activate-btn">Attiva</button>
             </div>
+          </div>
+        </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Riposo</div>
+        <p class="helper-text">Il riposo o la meditazione recuperano HP/MP spendendo i P.R.: imposta il moltiplicatore (a scaglioni di un quarto, es. 0.25, 0.5, 0.75, 1, 1.25…) e scegli come dividere il recupero ottenuto tra HP e MP in Uso.</p>
+        <div class="box"><div class="box-bar"></div><div class="box-pad">
+          <button class="btn btn-ghost btn-sm" id="btn-riposo-toggle" style="align-self:flex-start;">💤 Riposo / Meditazione</button>
+          <div id="riposo-panel" class="hidden" style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
+            <div class="field"><label>Moltiplicatore (0 – 24, a scaglioni di 0,25)</label>
+              <input type="number" id="riposo-moltiplicatore" min="0" max="24" step="0.25" value="0">
+            </div>
+            <p class="helper-text" style="margin:0;">Recupero disponibile: <strong id="riposo-totale">0</strong> punti (P.R. <span id="riposo-pr-eff">0</span> × moltiplicatore)</p>
+            <div class="field-row">
+              <div class="field"><label>Recupera HP</label><input type="number" id="riposo-hp" min="0" value="0"></div>
+              <div class="field"><label>Recupera MP</label><input type="number" id="riposo-mp" min="0" value="0"></div>
+            </div>
+            <p class="helper-text" style="margin:0;">Residuo non speso: <span id="riposo-residuo">0</span></p>
+            <button class="btn btn-primary btn-sm" id="btn-riposo-applica" style="align-self:flex-start;">Applica riposo</button>
           </div>
         </div></div>
 
