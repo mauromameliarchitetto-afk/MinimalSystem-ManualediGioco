@@ -163,6 +163,74 @@ async function listMyCampaigns() {
   return data;
 }
 
+/* -------------------------------------------------- premessa (Narratore) */
+
+/* Un solo PDF per campagna, in Storage sul percorso <campaign_id>/premessa.pdf
+   (sovrascritto a ogni caricamento) — al posto del vecchio sistema locale a
+   password + token GitHub personale ("Area del Narratore"/"Premesse di
+   gioco", rimasto invariato e indipendente). I metadati (titolo, nome file,
+   dimensione, pubblicata) vivono invece nella riga della campagna, protetti
+   dalla stessa policy "solo owner" gia' in uso per il resto della campagna. */
+const PREMISE_MAX_BYTES = 30 * 1024 * 1024;
+function premisePath(campaignId) { return `${campaignId}/premessa.pdf`; }
+
+async function getCampaignPremiseInfo(campaignId) {
+  const { data, error } = await withTimeout(
+    sb.from('campaigns').select('premise_title, premise_filename, premise_size, premise_published, premise_updated_at').eq('id', campaignId).single(),
+    'Premessa campagna'
+  );
+  if (error) throw error;
+  return data;
+}
+
+async function uploadCampaignPremise(campaignId, file, title) {
+  if (file.size > PREMISE_MAX_BYTES) throw new Error(`PDF troppo grande (${(file.size / (1024 * 1024)).toFixed(1)} MB): il limite è 30 MB`);
+  const { error: upErr } = await withTimeout(
+    sb.storage.from('premises').upload(premisePath(campaignId), file, { upsert: true, contentType: 'application/pdf' }),
+    'Caricamento PDF'
+  );
+  if (upErr) throw upErr;
+  const { error } = await withTimeout(
+    sb.from('campaigns').update({
+      premise_title: (title || '').trim() || file.name.replace(/\.pdf$/i, ''),
+      premise_filename: file.name,
+      premise_size: file.size,
+      premise_updated_at: new Date().toISOString()
+    }).eq('id', campaignId),
+    'Salvataggio premessa'
+  );
+  if (error) throw error;
+}
+
+async function setCampaignPremisePublished(campaignId, published) {
+  const { error } = await withTimeout(
+    sb.from('campaigns').update({ premise_published: published }).eq('id', campaignId),
+    'Pubblicazione premessa'
+  );
+  if (error) throw error;
+}
+
+async function removeCampaignPremise(campaignId) {
+  await withTimeout(sb.storage.from('premises').remove([premisePath(campaignId)]), 'Rimozione PDF');
+  const { error } = await withTimeout(
+    sb.from('campaigns').update({
+      premise_title: null, premise_filename: null, premise_size: null,
+      premise_published: false, premise_updated_at: null
+    }).eq('id', campaignId),
+    'Rimozione premessa'
+  );
+  if (error) throw error;
+}
+
+/* Usata sia dal Narratore (anteprima, anche in bozza) sia dal giocatore
+   (lettura, solo se pubblicata): la RLS di Storage decide da sola cosa e'
+   davvero leggibile per chi chiama, qui c'e' solo il download dei byte. */
+async function downloadCampaignPremiseBytes(campaignId) {
+  const { data, error } = await withTimeout(sb.storage.from('premises').download(premisePath(campaignId)), 'Lettura premessa');
+  if (error) throw error;
+  return new Uint8Array(await data.arrayBuffer());
+}
+
 /* Profili (solo nome visualizzato) per una lista di user_id: usata per
    mostrare "chi" ha fatto una richiesta o possiede un personaggio, senza
    esporre email/altri dati (profiles non li contiene comunque). */
@@ -305,8 +373,41 @@ function campaignsBoxHtml(session, campaigns) {
     <div class="field-row">
       <div class="field"><label>Nome campagna</label><input type="text" id="acc-new-campaign-name" placeholder="es. La Torre di Vetro"></div>
     </div>
+    <div class="field"><label>Premessa (facoltativa)</label><input type="text" id="acc-new-campaign-premise-title" placeholder="es. Sessione 1 — L'arrivo"></div>
+    <div id="acc-new-campaign-premise-info"><div class="helper-text" style="margin:0;">Nessun PDF selezionato.</div></div>
+    <input type="file" id="acc-new-campaign-premise-input" accept="application/pdf" class="hidden">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" id="acc-new-campaign-premise-upload">📄 Scegli PDF premessa</button>
+    </div>
+    <label class="row-between" style="cursor:pointer;">
+      <span class="helper-text" style="margin:0;">Pubblica subito (visibile ai giocatori appena entrano)</span>
+      <input type="checkbox" id="acc-new-campaign-premise-publish">
+    </label>
     <button class="btn btn-primary btn-sm" id="acc-create-campaign" style="align-self:flex-start;">Crea campagna</button>
     <div id="acc-campaign-list" style="margin-top:6px;">${list}</div>
+  `;
+}
+
+function campaignPremiseHtml(campaignId, premise) {
+  const has = !!premise.premise_filename;
+  const info = has
+    ? `<div class="pr-title">${escapeHtml(premise.premise_title || premise.premise_filename)}</div>
+       <div class="pr-text">${escapeHtml(premise.premise_filename)} · ${Math.round((premise.premise_size || 0) / 1024)} KB${premise.premise_updated_at ? ' · aggiornata ' + new Date(premise.premise_updated_at).toLocaleString('it-IT') : ''}</div>`
+    : '<div class="helper-text" style="margin:0;">Nessun PDF caricato.</div>';
+  return `
+    <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Premessa</div>
+    <div class="field"><label>Titolo</label><input type="text" data-premisetitle="${campaignId}" placeholder="es. Sessione 1 — L'arrivo" value="${escapeHtml(premise.premise_title || '')}"></div>
+    <div>${info}</div>
+    <input type="file" data-premiseinput="${campaignId}" accept="application/pdf" class="hidden">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" data-premiseupload="${campaignId}">📄 ${has ? 'Sostituisci PDF' : 'Carica PDF'}</button>
+      ${has ? `<button class="btn btn-ghost btn-sm" data-premisepreview="${campaignId}">👁 Anteprima</button>` : ''}
+      ${has ? `<button class="btn btn-ghost btn-sm" data-premiseremove="${campaignId}">✕ Rimuovi</button>` : ''}
+    </div>
+    <label class="row-between" style="cursor:pointer;">
+      <span class="helper-text" style="margin:0;">Pubblica (visibile ai giocatori della storia)</span>
+      <input type="checkbox" data-premisepublish="${campaignId}" ${premise.premise_published ? 'checked' : ''} ${has ? '' : 'disabled'}>
+    </label>
   `;
 }
 
@@ -332,7 +433,7 @@ function campaignCharacterRowHtml(ch) {
 
 async function campaignDetailHtml(campaignId) {
   try {
-    const [pending, chars] = await Promise.all([listPendingJoinRequests(campaignId), listCampaignCharacters(campaignId)]);
+    const [pending, chars, premise] = await Promise.all([listPendingJoinRequests(campaignId), listCampaignCharacters(campaignId), getCampaignPremiseInfo(campaignId)]);
     const pendingHtml = pending.length
       ? pending.map(joinRequestRowHtml).join('')
       : '<p class="helper-text" style="margin:0;">Nessuna richiesta in attesa.</p>';
@@ -340,6 +441,7 @@ async function campaignDetailHtml(campaignId) {
       ? chars.map(campaignCharacterRowHtml).join('')
       : '<p class="helper-text" style="margin:0;">Nessun personaggio ancora in questa storia.</p>';
     return `
+      ${campaignPremiseHtml(campaignId, premise)}
       <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Richieste in attesa</div>
       ${pendingHtml}
       <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Personaggi in gioco</div>
@@ -540,10 +642,46 @@ function wireCloudAccountEvents() {
       const nameInput = $('#acc-new-campaign-name');
       const name = nameInput ? nameInput.value.trim() : '';
       if (!name) { toast('Dai un nome alla campagna'); return; }
+      const fileInput = $('#acc-new-campaign-premise-input');
+      const file = fileInput && fileInput.files[0];
+      const titleInput = $('#acc-new-campaign-premise-title');
+      const title = titleInput ? titleInput.value.trim() : '';
+      const publishNow = !!($('#acc-new-campaign-premise-publish') && $('#acc-new-campaign-premise-publish').checked);
       try {
-        await createCampaign(name);
-        toast('Campagna creata');
+        const campaign = await createCampaign(name);
+        if (file) {
+          await uploadCampaignPremise(campaign.id, file, title);
+          if (publishNow) await setCampaignPremisePublished(campaign.id, true);
+        }
+        toast(file ? 'Campagna creata con premessa' : 'Campagna creata');
         renderAccountArea();
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.id === 'acc-new-campaign-premise-upload') { $('#acc-new-campaign-premise-input').click(); return; }
+    if (e.target.dataset.premiseupload) {
+      const input = $(`[data-premiseinput="${e.target.dataset.premiseupload}"]`);
+      if (input) input.click();
+      return;
+    }
+    if (e.target.dataset.premisepreview) {
+      const campaignId = e.target.dataset.premisepreview;
+      const row = e.target.closest('.cm-campaign-detail')?.previousElementSibling;
+      const title = (row && row.dataset && row.dataset.campaignname) || 'Premessa';
+      try {
+        const bytes = await downloadCampaignPremiseBytes(campaignId);
+        if (window.MSPdfViewer) window.MSPdfViewer.open({ bytes, title, label: 'Narratore · ' + title });
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.premiseremove) {
+      const campaignId = e.target.dataset.premiseremove;
+      if (!confirm('Rimuovere il PDF della premessa? Se era pubblicata, i giocatori non la vedranno più.')) return;
+      try {
+        await removeCampaignPremise(campaignId);
+        toast('Premessa rimossa');
+        const detail = $(`.cm-campaign-detail[data-detailfor="${campaignId}"]`);
+        if (detail) detail.innerHTML = await campaignDetailHtml(campaignId);
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
@@ -594,6 +732,53 @@ function wireCloudAccountEvents() {
         toast('Campagna spostata nel cestino');
         renderAccountArea();
       } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+  });
+
+  $('#account-campaigns-box').addEventListener('change', async e => {
+    if (e.target.id === 'acc-new-campaign-premise-input') {
+      const file = e.target.files[0];
+      const info = $('#acc-new-campaign-premise-info');
+      if (!file) { info.innerHTML = '<div class="helper-text" style="margin:0;">Nessun PDF selezionato.</div>'; return; }
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      if (!isPdf) { toast('Seleziona un file PDF'); e.target.value = ''; return; }
+      if (file.size > PREMISE_MAX_BYTES) { toast(`PDF troppo grande (${(file.size / (1024 * 1024)).toFixed(1)} MB): il limite è 30 MB`); e.target.value = ''; return; }
+      info.innerHTML = `<div class="pr-title">${escapeHtml(file.name)}</div><div class="pr-text">${Math.round(file.size / 1024)} KB</div>`;
+      return;
+    }
+    if (e.target.dataset.premiseinput) {
+      const campaignId = e.target.dataset.premiseinput;
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      if (!isPdf) { toast('Seleziona un file PDF'); return; }
+      if (file.size > PREMISE_MAX_BYTES) { toast(`PDF troppo grande (${(file.size / (1024 * 1024)).toFixed(1)} MB): il limite è 30 MB`); return; }
+      const titleInput = $(`[data-premisetitle="${campaignId}"]`);
+      const title = titleInput ? titleInput.value.trim() : '';
+      try {
+        await uploadCampaignPremise(campaignId, file, title);
+        toast('PDF caricato');
+        const detail = $(`.cm-campaign-detail[data-detailfor="${campaignId}"]`);
+        if (detail) detail.innerHTML = await campaignDetailHtml(campaignId);
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.premisepublish) {
+      const campaignId = e.target.dataset.premisepublish;
+      const checked = e.target.checked;
+      e.target.disabled = true;
+      try {
+        await setCampaignPremisePublished(campaignId, checked);
+        toast(checked ? 'Premessa pubblicata: ora è visibile ai giocatori' : 'Premessa non più pubblicata');
+      } catch (err) {
+        e.target.checked = !checked;
+        toast('Errore: ' + err.message);
+      } finally {
+        const detail = $(`.cm-campaign-detail[data-detailfor="${campaignId}"]`);
+        if (detail) detail.innerHTML = await campaignDetailHtml(campaignId);
+      }
       return;
     }
   });
