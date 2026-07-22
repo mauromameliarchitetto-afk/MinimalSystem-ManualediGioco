@@ -1290,6 +1290,12 @@ function changePrimary(c, key, newVal) {
     toast('Statistiche confermate: si sbloccano solo con un level-up');
     return null;
   }
+  // il P.R. e' fisso da classe fino al Lv1 (nessuna crescita, nemmeno con
+  // AP): solo dal Lv2 in poi si puo' iniziare a farlo crescere
+  if (isPr && Number(c.livello) < 2) {
+    toast('P.R. è fisso in base alla classe fino al Lv1: si può far crescere solo dal Lv2 in poi');
+    return null;
+  }
   if (Number(c.livello) > 1 || isPr) {
     const costFn = key === 'hp' ? hpApCostForPoint : key === 'mp' ? mpApCostForPoint : primaryApCostForPoint;
     let cost = 0;
@@ -1746,12 +1752,15 @@ function updateStoriaLegacyVisibility(c) {
   el.classList.toggle('hidden', !!(c.cloudCampaignId || c.cloudJoinRequestId));
 }
 
-/* Il livello, una volta in una campagna cloud, lo assegna solo il Narratore
-   (RPC narratore_set_level): il giocatore non deve poterlo modificare a mano
-   né dalla tab Livelli né dal diagramma, altrimenti si accrediterebbe da
-   solo AP non autorizzati. Fuori da una campagna (gioco locale, nessun
-   Narratore) resta libero come sempre. */
-function isLevelLocked(c) { return !!c.cloudCampaignId; }
+/* Il livello, una volta legato a un Narratore (in campagna, o anche solo
+   con una richiesta di ingresso in attesa), lo assegna solo lui (RPC
+   narratore_set_level): il giocatore non deve poterlo modificare a mano né
+   dalla tab Livelli né dal diagramma, altrimenti si accrediterebbe da solo
+   AP non autorizzati — anche mentre la richiesta è ancora in attesa,
+   altrimenti potrebbe gonfiarsi il livello prima di essere accettato. Fuori
+   da qualsiasi rapporto con un Narratore (gioco locale) resta libero come
+   sempre. */
+function isLevelLocked(c) { return !!(c.cloudCampaignId || c.cloudJoinRequestId); }
 function updateLevelLockUI(c) {
   const locked = isLevelLocked(c);
   const input = $('#f-livello');

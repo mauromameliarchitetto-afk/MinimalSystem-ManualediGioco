@@ -353,6 +353,12 @@ async function narratoreAddCustomTraitCloud(characterId, listKey, name, value) {
   );
   if (error) throw error;
 }
+/* Rimuove un personaggio dalla campagna (kick): la scheda resta del
+   giocatore, solo scollegata dalla storia. */
+async function narratoreRemoveCharacterCloud(characterId) {
+  const { error } = await withTimeout(sb.rpc('narratore_remove_character', { p_character_id: characterId }), 'Rimozione personaggio');
+  if (error) throw error;
+}
 
 /* ------------------------------------------------------------- cestino */
 
@@ -540,6 +546,7 @@ function campaignCharacterRowHtml(ch) {
       <input type="number" min="1" max="20" value="${ch.level}" data-levelinput="${ch.id}" style="width:52px;">
       <button class="btn btn-sm btn-ghost" data-setlevel="${ch.id}">Assegna</button>
       <button type="button" class="btn btn-icon btn-sm btn-ghost" data-toggletraits="${ch.id}" title="Concedi punti tratto">🎁</button>
+      <button type="button" class="btn btn-icon btn-sm btn-ghost" data-removechar="${ch.id}" title="Rimuovi dalla storia" style="color:var(--fisico-forte);">✕</button>
     </span>
   </div>
   <div class="hidden" data-chartraits="${ch.id}" style="padding:2px 8px 10px;">
@@ -915,6 +922,19 @@ function wireCloudAccountEvents() {
         await trashCampaignCloud(campaignId);
         toast('Campagna spostata nel cestino');
         renderAccountArea();
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.removechar) {
+      const charId = e.target.dataset.removechar;
+      const row = e.target.closest('[data-charrow]');
+      const charName = row ? row.querySelector('span')?.textContent?.trim() : 'questo personaggio';
+      if (!confirm(`Rimuovere "${charName}" dalla storia? La sua scheda resta al giocatore, solo scollegata da questa campagna.`)) return;
+      try {
+        await narratoreRemoveCharacterCloud(charId);
+        toast('Personaggio rimosso dalla storia');
+        const detail = e.target.closest('.cm-campaign-detail');
+        detail.innerHTML = await campaignDetailHtml(detail.dataset.detailfor);
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
