@@ -118,15 +118,28 @@ const TRAIT_LISTS = {
   capacitaCombattive: ['Tattica Militare', 'Ascia', 'Spada', 'Lancia', 'Arco', 'Spadone',
     'Guardia', 'Guarigione', 'Elusione', 'Robustezza', 'Arte Combattiva', 'Spirito']
 };
-// Pool unico alla creazione (Lv 1): 15 punti spendibili in totale tra
-// Conoscenze, Capacità Normali e Capacità Combattive
+// Alla creazione (Lv 1): 15 punti in totale, divisi in tre pool separati e
+// NON fungibili tra loro (5 a testa) — Conoscenze, Capacità Normali e
+// Capacità Combattive sono tre "tipologie di punti" indipendenti: i punti
+// di una non si possono spendere sulle altre due. Dal Lv 2 in poi la
+// tabella limiti di livello aggiunge, per ciascuna categoria, solo il
+// bonus di quella categoria (vedi perkGainForLevel/traitBonusAtLevel).
 const TRAIT_POOL = 15;
+const TRAIT_POOL_PER_LIST = TRAIT_POOL / 3;
 
 const TRAIT_LIST_LABELS = {
   conoscenze: 'Conoscenze',
   capacitaNormali: 'Capacità Normali',
   capacitaCombattive: 'Capacità Combattive'
 };
+
+// Punti spendibili in una singola categoria (conoscenze/capacitaNormali/
+// capacitaCombattive) al livello dato: quota di creazione + solo il bonus
+// di QUELLA categoria dai level-up attraversati.
+function traitsPoolForList(listKey, livello) {
+  const bonus = traitBonusAtLevel(livello || 1);
+  return TRAIT_POOL_PER_LIST + (bonus[listKey] || 0);
+}
 
 // Equipaggiamento (retro scheda): range di Atk/Dif/Durabilità per tipo,
 // taglia e qualità, come da tabella ufficiale del manuale
