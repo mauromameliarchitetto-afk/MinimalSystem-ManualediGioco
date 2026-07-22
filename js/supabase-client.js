@@ -7,10 +7,15 @@
 const SUPABASE_URL = 'https://gaoaipykiavweeeziwnd.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_0rjznlvnGlerTGCV3QepJQ_t3--sUcv';
 
+/* Piano gratuito Supabase: il template email non e' personalizzabile senza
+   SMTP esterno, quindi l'accesso via email arriva solo come link "Sign in"
+   (non un codice a 6 cifre digitabile). Il link riporta qui: detectSessionInUrl
+   fa si' che supabase-js completi da solo l'accesso leggendo il token
+   dall'URL al ritorno, senza altro codice da scrivere. */
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false
+    detectSessionInUrl: true
   }
 });

@@ -211,9 +211,10 @@ function accountStatusHtml(session, caps) {
     return `
       <p class="helper-text" style="margin:0;">Non sei connesso. Puoi comunque usare l'app in locale su questo dispositivo.</p>
       <div class="field"><label>Email</label><input type="email" id="acc-email" placeholder="tua@email.it" autocomplete="email"></div>
-      <button class="btn btn-primary btn-sm" id="acc-send-code" style="align-self:flex-start;">Invia codice di accesso</button>
+      <button class="btn btn-primary btn-sm" id="acc-send-code" style="align-self:flex-start;">Invia link di accesso</button>
       <div id="acc-code-row" class="hidden" style="display:flex;flex-direction:column;gap:8px;">
-        <div class="field"><label>Codice ricevuto via email</label><input type="text" inputmode="numeric" id="acc-code" placeholder="123456"></div>
+        <p class="helper-text" style="margin:0;">Ti abbiamo mandato un'email: apri il link "Sign in" che contiene per accedere (torni automaticamente qui). Se l'email mostra invece un codice, incollalo qui sotto.</p>
+        <div class="field"><label>Codice ricevuto via email (facoltativo)</label><input type="text" inputmode="numeric" id="acc-code" placeholder="123456"></div>
         <button class="btn btn-primary btn-sm" id="acc-verify-code" style="align-self:flex-start;">Conferma codice</button>
       </div>
       ${caps.google ? '<button class="btn btn-ghost btn-sm" id="acc-google">Accedi con Google</button>' : ''}
@@ -226,6 +227,7 @@ function accountStatusHtml(session, caps) {
       <p class="helper-text" style="margin:0;">Sei connesso come <strong>ospite</strong> (solo questo dispositivo): senza collegare un'identità, i dati non sincronizzati potrebbero andare persi.</p>
       <div class="field"><label>Email</label><input type="email" id="acc-email" placeholder="tua@email.it" autocomplete="email"></div>
       <button class="btn btn-primary btn-sm" id="acc-upgrade" style="align-self:flex-start;">Rendi permanente questo account</button>
+      <p class="helper-text" style="margin:0;">Ti arriverà un'email con un link: aprilo per confermare.</p>
     `;
   }
   return `
@@ -354,7 +356,7 @@ function wireCloudAccountEvents() {
       try {
         await sendEmailCode(email);
         $('#acc-code-row').classList.remove('hidden');
-        toast('Codice inviato: controlla la tua email');
+        toast('Email inviata: apri il link "Sign in" per accedere');
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
