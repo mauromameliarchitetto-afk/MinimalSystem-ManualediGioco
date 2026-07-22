@@ -66,11 +66,13 @@ async function syncCharacterFromCloud(c) {
 
   let changed = false;
 
-  // La campagna a cui eravamo iscritti non esiste piu': o e' stata svuotata
+  // Non siamo piu' agganciati alla campagna: o e' stata svuotata
   // definitivamente (purge, dopo 30 giorni nel cestino), oppure il Narratore
-  // l'ha eliminata. La scheda resta comunque nostra, solo scollegata.
+  // l'ha eliminata, oppure il Narratore ha rimosso proprio questo personaggio
+  // dalla storia (kick) senza toccare la campagna stessa. In ogni caso la
+  // scheda resta comunque nostra, solo scollegata.
   if (c.cloudCampaignId && !data.campaign_id) {
-    toast(`La storia «${c.cloudCampaignName || ''}» è stata eliminata definitivamente: la tua scheda resta nel tuo archivio.`);
+    toast(`Non fai più parte della storia «${c.cloudCampaignName || ''}»: la tua scheda resta nel tuo archivio.`);
     c.cloudCampaignId = null;
     c.cloudCampaignName = null;
     c.cloudCampaignTrashedAt = null;
@@ -110,8 +112,15 @@ async function syncCharacterFromCloud(c) {
     } catch (e) { /* nessun problema se non leggibile: restiamo con lo stato precedente */ }
   }
 
+  // In campagna il livello lo decide solo il Narratore (colonna "level",
+  // scritta solo da narratore_set_level): si riallinea in entrambe le
+  // direzioni, non solo verso l'alto, altrimenti un giocatore che avesse
+  // gonfiato il proprio livello (e i relativi AP) PRIMA di essere accettato
+  // in una storia manterrebbe il vantaggio per sempre, dato che il push al
+  // cloud non include mai "level" (parte sempre da 1). Fuori da una
+  // campagna il livello resta libero e non viene toccato qui.
   const cloudLevel = Number(data.level) || 1;
-  if (cloudLevel > (Number(c.livello) || 1)) {
+  if (data.campaign_id && cloudLevel !== (Number(c.livello) || 1)) {
     c.livello = cloudLevel;
     const fLivello = $('#f-livello');
     if (fLivello) fLivello.value = cloudLevel;
