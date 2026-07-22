@@ -93,11 +93,18 @@ async function signInWithPassword(email, password) {
   return data.session;
 }
 /* Password dimenticata: qui l'email è inevitabile (serve dimostrare il
-   possesso della casella), ma capita di rado, non a ogni accesso. */
+   possesso della casella), ma capita di rado, non a ogni accesso.
+   Il link NON usa lo schema personalizzato minimalsystem:// (a differenza
+   del resto dell'app nativa): molti client di posta (Gmail compreso) fanno
+   passare i link toccati attraverso un proprio redirect di controllo prima
+   di aprirli, e quel passaggio intermedio spesso non riesce a rilanciare
+   uno schema non-http, lasciando una pagina bianca. La password impostata
+   e' comunque condivisa da Supabase Auth fra app e sito: il link apre il
+   sito nel browser del telefono (redirect di default, gia' impostato sul
+   Site URL corretto), li' si imposta la nuova password, poi si torna
+   nell'app e si accede normalmente. */
 async function sendPasswordReset(email) {
-  const options = {};
-  if (AUTH_REDIRECT_URL) options.redirectTo = AUTH_REDIRECT_URL;
-  const { error } = await withTimeout(sb.auth.resetPasswordForEmail(email, options), 'Recupero password');
+  const { error } = await withTimeout(sb.auth.resetPasswordForEmail(email, {}), 'Recupero password');
   if (error) throw error;
 }
 /* Completa il recupero: va chiamata solo dopo aver aperto il link ricevuto
@@ -113,11 +120,13 @@ async function setNewPassword(newPassword) {
    loggato. A differenza della registrazione diretta, collegare un'email a
    un utente esistente richiede sempre una conferma via email (protegge da
    chi provasse a "rubare" l'email di qualcun altro): capita comunque una
-   sola volta, non a ogni accesso. */
+   sola volta, non a ogni accesso. Come per sendPasswordReset, niente
+   schema personalizzato qui: la conferma aggiorna l'utente lato server
+   comunque, non serve tornare per forza nell'app nativa, e il link
+   https di default arriva a destinazione anche quando il client di posta
+   lo fa passare da un proprio redirect di controllo. */
 async function upgradeGuestWithEmail(email, password) {
-  const options = {};
-  if (AUTH_REDIRECT_URL) options.emailRedirectTo = AUTH_REDIRECT_URL;
-  const { error } = await withTimeout(sb.auth.updateUser({ email, password }, options), 'Collegamento email');
+  const { error } = await withTimeout(sb.auth.updateUser({ email, password }, {}), 'Collegamento email');
   if (error) throw error;
 }
 
