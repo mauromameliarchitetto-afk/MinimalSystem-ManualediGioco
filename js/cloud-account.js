@@ -313,6 +313,8 @@ async function renderAccountArea() {
   const campaignsBox = $('#account-campaigns-box');
   const trashBox = $('#account-trash-box');
   statusBox.innerHTML = '<p class="helper-text" style="margin:0;">Verifica in corso…</p>';
+  // Dato solo locale, nessuna rete: non deve aspettare le chiamate cloud qui sotto.
+  renderPlayerStoriesBox();
 
   let session, caps;
   try {
@@ -321,6 +323,7 @@ async function renderAccountArea() {
     statusBox.innerHTML = `<p class="helper-text" style="margin:0;">Impossibile verificare l'account: ${e.message}</p>`;
     campaignsBox.innerHTML = campaignsBoxHtml(null, null);
     if (trashBox) trashBox.innerHTML = trashBoxHtml(null, null);
+    renderPlayerStoriesBox();
     return;
   }
   statusBox.innerHTML = accountStatusHtml(session, caps);
@@ -344,9 +347,54 @@ async function renderAccountArea() {
     campaignsBox.innerHTML = campaignsBoxHtml(session, null);
     if (trashBox) trashBox.innerHTML = trashBoxHtml(session, null);
   }
+
+  renderPlayerStoriesBox();
+}
+
+/* Sezione "Giocatore": storie a cui i propri personaggi hanno gia' chiesto
+   di entrare o di cui gia' fanno parte (anche gia' caricate), non solo la
+   possibilita' di cercarne una nuova — dato locale, nessuna chiamata di rete. */
+function renderPlayerStoriesBox() {
+  const box = $('#account-giocatore-stories');
+  if (!box) return;
+  if (!characters.length) {
+    box.innerHTML = '<p class="helper-text" style="margin:0;">Non hai ancora personaggi.</p>';
+    return;
+  }
+  box.innerHTML = characters.map(c => {
+    let status;
+    if (c.cloudCampaignId && c.cloudCampaignTrashedAt) {
+      status = `«${c.cloudCampaignName || c.cloudJoinCampaignName}» — eliminata dal Narratore, nel cestino`;
+    } else if (c.cloudCampaignId) {
+      status = `«${c.cloudCampaignName || c.cloudJoinCampaignName || 'storia'}» — in gioco (Lv ${c.livello || 1})`;
+    } else if (c.cloudJoinRequestId) {
+      status = `«${c.cloudJoinCampaignName || 'storia'}» — in attesa di conferma del Narratore`;
+    } else {
+      status = 'Nessuna storia — apri la scheda, tab Identità, per entrare in una';
+    }
+    return `<div class="row-between" data-openchar="${c.id}" style="cursor:pointer;padding:4px 0;">
+      <span>${escapeHtml(c.nome || 'Senza nome')}</span>
+      <span class="helper-text" style="margin:0;text-align:right;">${status}</span>
+    </div>`;
+  }).join('');
 }
 
 function wireCloudAccountEvents() {
+  $('#account-mode-toggle').addEventListener('click', e => {
+    const btn = e.target.closest('[data-accmode]');
+    if (!btn) return;
+    $$('#account-mode-toggle .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    $('#account-mode-narratore').classList.toggle('active', btn.dataset.accmode === 'narratore');
+    $('#account-mode-giocatore').classList.toggle('active', btn.dataset.accmode === 'giocatore');
+  });
+
+  $('#account-mode-giocatore').addEventListener('click', e => {
+    if (e.target.id === 'acc-goto-new-char') { createCharacterFlow(); return; }
+    if (e.target.id === 'acc-goto-char-list') { renderCharList(); showView('list'); return; }
+    const row = e.target.closest('[data-openchar]');
+    if (row) { openCharacter(row.dataset.openchar); showTab('identita'); return; }
+  });
+
   $('#account-status-box').addEventListener('click', async e => {
     const emailInput = $('#acc-email');
     const email = emailInput ? emailInput.value.trim() : '';
