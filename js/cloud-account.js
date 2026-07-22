@@ -253,7 +253,7 @@ function accountStatusHtml(session, caps) {
       <div class="field"><label>Email</label><input type="email" id="acc-email" placeholder="tua@email.it" autocomplete="email"></div>
       <div class="field"><label>Password</label><input type="password" id="acc-password" placeholder="••••••••" autocomplete="current-password"></div>
       <button class="btn btn-primary btn-sm" id="acc-submit-auth" data-mode="signin" style="align-self:flex-start;">Accedi</button>
-      <p class="helper-text" style="margin:0;"><a href="#" id="acc-forgot-password">Password dimenticata?</a></p>
+      <p class="helper-text" style="margin:0;"><a href="#" id="acc-forgot-password" style="color:var(--testo-secondario-dark-2);">Password dimenticata?</a></p>
       ${caps.google ? '<button class="btn btn-ghost btn-sm" id="acc-google">Accedi con Google</button>' : ''}
       ${caps.apple ? '<button class="btn btn-ghost btn-sm" id="acc-apple">Accedi con Apple</button>' : ''}
       ${(!caps.google || !caps.apple) ? '<p class="helper-text" style="margin:0;">Google/Apple/Passkey compariranno qui appena attivati dal Narratore nel Dashboard Supabase.</p>' : ''}
