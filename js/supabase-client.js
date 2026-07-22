@@ -50,9 +50,17 @@ function completeSessionFromDeepLink(url) {
     const params = new URLSearchParams(url.slice(hashIndex + 1));
     const access_token = params.get('access_token');
     const refresh_token = params.get('refresh_token');
+    const type = params.get('type');
     if (!access_token || !refresh_token) return;
     sb.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
       if (error) { console.warn('Accesso da link non riuscito:', error.message); return; }
+      // Link di "password dimenticata": qui setSession non genera da solo
+      // l'evento PASSWORD_RECOVERY (a differenza del web con
+      // detectSessionInUrl), va segnalato a mano.
+      if (type === 'recovery' && typeof notifyPasswordRecovery === 'function') {
+        notifyPasswordRecovery();
+        return;
+      }
       if (typeof toast === 'function') toast('Accesso effettuato');
       const accountView = document.getElementById('view-account');
       if (typeof renderAccountArea === 'function' && accountView && !accountView.classList.contains('hidden')) renderAccountArea();

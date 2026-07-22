@@ -14,6 +14,18 @@ function withTimeout(promise, label) {
   ]);
 }
 
+/* true quando la sessione attuale viene da un link "password dimenticata":
+   in quel caso, prima di considerare l'accesso completo, va mostrato un
+   modulo per impostare la nuova password (sb.auth.updateUser). Serve anche
+   per chi si era registrato prima del passaggio a email+password (link
+   magico, nessuna password mai impostata): per loro e' l'unico modo di
+   ottenerne una, visto che Accedi e Registrati falliscono entrambi. */
+let pendingPasswordRecovery = false;
+function notifyPasswordRecovery() {
+  pendingPasswordRecovery = true;
+  if (!$('#view-account').classList.contains('hidden')) renderAccountArea();
+}
+
 let authCapabilitiesCache = null;
 /* Legge /auth/v1/settings (pubblico, nessuna sessione richiesta) per sapere
    quali metodi di accesso sono davvero attivi sul progetto: mostrare un
@@ -87,6 +99,14 @@ async function sendPasswordReset(email) {
   if (AUTH_REDIRECT_URL) options.redirectTo = AUTH_REDIRECT_URL;
   const { error } = await withTimeout(sb.auth.resetPasswordForEmail(email, options), 'Recupero password');
   if (error) throw error;
+}
+/* Completa il recupero: va chiamata solo dopo aver aperto il link ricevuto
+   via email (la sessione a quel punto e' gia' attiva, vedi
+   notifyPasswordRecovery/PASSWORD_RECOVERY). */
+async function setNewPassword(newPassword) {
+  const { error } = await withTimeout(sb.auth.updateUser({ password: newPassword }), 'Nuova password');
+  if (error) throw error;
+  pendingPasswordRecovery = false;
 }
 
 /* Ospite -> permanente: collega email+password all'utente anonimo gia'
@@ -237,6 +257,13 @@ function accountStatusHtml(session, caps) {
       ${caps.google ? '<button class="btn btn-ghost btn-sm" id="acc-google">Accedi con Google</button>' : ''}
       ${caps.apple ? '<button class="btn btn-ghost btn-sm" id="acc-apple">Accedi con Apple</button>' : ''}
       ${(!caps.google || !caps.apple) ? '<p class="helper-text" style="margin:0;">Google/Apple/Passkey compariranno qui appena attivati dal Narratore nel Dashboard Supabase.</p>' : ''}
+    `;
+  }
+  if (pendingPasswordRecovery) {
+    return `
+      <p class="helper-text" style="margin:0;">Imposta una nuova password per <strong>${session.user.email || session.user.id}</strong>.</p>
+      <div class="field"><label>Nuova password</label><input type="password" id="acc-new-password" placeholder="••••••••" autocomplete="new-password"></div>
+      <button class="btn btn-primary btn-sm" id="acc-set-new-password" style="align-self:flex-start;">Salva nuova password</button>
     `;
   }
   if (isGuestUser(session)) {
@@ -431,14 +458,28 @@ function wireCloudAccountEvents() {
       if (!email || !password) { toast('Inserisci email e password'); return; }
       try {
         if (e.target.dataset.mode === 'signup') {
-          await signUpWithPassword(email, password);
+          const session = await signUpWithPassword(email, password);
+          if (!session) {
+            // Email gia' registrata ma la conferma e' andata storta: non capita
+            // piu' con l'auto-conferma attiva, ma resta un fallback prudente.
+            toast('Esiste già un account con questa email. Usa "Accedi", oppure "Password dimenticata" se non hai mai impostato una password.');
+            return;
+          }
           toast('Account creato e connesso');
         } else {
           await signInWithPassword(email, password);
           toast('Accesso effettuato');
         }
         renderAccountArea();
-      } catch (err) { toast('Errore: ' + err.message); }
+      } catch (err) {
+        if (/already registered|already exists/i.test(err.message)) {
+          toast('Esiste già un account con questa email. Usa "Accedi", oppure "Password dimenticata" se non hai mai impostato una password.');
+        } else if (/invalid login credentials/i.test(err.message)) {
+          toast('Email o password errati. Se ti eri registrato prima con il link via email, non hai ancora una password: usa "Password dimenticata" per impostarne una.');
+        } else {
+          toast('Errore: ' + err.message);
+        }
+      }
       return;
     }
     if (e.target.id === 'acc-forgot-password') {
@@ -447,6 +488,17 @@ function wireCloudAccountEvents() {
       try {
         await sendPasswordReset(email);
         toast('Email di recupero inviata: apri il link per impostare una nuova password');
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.id === 'acc-set-new-password') {
+      const newPasswordInput = $('#acc-new-password');
+      const newPassword = newPasswordInput ? newPasswordInput.value : '';
+      if (!newPassword || newPassword.length < 6) { toast('La password deve avere almeno 6 caratteri'); return; }
+      try {
+        await setNewPassword(newPassword);
+        toast('Nuova password impostata: ora sei connesso');
+        renderAccountArea();
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
@@ -548,7 +600,12 @@ function wireCloudAccountEvents() {
     }
   });
 
-  sb.auth.onAuthStateChange(() => {
+  sb.auth.onAuthStateChange(event => {
+    // Sul web il link di recupero viene letto automaticamente da
+    // detectSessionInUrl, che genera questo evento (nell'app nativa lo
+    // stesso caso arriva invece da completeSessionFromDeepLink, vedi
+    // supabase-client.js).
+    if (event === 'PASSWORD_RECOVERY') pendingPasswordRecovery = true;
     if (!$('#view-account').classList.contains('hidden')) renderAccountArea();
   });
 }
