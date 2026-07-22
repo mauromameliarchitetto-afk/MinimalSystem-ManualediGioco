@@ -7,13 +7,16 @@
 const SUPABASE_URL = 'https://gaoaipykiavweeeziwnd.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_0rjznlvnGlerTGCV3QepJQ_t3--sUcv';
 
-/* Piano gratuito Supabase: il template email non e' personalizzabile senza
-   SMTP esterno, quindi l'accesso via email arriva solo come link "Sign in"
-   (non un codice a 6 cifre digitabile). Sul web il link riporta alla pagina
-   dell'app: detectSessionInUrl fa si' che supabase-js completi da solo
-   l'accesso leggendo il token dall'URL al ritorno, senza altro codice da
-   scrivere. Nell'app nativa un link https aprirebbe pero' il browser di
-   sistema invece di tornare nell'app: li' i link usano lo schema
+/* L'accesso quotidiano usa email+password (niente email inviate a ogni
+   accesso: il piano gratuito Supabase ha un limite molto basso di email
+   all'ora). Restano pero' due casi che mandano comunque un link via email
+   (registrazione di un account gia' esistente non serve piu' grazie
+   all'auto-conferma, ma "password dimenticata" e l'upgrade ospite->
+   permanente si': li' il link serve davvero a dimostrare il possesso della
+   casella). Sul web il link riporta alla pagina dell'app: detectSessionInUrl
+   fa si' che supabase-js completi da solo l'accesso leggendo il token
+   dall'URL al ritorno. Nell'app nativa un link https aprirebbe pero' il
+   browser di sistema invece di tornare nell'app: li' i link usano lo schema
    personalizzato minimalsystem://auth-callback, intercettato dall'app
    stessa (intent-filter aggiunto in CI, vedi .github/scripts/
    patch_android_manifest.py) e completato a mano qui sotto. */
