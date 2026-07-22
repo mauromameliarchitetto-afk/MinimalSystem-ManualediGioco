@@ -405,12 +405,28 @@ function showTab(tab) {
   $('.sheet-body').scrollTop = 0;
 }
 
+/* Sincronizza in background col cloud all'apertura di una scheda gia'
+   esistente: senza, un livello assegnato dal Narratore (o un'altra novita')
+   restava invisibile finche' non si passava a mano dalla tab Identita' e si
+   premeva "Sincronizza". Nessun effetto sui personaggi mai salvati nel
+   cloud (syncCharacterFromCloud esce subito se manca cloudCharacterId);
+   gli AP e le altre novita' si aggiornano da soli, creditLevelAP rinfresca
+   gia' da se' la UI interessata. */
+function syncActiveCharacterInBackground() {
+  const c = getActive();
+  if (!c || !c.cloudCharacterId || typeof syncCharacterFromCloud !== 'function') return;
+  syncCharacterFromCloud(c).then(changed => {
+    if (changed && typeof renderCloudStoryBox === 'function') renderCloudStoryBox(c);
+  }).catch(() => {});
+}
+
 function openCharacter(id) {
   activeId = id;
   saveAll();
   renderSheet();
   showView('sheet');
   showTab('gioco');
+  syncActiveCharacterInBackground();
 }
 
 /* Apre la scheda direttamente su un tab (dall'indice in copertina).
@@ -432,6 +448,7 @@ function openSheetAtTab(tab) {
   renderSheet();
   showView('sheet');
   showTab(tab);
+  syncActiveCharacterInBackground();
 }
 
 /* ---------------------------------------------------------- lista schede */
