@@ -406,12 +406,6 @@
         </div></div>
         <p class="helper-text">Compaiono solo i tratti che possiedi. Con "+ Aggiungi tratto" scegli dalla lista del manuale (o crei un tratto personalizzato: le liste sono aperte, il manuale include "Etc..."). Il tiro di un tratto è sempre 1d20 + il suo valore (mostrato come "+N"); ✕ rimuove il tratto. Si possono confermare (e bloccare fino al prossimo level-up) solo con "Punti rimanenti" esattamente a zero in tutte e tre le categorie.</p>
         <div id="trait-lists"></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Concessioni del Narratore</div>
-        <p class="helper-text">Per motivi di trama (addestramento, studio, salti temporali) il Narratore può concedere punti extra in una categoria, oppure scrivere di suo pugno un tratto nuovo che non consuma i punti del giocatore.</p>
-        <div class="box"><div class="box-bar"></div><div class="box-pad">
-          <div id="narratore-grant-rows"></div>
-        </div></div>
       </div>
 
       <!-- ---- RETRO SCHEDA ---- -->
@@ -527,6 +521,7 @@
             <div class="field"><label>Livello</label><input type="number" id="f-livello" value="1" min="1" max="20"></div>
             <div class="field"><label>AP disponibili</label><input type="number" id="f-ap-disponibili" value="0"></div>
           </div>
+          <p class="helper-text hidden" id="f-livello-lock-note" style="margin:8px 0 0;">Sei in una storia: il livello lo assegna il Narratore dal suo Account.</p>
         </div></div>
 
         <div class="section-title"><span class="dot neutral"></span>Calcolatore costi crescita</div>

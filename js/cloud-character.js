@@ -59,7 +59,7 @@ async function requestJoinCampaign(c, campaignId, campaignName) {
 async function syncCharacterFromCloud(c) {
   if (!c.cloudCharacterId) return false;
   const { data, error } = await withTimeout(
-    sb.from('characters').select('level, campaign_id').eq('id', c.cloudCharacterId).single(),
+    sb.from('characters').select('level, campaign_id, data').eq('id', c.cloudCharacterId).single(),
     'Sincronizzazione'
   );
   if (error) throw error;
@@ -117,6 +117,38 @@ async function syncCharacterFromCloud(c) {
     if (fLivello) fLivello.value = cloudLevel;
     creditLevelAP(c);
     changed = true;
+  }
+
+  // Concessioni del Narratore sui tratti (punti extra per categoria, o un
+  // tratto scritto di suo pugno): privilegio suo esclusivo, mai modificabile
+  // dal giocatore — qui si limita a recepire quanto il Narratore ha già
+  // impostato dal suo Account, senza toccare i tratti propri del giocatore.
+  const cloudPayload = data.data || {};
+  const cloudBonus = cloudPayload.traitNarratoreBonus || {};
+  if (!c.traitNarratoreBonus) c.traitNarratoreBonus = {};
+  let traitsChanged = false;
+  Object.keys(cloudBonus).forEach(listKey => {
+    const cloudVal = Number(cloudBonus[listKey]) || 0;
+    if ((Number(c.traitNarratoreBonus[listKey]) || 0) !== cloudVal) {
+      c.traitNarratoreBonus[listKey] = cloudVal;
+      traitsChanged = true;
+    }
+  });
+  const cloudCustomTraits = cloudPayload.customTraits || {};
+  Object.keys(cloudCustomTraits).forEach(listKey => {
+    const cloudNarratoreEntries = (cloudCustomTraits[listKey] || []).filter(t => t && t.narratore);
+    if (!Array.isArray(c.customTraits[listKey])) c.customTraits[listKey] = [];
+    const localNonNarratore = c.customTraits[listKey].filter(t => !t.narratore);
+    const localNarratoreEntries = c.customTraits[listKey].filter(t => t.narratore);
+    if (JSON.stringify(cloudNarratoreEntries) !== JSON.stringify(localNarratoreEntries)) {
+      c.customTraits[listKey] = [...localNonNarratore, ...cloudNarratoreEntries];
+      traitsChanged = true;
+    }
+  });
+  if (traitsChanged) {
+    changed = true;
+    toast('Il Narratore ha concesso nuovi punti o tratti: controlla la scheda Tratti!');
+    if (typeof renderTraits === 'function') renderTraits(c);
   }
 
   if (changed) await pushCharacterToCloud(c);
@@ -204,6 +236,7 @@ function wireCloudCharacterEvents() {
         toast('Personaggio salvato nel cloud');
         renderCloudStoryBox(c);
         if (typeof updateStoriaLegacyVisibility === 'function') updateStoriaLegacyVisibility(c);
+        if (typeof updateLevelLockUI === 'function') updateLevelLockUI(c);
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
@@ -217,6 +250,7 @@ function wireCloudCharacterEvents() {
         toast('Richiesta inviata: in attesa di conferma del Narratore');
         renderCloudStoryBox(c);
         if (typeof updateStoriaLegacyVisibility === 'function') updateStoriaLegacyVisibility(c);
+        if (typeof updateLevelLockUI === 'function') updateLevelLockUI(c);
         if (typeof renderPlayerStoriesBox === 'function') renderPlayerStoriesBox();
       } catch (err) { toast('Errore: ' + err.message); }
       return;
@@ -226,6 +260,7 @@ function wireCloudCharacterEvents() {
         const changed = await syncCharacterFromCloud(c);
         renderCloudStoryBox(c);
         if (typeof updateStoriaLegacyVisibility === 'function') updateStoriaLegacyVisibility(c);
+        if (typeof updateLevelLockUI === 'function') updateLevelLockUI(c);
         if (typeof renderPlayerStoriesBox === 'function') renderPlayerStoriesBox();
         if (!changed) toast('Nessuna novità');
       } catch (err) { toast('Errore: ' + err.message); }

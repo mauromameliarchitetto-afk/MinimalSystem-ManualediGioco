@@ -316,7 +316,7 @@ async function listPendingJoinRequests(campaignId) {
 
 async function listCampaignCharacters(campaignId) {
   const { data: chars, error } = await withTimeout(
-    sb.from('characters').select('id, name, level, sheet_status, updated_at, owner_user_id')
+    sb.from('characters').select('id, name, level, sheet_status, updated_at, owner_user_id, data')
       .eq('campaign_id', campaignId).order('name'),
     'Personaggi in gioco'
   );
@@ -335,6 +335,22 @@ async function rejectJoinRequestCloud(requestId) {
 }
 async function narratoreSetLevelCloud(characterId, newLevel) {
   const { error } = await withTimeout(sb.rpc('narratore_set_level', { p_character_id: characterId, p_new_level: newLevel }), 'Assegnazione livello');
+  if (error) throw error;
+}
+/* Concessioni del Narratore sui tratti: privilegio esclusivo suo, mai
+   esposto al giocatore (vedi migrazione narratore_trait_grants). */
+async function narratoreGrantTraitPointsCloud(characterId, listKey, points) {
+  const { error } = await withTimeout(
+    sb.rpc('narratore_grant_trait_points', { p_character_id: characterId, p_list_key: listKey, p_points: points }),
+    'Concessione punti tratto'
+  );
+  if (error) throw error;
+}
+async function narratoreAddCustomTraitCloud(characterId, listKey, name, value) {
+  const { error } = await withTimeout(
+    sb.rpc('narratore_add_custom_trait', { p_character_id: characterId, p_list_key: listKey, p_name: name, p_value: value }),
+    'Scrittura tratto'
+  );
   if (error) throw error;
 }
 
@@ -500,13 +516,34 @@ function joinRequestRowHtml(r) {
   </div>`;
 }
 
+/* Concessioni del Narratore sui tratti: privilegio suo esclusivo, per questo
+   compare qui (Account → Narratore → dettaglio campagna) e non nella scheda
+   del giocatore, che non deve poterle vedere né tanto meno attivare da sé. */
+function campaignCharacterTraitsHtml(ch) {
+  const bonus = (ch.data && ch.data.traitNarratoreBonus) || {};
+  return Object.keys(TRAIT_LISTS).map(listKey => {
+    const b = Number(bonus[listKey]) || 0;
+    return `<div class="row-between" style="padding:3px 0;flex-wrap:wrap;gap:6px;">
+      <span class="helper-text" style="margin:0;">${TRAIT_LIST_LABELS[listKey]}${b ? ` <strong>+${b}</strong>` : ''}</span>
+      <span style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+        <input type="number" min="1" value="1" data-traitgrantinput="${ch.id}::${listKey}" style="width:44px;">
+        <button type="button" class="btn btn-sm btn-ghost" data-traitgrant="${ch.id}::${listKey}">Concedi</button>
+        <button type="button" class="btn btn-sm btn-ghost" data-traitcustom="${ch.id}::${listKey}">+ Tratto</button>
+      </span>
+    </div>`;
+  }).join('');
+}
 function campaignCharacterRowHtml(ch) {
-  return `<div class="row-between" style="padding:4px 0;" data-charrow="${ch.id}">
+  return `<div class="row-between" style="padding:4px 0;flex-wrap:wrap;gap:6px;" data-charrow="${ch.id}">
     <span>${ch.name} <span class="helper-text" style="margin:0;">(${ch.playerName}) — Lv ${ch.level}</span></span>
     <span style="display:flex;gap:4px;align-items:center;">
       <input type="number" min="1" max="20" value="${ch.level}" data-levelinput="${ch.id}" style="width:52px;">
       <button class="btn btn-sm btn-ghost" data-setlevel="${ch.id}">Assegna</button>
+      <button type="button" class="btn btn-icon btn-sm btn-ghost" data-toggletraits="${ch.id}" title="Concedi punti tratto">🎁</button>
     </span>
+  </div>
+  <div class="hidden" data-chartraits="${ch.id}" style="padding:2px 8px 10px;">
+    ${campaignCharacterTraitsHtml(ch)}
   </div>`;
 }
 
@@ -831,6 +868,42 @@ function wireCloudAccountEvents() {
         toast(`Livello assegnato: Lv ${newLevel}`);
         const detail = e.target.closest('.cm-campaign-detail');
         detail.innerHTML = await campaignDetailHtml(detail.dataset.detailfor);
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.toggletraits) {
+      const box = $(`[data-chartraits="${e.target.dataset.toggletraits}"]`);
+      if (box) box.classList.toggle('hidden');
+      return;
+    }
+    if (e.target.dataset.traitgrant) {
+      const [charId, listKey] = e.target.dataset.traitgrant.split('::');
+      const input = $(`[data-traitgrantinput="${charId}::${listKey}"]`);
+      const points = Math.floor(Number(input.value));
+      if (!points || points <= 0) { toast('Inserisci un numero di punti positivo'); return; }
+      try {
+        await narratoreGrantTraitPointsCloud(charId, listKey, points);
+        toast(`Concessi +${points} punti a ${TRAIT_LIST_LABELS[listKey]}`);
+        const detail = e.target.closest('.cm-campaign-detail');
+        detail.innerHTML = await campaignDetailHtml(detail.dataset.detailfor);
+        const box = $(`[data-chartraits="${charId}"]`);
+        if (box) box.classList.remove('hidden');
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.traitcustom) {
+      const [charId, listKey] = e.target.dataset.traitcustom.split('::');
+      const name = prompt(`Nome del tratto (${TRAIT_LIST_LABELS[listKey]}):`);
+      if (!name || !name.trim()) return;
+      const valueStr = prompt('Valore del tratto:', '1');
+      const value = Math.max(0, Math.floor(Number(valueStr)) || 0);
+      try {
+        await narratoreAddCustomTraitCloud(charId, listKey, name.trim(), value);
+        toast(`Tratto "${name.trim()}" scritto sulla scheda`);
+        const detail = e.target.closest('.cm-campaign-detail');
+        detail.innerHTML = await campaignDetailHtml(detail.dataset.detailfor);
+        const box = $(`[data-chartraits="${charId}"]`);
+        if (box) box.classList.remove('hidden');
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
