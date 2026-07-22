@@ -247,6 +247,28 @@ async function fetchDisplayNames(userIds) {
   return byId;
 }
 
+async function getMyProfile(userId) {
+  const { data, error } = await withTimeout(
+    sb.from('profiles').select('display_name').eq('id', userId).single(),
+    'Profilo'
+  );
+  if (error) throw error;
+  return data;
+}
+
+async function updateMyDisplayName(name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) throw new Error('Il nickname non può essere vuoto');
+  if (trimmed.length > 40) throw new Error('Il nickname è troppo lungo (max 40 caratteri)');
+  const session = await currentCloudSession();
+  if (!session) throw new Error('Serve un account');
+  const { error } = await withTimeout(
+    sb.from('profiles').update({ display_name: trimmed }).eq('id', session.user.id),
+    'Salvataggio nickname'
+  );
+  if (error) throw error;
+}
+
 async function listPendingJoinRequests(campaignId) {
   const { data: requests, error } = await withTimeout(
     sb.from('campaign_join_requests').select('id, character_id, requested_by, created_at')
@@ -319,7 +341,21 @@ function daysRemaining(purgeAt) {
 
 /* --------------------------------------------------------------- render */
 
-function accountStatusHtml(session, caps) {
+/* Nickname (profiles.display_name): l'unico dato "sociale" visibile agli
+   altri partecipanti di una campagna condivisa (nelle richieste di
+   ingresso, nella lista "Personaggi in gioco", e qui sotto nella storia del
+   giocatore per il nome del Narratore) — email/altri dati restano privati.
+   Un solo campo per account, non per ruolo: vale sia da Narratore sia da
+   giocatore, visto che e' la stessa persona/riga di profiles. */
+function nicknameFieldHtml(profile) {
+  const current = (profile && profile.display_name) || '';
+  return `
+    <div class="field"><label>Nickname (visibile agli altri partecipanti)</label><input type="text" id="acc-nickname" placeholder="es. Mauro" maxlength="40" value="${escapeHtml(current)}"></div>
+    <button class="btn btn-ghost btn-sm" id="acc-save-nickname" style="align-self:flex-start;">Salva nickname</button>
+  `;
+}
+
+function accountStatusHtml(session, caps, profile) {
   if (!session) {
     return `
       <p class="helper-text" style="margin:0;">Non sei connesso. Puoi comunque usare l'app in locale su questo dispositivo.</p>
@@ -346,6 +382,7 @@ function accountStatusHtml(session, caps) {
   if (isGuestUser(session)) {
     return `
       <p class="helper-text" style="margin:0;">Sei connesso come <strong>ospite</strong> (solo questo dispositivo): senza collegare un'identità, i dati non sincronizzati potrebbero andare persi.</p>
+      ${nicknameFieldHtml(profile)}
       <div class="field"><label>Email</label><input type="email" id="acc-email" placeholder="tua@email.it" autocomplete="email"></div>
       <div class="field"><label>Password</label><input type="password" id="acc-password" placeholder="••••••••" autocomplete="new-password"></div>
       <button class="btn btn-primary btn-sm" id="acc-upgrade" style="align-self:flex-start;">Rendi permanente questo account</button>
@@ -354,6 +391,7 @@ function accountStatusHtml(session, caps) {
   }
   return `
     <p class="helper-text" style="margin:0;">Account permanente: <strong>${session.user.email || session.user.id}</strong></p>
+    ${nicknameFieldHtml(profile)}
     <button class="btn btn-ghost btn-sm" id="acc-signout" style="align-self:flex-start;">Esci</button>
   `;
 }
@@ -482,7 +520,11 @@ async function renderAccountArea() {
     renderPlayerStoriesBox();
     return;
   }
-  statusBox.innerHTML = accountStatusHtml(session, caps);
+  let profile = null;
+  if (session && !pendingPasswordRecovery) {
+    try { profile = await getMyProfile(session.user.id); } catch (e) { /* nickname non essenziale: il campo resta vuoto */ }
+  }
+  statusBox.innerHTML = accountStatusHtml(session, caps, profile);
 
   if (session && !isGuestUser(session)) {
     try {
@@ -610,6 +652,15 @@ function wireCloudAccountEvents() {
         await setNewPassword(newPassword);
         toast('Nuova password impostata: ora sei connesso');
         renderAccountArea();
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.id === 'acc-save-nickname') {
+      const nicknameInput = $('#acc-nickname');
+      const nickname = nicknameInput ? nicknameInput.value : '';
+      try {
+        await updateMyDisplayName(nickname);
+        toast('Nickname salvato');
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
