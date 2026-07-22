@@ -156,11 +156,30 @@ async function createCampaign(name) {
 
 async function listMyCampaigns() {
   const { data, error } = await withTimeout(
-    sb.from('campaigns').select('id, name, created_at, deleted_at').is('deleted_at', null).order('created_at', { ascending: false }),
+    sb.from('campaigns').select('id, name, created_at, deleted_at, listed').is('deleted_at', null).order('created_at', { ascending: false }),
     'Elenco campagne'
   );
   if (error) throw error;
   return data;
+}
+
+/* Elenco (nome+id) delle sole campagne che il Narratore ha scelto di
+   rendere visibili nella ricerca del giocatore — sostituisce il vecchio
+   "codice campagna" da copiare a mano: con quello, chiunque lo ottenesse
+   poteva comunque mandare una richiesta a una storia mai condivisa apposta
+   con lui. Chiamabile da chiunque abbia un account, anche ospite. */
+async function listPublishedCampaigns() {
+  const { data, error } = await withTimeout(sb.rpc('list_published_campaigns'), 'Storie pubblicate');
+  if (error) throw error;
+  return data || [];
+}
+
+async function setCampaignListed(campaignId, listed) {
+  const { error } = await withTimeout(
+    sb.from('campaigns').update({ listed }).eq('id', campaignId),
+    'Visibilità campagna'
+  );
+  if (error) throw error;
 }
 
 /* -------------------------------------------------- premessa (Narratore) */
@@ -174,10 +193,13 @@ async function listMyCampaigns() {
 const PREMISE_MAX_BYTES = 30 * 1024 * 1024;
 function premisePath(campaignId) { return `${campaignId}/premessa.pdf`; }
 
-async function getCampaignPremiseInfo(campaignId) {
+/* Impostazioni della campagna gestite dalla sua scheda espandibile:
+   premessa (titolo/file/pubblicazione) e visibilità nella ricerca del
+   giocatore ("listed") — un'unica lettura invece di due. */
+async function getCampaignSettingsInfo(campaignId) {
   const { data, error } = await withTimeout(
-    sb.from('campaigns').select('premise_title, premise_filename, premise_size, premise_published, premise_updated_at').eq('id', campaignId).single(),
-    'Premessa campagna'
+    sb.from('campaigns').select('premise_title, premise_filename, premise_size, premise_published, premise_updated_at, listed').eq('id', campaignId).single(),
+    'Impostazioni campagna'
   );
   if (error) throw error;
   return data;
@@ -403,7 +425,7 @@ function campaignsBoxHtml(session, campaigns) {
   const list = (campaigns || []).map(c => `
     <div class="row-between cm-campaign-row" data-campaignid="${c.id}" data-campaignname="${c.name}" style="cursor:pointer;padding:6px 0;">
       <span>${c.name}</span>
-      <span class="helper-text" style="margin:0;">codice: ${c.id.slice(0, 8)}… ▾</span>
+      <span class="helper-text" style="margin:0;">${c.listed ? 'visibile ai giocatori' : 'nascosta'} ▾</span>
     </div>
     <div class="cm-campaign-detail hidden" data-detailfor="${c.id}"></div>
   `).join('') || '<p class="helper-text" style="margin:0;">Nessuna campagna ancora.</p>';
@@ -418,11 +440,30 @@ function campaignsBoxHtml(session, campaigns) {
       <button class="btn btn-ghost btn-sm" id="acc-new-campaign-premise-upload">📄 Scegli PDF premessa</button>
     </div>
     <label class="row-between" style="cursor:pointer;">
-      <span class="helper-text" style="margin:0;">Pubblica subito (visibile ai giocatori appena entrano)</span>
+      <span class="helper-text" style="margin:0;">Pubblica subito la premessa (visibile ai giocatori appena entrano)</span>
       <input type="checkbox" id="acc-new-campaign-premise-publish">
+    </label>
+    <label class="row-between" style="cursor:pointer;">
+      <span class="helper-text" style="margin:0;">Rendi visibile nella ricerca dei giocatori</span>
+      <input type="checkbox" id="acc-new-campaign-listed">
     </label>
     <button class="btn btn-primary btn-sm" id="acc-create-campaign" style="align-self:flex-start;">Crea campagna</button>
     <div id="acc-campaign-list" style="margin-top:6px;">${list}</div>
+  `;
+}
+
+/* "Listed": decide se la campagna compare nell'elenco che il giocatore
+   consulta per cercare una storia a cui chiedere di partecipare — non va
+   confuso con l'ingresso vero e proprio, sempre soggetto ad approvazione
+   (approve_join_request): qui si decide solo chi puo' anche solo trovarla. */
+function campaignVisibilityHtml(campaignId, listed) {
+  return `
+    <div class="section-title" style="margin-top:0;"><span class="dot neutral"></span>Visibilità</div>
+    <label class="row-between" style="cursor:pointer;">
+      <span class="helper-text" style="margin:0;">Visibile nella ricerca dei giocatori</span>
+      <input type="checkbox" data-listedtoggle="${campaignId}" ${listed ? 'checked' : ''}>
+    </label>
+    <p class="helper-text" style="margin:0;">${listed ? 'I giocatori possono trovarla e mandare una richiesta di partecipazione.' : 'Nascosta: nessun giocatore può trovarla o chiedere di entrare.'}</p>
   `;
 }
 
@@ -471,7 +512,7 @@ function campaignCharacterRowHtml(ch) {
 
 async function campaignDetailHtml(campaignId) {
   try {
-    const [pending, chars, premise] = await Promise.all([listPendingJoinRequests(campaignId), listCampaignCharacters(campaignId), getCampaignPremiseInfo(campaignId)]);
+    const [pending, chars, settings] = await Promise.all([listPendingJoinRequests(campaignId), listCampaignCharacters(campaignId), getCampaignSettingsInfo(campaignId)]);
     const pendingHtml = pending.length
       ? pending.map(joinRequestRowHtml).join('')
       : '<p class="helper-text" style="margin:0;">Nessuna richiesta in attesa.</p>';
@@ -479,7 +520,8 @@ async function campaignDetailHtml(campaignId) {
       ? chars.map(campaignCharacterRowHtml).join('')
       : '<p class="helper-text" style="margin:0;">Nessun personaggio ancora in questa storia.</p>';
     return `
-      ${campaignPremiseHtml(campaignId, premise)}
+      ${campaignVisibilityHtml(campaignId, settings.listed)}
+      ${campaignPremiseHtml(campaignId, settings)}
       <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Richieste in attesa</div>
       ${pendingHtml}
       <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Personaggi in gioco</div>
@@ -698,12 +740,14 @@ function wireCloudAccountEvents() {
       const titleInput = $('#acc-new-campaign-premise-title');
       const title = titleInput ? titleInput.value.trim() : '';
       const publishNow = !!($('#acc-new-campaign-premise-publish') && $('#acc-new-campaign-premise-publish').checked);
+      const listedNow = !!($('#acc-new-campaign-listed') && $('#acc-new-campaign-listed').checked);
       try {
         const campaign = await createCampaign(name);
         if (file) {
           await uploadCampaignPremise(campaign.id, file, title);
           if (publishNow) await setCampaignPremisePublished(campaign.id, true);
         }
+        if (listedNow) await setCampaignListed(campaign.id, true);
         toast(file ? 'Campagna creata con premessa' : 'Campagna creata');
         renderAccountArea();
       } catch (err) { toast('Errore: ' + err.message); }
@@ -823,6 +867,22 @@ function wireCloudAccountEvents() {
       try {
         await setCampaignPremisePublished(campaignId, checked);
         toast(checked ? 'Premessa pubblicata: ora è visibile ai giocatori' : 'Premessa non più pubblicata');
+      } catch (err) {
+        e.target.checked = !checked;
+        toast('Errore: ' + err.message);
+      } finally {
+        const detail = $(`.cm-campaign-detail[data-detailfor="${campaignId}"]`);
+        if (detail) detail.innerHTML = await campaignDetailHtml(campaignId);
+      }
+      return;
+    }
+    if (e.target.dataset.listedtoggle) {
+      const campaignId = e.target.dataset.listedtoggle;
+      const checked = e.target.checked;
+      e.target.disabled = true;
+      try {
+        await setCampaignListed(campaignId, checked);
+        toast(checked ? 'Campagna visibile nella ricerca dei giocatori' : 'Campagna nascosta dalla ricerca');
       } catch (err) {
         e.target.checked = !checked;
         toast('Errore: ' + err.message);
