@@ -314,6 +314,7 @@ function newCharacter(nome) {
     build: 'guerriero',
     buildConfirmed: false,
     primaryConfirmed: false,
+    primaryFloor: {},
     traitsConfirmed: false,
     eclecticoHpMult: 7,
     primary: defaultPrimary(),
@@ -379,12 +380,18 @@ function ensureShape(c) {
   // mantengono la loro classe come già confermata (regola: non modificabile)
   const hadBuildConfirmed = c.buildConfirmed !== undefined;
   const hadLivelloAP = c.livelloAP !== undefined;
+  const hadPrimaryFloor = c.primaryFloor !== undefined;
   // i personaggi creati prima dell'introduzione del blocco statistiche
   // restano sbloccati (comportamento libero già in uso): il blocco vale solo
   // da quando il giocatore lo conferma esplicitamente per la prima volta,
   // Object.keys(d) sotto imposta già primaryConfirmed:false di default
   Object.keys(d).forEach(k => { if (c[k] === undefined) c[k] = d[k]; });
   if (!hadBuildConfirmed) c.buildConfirmed = true;
+  // personaggi con statistiche gia' confermate prima dell'introduzione del
+  // "pavimento" per livello: i valori attuali sono gia' quelli confermati
+  // (bloccati, quindi invariati dall'ultima conferma), diventano la base
+  // da cui non si potra' scendere al prossimo sblocco
+  if (!hadPrimaryFloor && c.primaryConfirmed) snapshotPrimaryFloor(c);
   // i personaggi esistenti non ricevono AP retroattivi: il conteggio
   // automatico parte dal livello attuale
   if (!hadLivelloAP) c.livelloAP = c.livello || 1;
@@ -937,42 +944,40 @@ function renderTraits(c) {
   updateTraitsRemaining(c);
   renderTraitRollSelect(c);
 }
-/* Pool punti tratti al livello attuale (15 alla creazione + bonus level-up) */
-function traitsPool(c) {
-  const bonus = traitBonusAtLevel(c.livello || 1);
-  return TRAIT_POOL + bonus.capacitaNormali + bonus.capacitaCombattive + bonus.conoscenze;
-}
-function traitsSum(c) {
+/* Punti spesi in una singola categoria (conoscenze/capacitaNormali/
+   capacitaCombattive): tre "tipologie di punti" separate e non fungibili
+   tra loro — traitsPoolForList (data.js) ne calcola il tetto per livello. */
+function traitsSumForList(c, listKey) {
   let sum = 0;
-  Object.keys(TRAIT_LISTS).forEach(k => {
-    TRAIT_LISTS[k].forEach(name => { sum += Number(c.traits[k][name]) || 0; });
-    (c.customTraits[k] || []).forEach(t => { sum += Number(t.value) || 0; });
-  });
+  TRAIT_LISTS[listKey].forEach(name => { sum += Number(c.traits[listKey][name]) || 0; });
+  (c.customTraits[listKey] || []).forEach(t => { sum += Number(t.value) || 0; });
   return sum;
 }
+function traitsRemainingForList(c, listKey) {
+  return traitsPoolForList(listKey, c.livello || 1) - traitsSumForList(c, listKey);
+}
+function allTraitsAtZero(c) {
+  return Object.keys(TRAIT_LISTS).every(k => traitsRemainingForList(c, k) === 0);
+}
 function updateTraitsRemaining(c) {
-  const pool = traitsPool(c);
-  const sum = traitsSum(c);
-  const remaining = pool - sum;
-  const el = $('#traits-remaining');
-  el.textContent = remaining;
-  el.className = 'remaining' + (remaining < 0 ? ' neg' : (remaining === 0 ? ' zero' : ''));
-  const lbl = $('#traits-remaining-label');
-  if (lbl) lbl.textContent = `Punti rimanenti (Lv ${c.livello || 1})`;
-  const bonus = traitBonusAtLevel(c.livello || 1);
-  const bonusTotal = bonus.capacitaNormali + bonus.capacitaCombattive + bonus.conoscenze;
-  const sub = $('#traits-bonus-sub');
-  if (sub) {
-    sub.textContent = bonusTotal
-      ? `Include +${bonusTotal} dai level-up (Capacità +${bonus.capacitaNormali} · Combattive +${bonus.capacitaCombattive} · Conoscenze +${bonus.conoscenze}), su un totale di ${pool} punti.`
-      : `15 punti dalla creazione. Dal Lv 2 la tabella limiti di livello aggiunge punti a Capacità, Capacità Combattive e Conoscenze.`;
+  const rowsEl = $('#traits-remaining-rows');
+  if (rowsEl) {
+    rowsEl.innerHTML = Object.keys(TRAIT_LISTS).map(listKey => {
+      const remaining = traitsRemainingForList(c, listKey);
+      const bonus = traitBonusAtLevel(c.livello || 1)[listKey] || 0;
+      const cls = 'remaining' + (remaining < 0 ? ' neg' : (remaining === 0 ? ' zero' : ''));
+      return `<div class="pointbuy-header">
+        <span class="label">${TRAIT_LIST_LABELS[listKey]}${bonus ? ` (${TRAIT_POOL_PER_LIST} + ${bonus} dai level-up)` : ''}</span>
+        <span class="${cls}">${remaining}</span>
+      </div>`;
+    }).join('');
   }
   renderTraitsLockStatus(c);
 }
-/* Il bottone di conferma resta disabilitato se "Punti rimanenti" è
-   negativo (può succedere con dati importati, con il livello ridotto a
-   mano dopo aver speso i punti del bonus, o corretti manualmente): non si
-   può blindare una scheda già fuori dalle regole. */
+/* Il bottone di conferma resta disabilitato se una categoria è negativa
+   (può succedere con dati importati, con il livello ridotto a mano dopo
+   aver speso i punti del bonus, o corretti manualmente): non si può
+   blindare una scheda già fuori dalle regole. */
 function renderTraitsLockStatus(c) {
   const el = $('#traits-lock-status');
   if (!el) return;
@@ -980,11 +985,13 @@ function renderTraitsLockStatus(c) {
     el.innerHTML = `<div class="row-between"><span class="chip physical">🔒 Tratti confermati</span><span class="helper-text" style="margin:0;">Si sbloccano con un level-up</span></div>`;
     return;
   }
-  const remaining = traitsPool(c) - traitsSum(c);
-  const blocked = remaining !== 0;
+  const perList = Object.keys(TRAIT_LISTS).map(k => ({ label: TRAIT_LIST_LABELS[k], remaining: traitsRemainingForList(c, k) }));
+  const blocked = perList.some(r => r.remaining !== 0);
+  const positive = perList.filter(r => r.remaining > 0);
+  const negative = perList.filter(r => r.remaining < 0);
   let note = '';
-  if (remaining > 0) note = `Hai ancora ${remaining} punt${remaining === 1 ? 'o' : 'i'} da spendere prima di poter confermare.`;
-  else if (remaining < 0) note = 'Punti rimanenti negativo: riduci qualche tratto prima di confermare.';
+  if (positive.length) note = `Punti ancora da spendere: ${positive.map(r => `${r.label} ${r.remaining}`).join(' · ')}.`;
+  else if (negative.length) note = `Punti rimanenti negativo in ${negative.map(r => r.label).join(', ')}: riduci qualche tratto prima di confermare.`;
   el.innerHTML = `<button class="btn btn-primary btn-sm" id="btn-confirm-traits" ${blocked ? 'disabled' : ''}>Conferma tratti</button>`
     + (note ? `<p class="helper-text" style="margin:6px 0 0;color:var(--fisico-forte);">${note}</p>` : '');
 }
@@ -1089,13 +1096,34 @@ function creditLevelAP(c) {
    bloccato. Una volta confermate (primaryConfirmed), le statistiche sono
    bloccate del tutto finché un level-up non le sblocca di nuovo.
    Restituisce il valore applicato o null se bloccato. */
+/* Al momento della conferma, registra il valore attuale di ogni statistica
+   primaria (il totale per HP/MP quando "cresciuta" oltre il moltiplicatore
+   di classe): da quel momento, ogni volta che un level-up sblocca di nuovo
+   le statistiche, non si potrà scendere sotto questo valore — solo salire,
+   o tornare fino a questo punto. */
+function snapshotPrimaryFloor(c) {
+  if (!c.primaryFloor) c.primaryFloor = {};
+  PRIMARY_STATS.forEach(stat => {
+    const isHpMp = stat.key === 'hp' || stat.key === 'mp';
+    const grown = isHpMp && Number(c.livello) > 1;
+    const trackedKey = stat.key === 'hp' ? 'hpMaxTracked' : 'mpMaxTracked';
+    c.primaryFloor[stat.key] = grown ? (Number(c[trackedKey]) || 0) : (Number(c.primary[stat.key]) || 0);
+  });
+}
+/* Minimo consentito per una statistica: il minimo assoluto di regola,
+   oppure il valore registrato all'ultima conferma se più alto — non si può
+   scendere sotto quanto già confermato in passato. */
+function primaryFloorFor(c, key, baseFloor) {
+  const stored = c.primaryFloor && typeof c.primaryFloor[key] === 'number' ? c.primaryFloor[key] : null;
+  return stored !== null ? Math.max(baseFloor, stored) : baseFloor;
+}
 function changePrimary(c, key, newVal) {
   const isHpMp = key === 'hp' || key === 'mp';
   const grown = isHpMp && Number(c.livello) > 1;
   const trackedKey = key === 'hp' ? 'hpMaxTracked' : 'mpMaxTracked';
   const oldVal = grown ? (Number(c[trackedKey]) || 0) : (Number(c.primary[key]) || 0);
   newVal = Math.floor(Number(newVal));
-  const floor = grown ? 0 : PRIMARY_MIN;
+  const floor = primaryFloorFor(c, key, grown ? 0 : PRIMARY_MIN);
   if (isNaN(newVal) || newVal < floor) newVal = floor;
   if (newVal === oldVal) return newVal;
   if (c.primaryConfirmed) {
@@ -1993,6 +2021,7 @@ function wireStaticEvents() {
     $('#primary-confirm').classList.add('hidden');
     if (Number(c.livello) <= 1 && primaryRemaining(c) !== 0) { toast('Puoi confermare solo con "Punti rimanenti" a zero'); return; }
     c.primaryConfirmed = true;
+    snapshotPrimaryFloor(c);
     renderPrimaryStats(c);
     toast('Statistiche confermate e bloccate');
     touchActive();
@@ -2005,15 +2034,14 @@ function wireStaticEvents() {
   $('#traits-lock-status').addEventListener('click', e => {
     if (!e.target.closest('#btn-confirm-traits')) return;
     const c = getActive(); if (!c) return;
-    const remaining = traitsPool(c) - traitsSum(c);
-    if (remaining !== 0) { toast('Puoi confermare solo con "Punti rimanenti" a zero'); return; }
+    if (!allTraitsAtZero(c)) { toast('Puoi confermare solo con "Punti rimanenti" a zero in tutte le categorie'); return; }
     $('#traits-confirm-text').textContent = 'Vuoi confermare i tuoi tratti? Una volta confermati resteranno bloccati: potrai modificarli di nuovo solo effettuando un level-up.';
     $('#traits-confirm').classList.remove('hidden');
   });
   $('#traits-confirm-yes').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
     $('#traits-confirm').classList.add('hidden');
-    if (traitsPool(c) - traitsSum(c) !== 0) { toast('Puoi confermare solo con "Punti rimanenti" a zero'); return; }
+    if (!allTraitsAtZero(c)) { toast('Puoi confermare solo con "Punti rimanenti" a zero in tutte le categorie'); return; }
     c.traitsConfirmed = true;
     renderTraits(c);
     toast('Tratti confermati e bloccati');
@@ -2132,7 +2160,7 @@ function wireStaticEvents() {
     const grown = (key === 'hp' || key === 'mp') && Number(c.livello) > 1;
     const trackedKey = key === 'hp' ? 'hpMaxTracked' : 'mpMaxTracked';
     const current = grown ? (Number(c[trackedKey]) || 0) : Number(c.primary[key]);
-    const floor = grown ? 0 : PRIMARY_MIN;
+    const floor = primaryFloorFor(c, key, grown ? 0 : PRIMARY_MIN);
     const next = current + dir;
     if (next < floor) { toast(`Valore minimo raggiunto (${floor})`); return; }
     const applied = changePrimary(c, key, next);
@@ -2279,12 +2307,13 @@ function wireStaticEvents() {
         toast('Tratti confermati: si sbloccano solo con un level-up');
         v = oldVal;
       } else if (v > oldVal) {
-        // fase di creazione/crescita: non si può superare il pool disponibile
-        const sum = traitsSum(c);
-        const pool = traitsPool(c);
+        // fase di creazione/crescita: non si può superare il pool di QUESTA
+        // categoria (le tre tipologie di punti non sono fungibili tra loro)
+        const sum = traitsSumForList(c, list);
+        const pool = traitsPoolForList(list, c.livello || 1);
         const maxAllowed = oldVal + Math.max(0, pool - sum);
         if (v > maxAllowed) {
-          toast(`Punti esauriti: hai già assegnato tutti i ${pool} punti disponibili`);
+          toast(`Punti esauriti in ${TRAIT_LIST_LABELS[list]}: hai già assegnato tutti i ${pool} punti disponibili`);
           v = maxAllowed;
         }
       }
