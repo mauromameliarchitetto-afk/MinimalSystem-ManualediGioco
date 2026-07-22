@@ -192,10 +192,73 @@ function clampSlotToRange(slot) {
     slot[f] = clamp(Number(slot[f]) || min, min, max);
   });
 }
-/* Righe delle tabelle del retro scheda (colonne come da schede ufficiali) */
-function makeTecnicaRow() { return { nome: '', bonus: '', malus: '', durata: '', utilizzi: '', lv: '' }; }
-function makeAbilitaRow() { return { nome: '', bonus: '', costo: '', durata: '', utilizzi: '', lv: '' }; }
+/* Righe delle tabelle del retro scheda (colonne come da schede ufficiali).
+   utilizzi/costo/range/pp/limite non si scrivono più a mano: si ricalcolano
+   da lv (e da Q.I. per gli utilizzi) a ogni render — vedi recomputeTecnicaRow/
+   recomputeAbilitaRow/recomputeBoostRow. utilizziCount è il contatore vero e
+   proprio, incrementato dal bottone nella cella Utilizzi. */
+function makeTecnicaRow() { return { nome: '', bonus: '', malus: '', durata: '', utilizziCount: 0, utilizzi: '', lv: '' }; }
+function makeAbilitaRow() { return { nome: '', bonus: '', costo: '', durata: '', utilizziCount: 0, utilizzi: '', lv: '' }; }
 function makeBoostRow()   { return { bonus: '', range: '', pp: '', costo: '', limite: '', lv: '' }; }
+
+/* Ricalcola i campi derivati di una riga Tecnica/Abilità/Boost dal suo Lv
+   (e, per gli utilizzi, dal Q.I. del personaggio): lv resta comunque
+   impostabile a mano, qui si limita solo a un intero >= 1. */
+function recomputeTecnicaRow(r, qi) {
+  const lv = Math.max(1, parseInt(r.lv, 10) || 1);
+  r.lv = String(lv);
+  r.utilizzi = `${Number(r.utilizziCount) || 0}/${utilizziLimitFor(qi, lv)}`;
+}
+function recomputeAbilitaRow(r, qi) {
+  const lv = Math.max(1, parseInt(r.lv, 10) || 1);
+  r.lv = String(lv);
+  r.utilizzi = `${Number(r.utilizziCount) || 0}/${utilizziLimitFor(qi, lv)}`;
+  r.costo = `${abilitaCostoForLv(lv)} MP`;
+}
+function recomputeBoostRow(r) {
+  const lv = clamp(parseInt(r.lv, 10) || 1, 1, 5);
+  const ref = BOOST_LEVELS.find(b => b.lv === lv) || BOOST_LEVELS[0];
+  r.lv = String(lv);
+  r.range = ref.range;
+  r.pp = ref.mantenimento;
+  r.costo = `${ref.costo} PP`;
+  r.limite = ref.limite;
+}
+/* Registra un utilizzo di una Tecnica/Abilità: il contatore sale di 1;
+   raggiunto il limite (fascia Q.I. del personaggio × Lv della riga) si
+   azzera e il Lv sale di 1 in automatico — resta comunque impostabile a
+   mano in qualsiasi momento. */
+function logTecnicaAbilitaUsage(field, idx) {
+  const c = getActive(); if (!c) return;
+  const rows = c[field];
+  const r = rows && rows[idx]; if (!r) return;
+  const lv = Math.max(1, parseInt(r.lv, 10) || 1);
+  const limit = utilizziLimitFor(c.qi, lv);
+  const count = (Number(r.utilizziCount) || 0) + 1;
+  const label = r.nome || (field === 'tecniche' ? 'Tecnica' : 'Abilità');
+  if (count >= limit) {
+    r.utilizziCount = 0;
+    r.lv = String(lv + 1);
+    toast(`${label} sale di livello (Lv ${lv} → ${lv + 1})`);
+  } else {
+    r.utilizziCount = count;
+  }
+  touchActive();
+  if (field === 'tecniche') renderTecniche(c); else renderAbilita(c);
+}
+/* Cella di sola lettura per un valore già calcolato (costo/range/pp/limite) */
+function readonlyCell(value) {
+  return `<td class="col-narrow" style="color:var(--testo-secondario-dark-2);">${escapeHtml(String(value == null ? '' : value))}</td>`;
+}
+/* Cella "Utilizzi": conteggio calcolato + bottone per registrarne uno */
+function utilizziCellHtml(dataAttr, r, i) {
+  return `<td class="col-narrow">
+    <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
+      <button type="button" class="btn btn-icon btn-ghost btn-sm" data-uselog="${dataAttr}" data-idx="${i}" title="Registra un utilizzo" style="width:22px;height:22px;padding:0;">+</button>
+      <span style="white-space:nowrap;">${escapeHtml(r.utilizzi || '')}</span>
+    </div>
+  </td>`;
+}
 function makeConsumabileRow() { return { nome: '', effetto: 'recuperoHp', target: '', valore: 0, quantita: 0 }; }
 function makeRelazioneRow() { return { nome: '', relazione: '', descrizione: '' }; }
 function defaultBoost() {
@@ -1181,22 +1244,29 @@ function renderWeaponSlots(c) {
   $('#weapon-grid').innerHTML = c.weaponSlots.map((s, i) =>
     equipCardHtml(s, i, s.kind === 'scudo' ? 'Nome scudo' : 'Nome arma')).join('');
 }
-function editTableRows(id, rows, dataAttr, fields) {
+function editTableRows(id, rows, dataAttr, fields, cellRenderers) {
   if (!rows.length) {
     $(id).innerHTML = `<tr><td colspan="${fields.length}" class="helper-text" style="padding:10px 8px;">Nessuna sbloccata a questo livello.</td></tr>`;
     return;
   }
   $(id).innerHTML = rows.map((r, i) => `
-    <tr>${fields.map(f => `
-      <td class="${f === fields[0] ? 'col-wide' : 'col-narrow'}"><input type="text" value="${escapeHtml(r[f] || '')}" data-${dataAttr}="${f}" data-idx="${i}"></td>`).join('')}
+    <tr>${fields.map(f => {
+      if (cellRenderers && cellRenderers[f]) return cellRenderers[f](r, i);
+      return `<td class="${f === fields[0] ? 'col-wide' : 'col-narrow'}"><input type="text" value="${escapeHtml(r[f] || '')}" data-${dataAttr}="${f}" data-idx="${i}"></td>`;
+    }).join('')}
     </tr>`).join('');
 }
 /* Le righe di Tecniche e Abilità si sbloccano con i level-up (dotazione
    iniziale + acquisizioni ai Lv 4/8/12/16/20 secondo la build). Le righe
    già compilate oltre il limite (es. dopo un cambio di build o una
-   concessione del Narratore) restano visibili. */
+   concessione del Narratore) restano visibili.
+   Utilizzi/costo/range/pp/limite/lv sono ricalcolati a ogni render (vedi
+   recomputeTecnicaRow e affini): esclusi qui, altrimenti ogni riga
+   risulterebbe sempre "piena" non appena ricalcolata anche se il giocatore
+   non ha scritto nulla di suo, rompendo lo sblocco progressivo per livello. */
+const ROW_DERIVED_FIELDS = new Set(['utilizzi', 'utilizziCount', 'costo', 'range', 'pp', 'limite', 'lv']);
 function rowHasContent(r) {
-  return Object.values(r).some(v => String(v || '') !== '' && v !== 0);
+  return Object.keys(r).some(k => !ROW_DERIVED_FIELDS.has(k) && String(r[k] || '') !== '' && r[k] !== 0);
 }
 function buildRows(rows, max, makeRow) {
   while (rows.length < max) rows.push(makeRow());
@@ -1209,15 +1279,21 @@ function buildRows(rows, max, makeRow) {
 function renderTecniche(c) {
   const un = tecAbSbloccate(c.build, c.livello);
   const max = tecAbSbloccate(c.build, 20);
-  editTableRows('#tecniche-table', buildRows(c.tecniche, un.tec, makeTecnicaRow), 'tecnica',
-    ['nome', 'bonus', 'malus', 'durata', 'utilizzi', 'lv']);
+  const rows = buildRows(c.tecniche, un.tec, makeTecnicaRow);
+  rows.forEach(r => recomputeTecnicaRow(r, c.qi));
+  editTableRows('#tecniche-table', rows, 'tecnica',
+    ['nome', 'bonus', 'malus', 'durata', 'utilizzi', 'lv'],
+    { utilizzi: (r, i) => utilizziCellHtml('tecnica', r, i) });
   $('#tecniche-count').textContent = `${un.tec} / ${max.tec}`;
 }
 function renderAbilita(c) {
   const un = tecAbSbloccate(c.build, c.livello);
   const max = tecAbSbloccate(c.build, 20);
-  editTableRows('#abilita-table', buildRows(c.abilita, un.ab, makeAbilitaRow), 'abilita',
-    ['nome', 'bonus', 'costo', 'durata', 'utilizzi', 'lv']);
+  const rows = buildRows(c.abilita, un.ab, makeAbilitaRow);
+  rows.forEach(r => recomputeAbilitaRow(r, c.qi));
+  editTableRows('#abilita-table', rows, 'abilita',
+    ['nome', 'bonus', 'costo', 'durata', 'utilizzi', 'lv'],
+    { costo: r => readonlyCell(r.costo), utilizzi: (r, i) => utilizziCellHtml('abilita', r, i) });
   $('#abilita-count').textContent = `${un.ab} / ${max.ab}`;
   populateMpCostSelect(c);
 }
@@ -1241,8 +1317,11 @@ function populateMpCostSelect(c) {
 }
 function renderBoostRows(c) {
   const shown = clamp(c.boostRowsShown || 1, 1, BOOST_ROWS_MAX);
-  editTableRows('#boostrows-table', buildRows(c.boostRows, shown, makeBoostRow), 'boostrow',
-    ['bonus', 'range', 'pp', 'costo', 'limite', 'lv']);
+  const rows = buildRows(c.boostRows, shown, makeBoostRow);
+  rows.forEach(recomputeBoostRow);
+  editTableRows('#boostrows-table', rows, 'boostrow',
+    ['bonus', 'range', 'pp', 'costo', 'limite', 'lv'],
+    { range: r => readonlyCell(r.range), pp: r => readonlyCell(r.pp), costo: r => readonlyCell(r.costo), limite: r => readonlyCell(r.limite) });
   $('#boost-add').classList.toggle('hidden', shown >= BOOST_ROWS_MAX);
   $('#boost-remove').classList.toggle('hidden', shown < 2);
 }
@@ -2021,6 +2100,8 @@ function wireStaticEvents() {
     } else if (key === 'qi') {
       c.qi = isNaN(raw) ? null : raw;
       renderQi(c);
+      renderTecniche(c);
+      renderAbilita(c);
     } else if (key === 'hprim') {
       c.hpCur = clamp(isNaN(raw) ? 0 : raw, 0, c.hpMaxTracked || 0);
       updatePlayBars(c);
@@ -2101,6 +2182,8 @@ function wireStaticEvents() {
     c.qi = qi;
     renderQi(c);
     renderDiagram(c);
+    renderTecniche(c);
+    renderAbilita(c);
     touchActive();
   });
   $('#f-qi-progresso').addEventListener('input', () => setField('qiProgresso', Number($('#f-qi-progresso').value) || 0));
@@ -2338,6 +2421,28 @@ function wireStaticEvents() {
   // mentre si scrive nome/costo di un'Abilità, non solo ai render completi
   $('#abilita-table').addEventListener('input', () => {
     const c = getActive(); if (c) populateMpCostSelect(c);
+  });
+  // il bottone "+" nella cella Utilizzi registra un utilizzo (vedi
+  // logTecnicaAbilitaUsage); cambiare Lv a mano ricalcola subito costo/
+  // utilizzi invece di aspettare il prossimo render completo (il "change"
+  // scatta solo lasciando il campo, non a ogni tasto, per non disturbare
+  // la digitazione).
+  $('#tecniche-table').addEventListener('click', e => {
+    const btn = e.target.closest('[data-uselog]');
+    if (btn) logTecnicaAbilitaUsage('tecniche', Number(btn.dataset.idx));
+  });
+  $('#tecniche-table').addEventListener('change', e => {
+    if (e.target.dataset.tecnica === 'lv') { const c = getActive(); if (c) renderTecniche(c); }
+  });
+  $('#abilita-table').addEventListener('click', e => {
+    const btn = e.target.closest('[data-uselog]');
+    if (btn) logTecnicaAbilitaUsage('abilita', Number(btn.dataset.idx));
+  });
+  $('#abilita-table').addEventListener('change', e => {
+    if (e.target.dataset.abilita === 'lv') { const c = getActive(); if (c) renderAbilita(c); }
+  });
+  $('#boostrows-table').addEventListener('change', e => {
+    if (e.target.dataset.boostrow === 'lv') { const c = getActive(); if (c) renderBoostRows(c); }
   });
   $('#boost-add').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
@@ -3207,6 +3312,12 @@ function renderCharView(c) {
   const slots = (c.slots || []).filter(s2 => s2.size || s2.atk || s2.dif || s2.bonus || s2.dur).map(equipRow).join('');
   const weaponSlots = (c.weaponSlots || []).filter(s2 => s2.size || s2.atk || s2.dif || s2.bonus || s2.dur).map(equipRow).join('');
 
+  // Ricalcolo difensivo: questa e' una scheda in sola lettura (dati magari
+  // arrivati da un incollato/importato), non e' detto che utilizzi/costo/
+  // range/pp/limite siano gia' aggiornati all'ultimo lv/Q.I.
+  (c.tecniche || []).forEach(r => recomputeTecnicaRow(r, c.qi));
+  (c.abilita || []).forEach(r => recomputeAbilitaRow(r, c.qi));
+  (c.boostRows || []).forEach(recomputeBoostRow);
   const rowTable = (rows, fields) => (rows || []).filter(rowHasContent)
     .map(r => `<tr>${fields.map(f => `<td>${escapeHtml(String(r[f] || ''))}</td>`).join('')}</tr>`).join('');
   const tecniche = rowTable(c.tecniche, ['nome', 'bonus', 'malus', 'durata', 'utilizzi', 'lv']);

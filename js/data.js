@@ -271,6 +271,29 @@ function traitBonusAtLevel(livello) {
   return out;
 }
 
+// Fasce Q.I. -> limite base per il contatore "utilizzi" di Tecniche/Abilità:
+// il limite vero e proprio è (base della fascia) × (Lv della tecnica/abilità
+// stessa). Raggiunto, il contatore si azzera e quel Lv sale di 1 — un Q.I.
+// più alto abbassa la base, cioè bastano meno utilizzi per salire di livello.
+function utilizziBaseForQI(qi) {
+  const q = Number(qi) || 0;
+  if (q > 150) return 8;
+  if (q > 120) return 9;
+  if (q >= 100) return 10;
+  return 11;
+}
+function utilizziLimitFor(qi, lv) {
+  const l = Math.max(1, parseInt(lv, 10) || 1);
+  return utilizziBaseForQI(qi) * l;
+}
+
+// Costo Mp delle Abilità, in base al loro Lv: +6 Mp a livello fino al Lv 4
+// incluso (6/12/18/24), poi +8 Mp a livello oltre il 4.
+function abilitaCostoForLv(lv) {
+  const l = Math.max(1, parseInt(lv, 10) || 1);
+  return l <= 4 ? 6 * l : 24 + 8 * (l - 4);
+}
+
 // Boost — meccanica ufficiale a 5 livelli fissi
 const BOOST_LEVELS = [
   { lv: 1, costo: 8,  mantenimento: '1 PP/turno', durata: '3 Turni',        range: '5 metri',  limite: '0/100' },
