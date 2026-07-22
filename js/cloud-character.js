@@ -105,12 +105,14 @@ async function syncCharacterFromCloud(c) {
   if (data.campaign_id) {
     try {
       const { data: camp } = await withTimeout(
-        sb.from('campaigns').select('deleted_at, purge_at').eq('id', data.campaign_id).single(),
+        sb.from('campaigns').select('deleted_at, purge_at, premise_title, premise_published').eq('id', data.campaign_id).single(),
         'Stato campagna'
       );
       const wasTrashed = !!c.cloudCampaignTrashedAt;
       c.cloudCampaignTrashedAt = (camp && camp.deleted_at) || null;
       c.cloudCampaignPurgeAt = (camp && camp.purge_at) || null;
+      c.cloudCampaignPremiseTitle = (camp && camp.premise_title) || null;
+      c.cloudCampaignPremisePublished = !!(camp && camp.premise_published);
       if (c.cloudCampaignTrashedAt && !wasTrashed) {
         toast(`Il Narratore ha eliminato «${c.cloudCampaignName || 'la storia'}»: recuperabile ancora per qualche giorno. Esporta la tua scheda per sicurezza.`);
       }
@@ -167,7 +169,10 @@ function cloudStoryBoxHtml(c) {
   if (c.cloudCampaignId) {
     return `
       <p class="helper-text" style="margin:0;">Sei nella storia: <strong>${c.cloudJoinCampaignName || c.cloudCampaignId}</strong> (Lv ${c.livello}).</p>
-      <button class="btn btn-ghost btn-sm" id="cs-sync" style="align-self:flex-start;">Sincronizza</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-ghost btn-sm" id="cs-sync">Sincronizza</button>
+        ${c.cloudCampaignPremisePublished ? '<button class="btn btn-ghost btn-sm" id="cs-read-premise">📖 Leggi la premessa</button>' : ''}
+      </div>
     `;
   }
   if (c.cloudJoinRequestId) {
@@ -235,6 +240,15 @@ function wireCloudCharacterEvents() {
     if (e.target.id === 'cs-export') {
       exportCharacterJson(c);
       toast('Scheda esportata');
+      return;
+    }
+    if (e.target.id === 'cs-read-premise') {
+      if (!c.cloudCampaignId) return;
+      try {
+        const bytes = await downloadCampaignPremiseBytes(c.cloudCampaignId);
+        const title = c.cloudCampaignPremiseTitle || c.cloudJoinCampaignName || 'Premessa';
+        if (window.MSPdfViewer) window.MSPdfViewer.open({ bytes, title, label: c.nome || 'Giocatore' });
+      } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
   });

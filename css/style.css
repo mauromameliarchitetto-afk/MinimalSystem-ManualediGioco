@@ -519,8 +519,12 @@ body.pdf-lock-scroll{overflow:hidden;}
 }
 
 /* ---------- Premesse di gioco (info file) ---------- */
-#premises-file-info .pr-title{font-family:var(--font-title);font-weight:600;font-size:13.5px;}
-#premises-file-info .pr-text{font-size:12.5px;color:var(--testo-secondario-dark-2);margin-top:2px;}
+#premises-file-info .pr-title,
+#acc-new-campaign-premise-info .pr-title,
+.cm-campaign-detail .pr-title{font-family:var(--font-title);font-weight:600;font-size:13.5px;}
+#premises-file-info .pr-text,
+#acc-new-campaign-premise-info .pr-text,
+.cm-campaign-detail .pr-text{font-size:12.5px;color:var(--testo-secondario-dark-2);margin-top:2px;}
 
 #portrait-lightbox img{
   max-width:94vw;
