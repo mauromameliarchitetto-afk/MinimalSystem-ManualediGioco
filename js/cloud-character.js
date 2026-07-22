@@ -177,7 +177,7 @@ function cloudStoryBoxHtml(c) {
     `;
   }
   return `
-    <p class="helper-text" style="margin:0;">Chiedi il codice della campagna al Narratore (lo trova in "Account cloud → Le tue campagne").</p>
+    <p class="helper-text" style="margin:0;">Chiedi il codice della campagna al Narratore (lo trova in "Account → Narratore → Le tue campagne").</p>
     <div class="field"><label>Codice campagna</label><input type="text" id="cs-campaign-code" placeholder="es. 3f251454-e0d5-..."></div>
     <button class="btn btn-primary btn-sm" id="cs-find-campaign" style="align-self:flex-start;">Cerca</button>
     <div id="cs-found-campaign"></div>
@@ -219,6 +219,7 @@ function wireCloudCharacterEvents() {
         await requestJoinCampaign(c, e.target.dataset.campaignid, e.target.dataset.campaignname);
         toast('Richiesta inviata: in attesa di conferma del Narratore');
         renderCloudStoryBox(c);
+        if (typeof renderPlayerStoriesBox === 'function') renderPlayerStoriesBox();
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
@@ -226,6 +227,7 @@ function wireCloudCharacterEvents() {
       try {
         const changed = await syncCharacterFromCloud(c);
         renderCloudStoryBox(c);
+        if (typeof renderPlayerStoriesBox === 'function') renderPlayerStoriesBox();
         if (!changed) toast('Nessuna novità');
       } catch (err) { toast('Errore: ' + err.message); }
       return;

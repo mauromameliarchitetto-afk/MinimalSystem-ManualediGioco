@@ -1521,8 +1521,6 @@ function wireStaticEvents() {
     if (!item) return;
     closeCoverMenu();
     if (item.dataset.menuNav === 'rules') { renderRules(); showView('rules'); return; }
-    if (item.dataset.menuNav === 'list') { renderCharList(); showView('list'); return; }
-    if (item.dataset.menuNav === 'new') { createCharacterFlow(); return; }
     if (item.dataset.menuNav === 'master') { renderMasterArea(); showView('master'); return; }
     if (item.dataset.menuNav === 'premises') { renderPremisesArea(); showView('premises'); return; }
     if (item.dataset.menuNav === 'account') { renderAccountArea(); showView('account'); return; }
