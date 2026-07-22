@@ -37,20 +37,6 @@ async function pushCharacterToCloud(c) {
   }
 }
 
-/* Cerca una campagna per id (il "codice" che il Narratore condivide dalla
-   sua sezione Account cloud) senza esporre un elenco pubblico di tutte le
-   campagne: la funzione find_campaign_by_id restituisce solo nome+id. */
-async function findCampaignByCode(code) {
-  const trimmed = (code || '').trim();
-  if (!trimmed) throw new Error('Inserisci il codice campagna');
-  const { data, error } = await withTimeout(
-    sb.rpc('find_campaign_by_id', { p_campaign_id: trimmed }),
-    'Ricerca campagna'
-  );
-  if (error) throw error;
-  return (data && data[0]) || null;
-}
-
 async function requestJoinCampaign(c, campaignId, campaignName) {
   if (!c.cloudCharacterId) throw new Error('Salva prima il personaggio nel cloud');
   const { data, error } = await withTimeout(
@@ -186,17 +172,26 @@ function cloudStoryBoxHtml(c) {
     `;
   }
   return `
-    <p class="helper-text" style="margin:0;">Chiedi il codice della campagna al Narratore (lo trova in "Account → Narratore → Le tue campagne").</p>
-    <div class="field"><label>Codice campagna</label><input type="text" id="cs-campaign-code" placeholder="es. 3f251454-e0d5-..."></div>
-    <button class="btn btn-primary btn-sm" id="cs-find-campaign" style="align-self:flex-start;">Cerca</button>
-    <div id="cs-found-campaign"></div>
+    <p class="helper-text" style="margin:0;">Scegli una storia che il Narratore ha reso visibile e manda una richiesta di partecipazione.</p>
+    <div class="field"><label>Storie pubblicate</label><select id="cs-campaign-select"><option value="">Caricamento…</option></select></div>
+    <button class="btn btn-primary btn-sm" id="cs-request-join-select" style="align-self:flex-start;">Invia richiesta di partecipazione</button>
   `;
 }
 
-function renderCloudStoryBox(c) {
+async function renderCloudStoryBox(c) {
   const box = $('#cloud-story-box');
   if (!box) return;
   box.innerHTML = cloudStoryBoxHtml(c);
+  const select = $('#cs-campaign-select');
+  if (!select) return;
+  try {
+    const campaigns = await listPublishedCampaigns();
+    select.innerHTML = campaigns.length
+      ? '<option value="">— scegli una storia —</option>' + campaigns.map(camp => `<option value="${camp.id}" data-name="${escapeHtml(camp.name)}">${escapeHtml(camp.name)}</option>`).join('')
+      : '<option value="">Nessuna storia pubblicata al momento</option>';
+  } catch (e) {
+    select.innerHTML = `<option value="">Errore: ${escapeHtml(e.message)}</option>`;
+  }
 }
 
 function wireCloudCharacterEvents() {
@@ -211,21 +206,13 @@ function wireCloudCharacterEvents() {
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
-    if (e.target.id === 'cs-find-campaign') {
-      const codeInput = $('#cs-campaign-code');
+    if (e.target.id === 'cs-request-join-select') {
+      const select = $('#cs-campaign-select');
+      const campaignId = select ? select.value : '';
+      if (!campaignId) { toast('Scegli una storia dall\'elenco'); return; }
+      const campaignName = (select.options[select.selectedIndex] && select.options[select.selectedIndex].dataset.name) || select.options[select.selectedIndex].textContent;
       try {
-        const found = await findCampaignByCode(codeInput.value);
-        if (!found) { $('#cs-found-campaign').innerHTML = '<p class="helper-text" style="margin:6px 0 0;">Nessuna campagna trovata con questo codice.</p>'; return; }
-        $('#cs-found-campaign').innerHTML = `
-          <p class="helper-text" style="margin:6px 0;">Trovata: <strong>${found.name}</strong></p>
-          <button class="btn btn-primary btn-sm" id="cs-request-join" data-campaignid="${found.id}" data-campaignname="${found.name}">Chiedi di entrare</button>
-        `;
-      } catch (err) { toast('Errore: ' + err.message); }
-      return;
-    }
-    if (e.target.id === 'cs-request-join') {
-      try {
-        await requestJoinCampaign(c, e.target.dataset.campaignid, e.target.dataset.campaignname);
+        await requestJoinCampaign(c, campaignId, campaignName);
         toast('Richiesta inviata: in attesa di conferma del Narratore');
         renderCloudStoryBox(c);
         if (typeof renderPlayerStoriesBox === 'function') renderPlayerStoriesBox();
