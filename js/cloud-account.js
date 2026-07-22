@@ -65,11 +65,14 @@ async function ensureCloudAccount() {
   return data.session;
 }
 
-/* Accesso/registrazione con email + codice temporaneo (nessun link da
-   cliccare: piu' affidabile su mobile e non richiede configurare URL di
-   redirect nel progetto). */
+/* Accesso/registrazione via email: sul piano gratuito Supabase arriva solo
+   come link "Sign in" (vedi supabase-client.js). AUTH_REDIRECT_URL vale solo
+   nell'app nativa, per farlo tornare nell'app invece di aprire il browser;
+   sul web resta undefined e si usa il comportamento di default (Site URL). */
 async function sendEmailCode(email) {
-  const { error } = await withTimeout(sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } }), 'Invio codice');
+  const options = { shouldCreateUser: true };
+  if (AUTH_REDIRECT_URL) options.emailRedirectTo = AUTH_REDIRECT_URL;
+  const { error } = await withTimeout(sb.auth.signInWithOtp({ email, options }), 'Invio codice');
   if (error) throw error;
 }
 async function verifyEmailCode(email, token) {
@@ -80,15 +83,18 @@ async function verifyEmailCode(email, token) {
 
 /* Ospite -> permanente: collega un'email all'utente anonimo gia' loggato.
    Supabase invia un'email di conferma con un link: al click l'account
-   diventa permanente (serve che l'URL di redirect dell'app sia impostato in
-   Dashboard → Authentication → URL Configuration). */
+   diventa permanente. */
 async function upgradeGuestWithEmail(email) {
-  const { error } = await withTimeout(sb.auth.updateUser({ email }), 'Collegamento email');
+  const options = {};
+  if (AUTH_REDIRECT_URL) options.emailRedirectTo = AUTH_REDIRECT_URL;
+  const { error } = await withTimeout(sb.auth.updateUser({ email }, options), 'Collegamento email');
   if (error) throw error;
 }
 
 async function signInWithProvider(provider) {
-  const { error } = await withTimeout(sb.auth.signInWithOAuth({ provider }), 'Accesso');
+  const options = {};
+  if (AUTH_REDIRECT_URL) options.redirectTo = AUTH_REDIRECT_URL;
+  const { error } = await withTimeout(sb.auth.signInWithOAuth({ provider, options }), 'Accesso');
   if (error) throw error;
 }
 

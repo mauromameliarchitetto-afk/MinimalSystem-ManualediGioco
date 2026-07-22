@@ -40,6 +40,9 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Add deep link intent-filter for email sign-in
+        run: python3 .github/scripts/patch_android_manifest.py
+
       - name: Generate icons and splash screens
         run: >
           npx @capacitor/assets generate --android
