@@ -105,7 +105,7 @@ async function syncCharacterFromCloud(c) {
   if (data.campaign_id) {
     try {
       const { data: camp } = await withTimeout(
-        sb.from('campaigns').select('deleted_at, purge_at, premise_title, premise_published').eq('id', data.campaign_id).single(),
+        sb.from('campaigns').select('deleted_at, purge_at, premise_title, premise_published, owner_user_id').eq('id', data.campaign_id).single(),
         'Stato campagna'
       );
       const wasTrashed = !!c.cloudCampaignTrashedAt;
@@ -113,6 +113,10 @@ async function syncCharacterFromCloud(c) {
       c.cloudCampaignPurgeAt = (camp && camp.purge_at) || null;
       c.cloudCampaignPremiseTitle = (camp && camp.premise_title) || null;
       c.cloudCampaignPremisePublished = !!(camp && camp.premise_published);
+      if (camp && camp.owner_user_id) {
+        const names = await fetchDisplayNames([camp.owner_user_id]);
+        c.cloudCampaignNarratoreName = names[camp.owner_user_id] || null;
+      }
       if (c.cloudCampaignTrashedAt && !wasTrashed) {
         toast(`Il Narratore ha eliminato «${c.cloudCampaignName || 'la storia'}»: recuperabile ancora per qualche giorno. Esporta la tua scheda per sicurezza.`);
       }
@@ -168,7 +172,7 @@ function cloudStoryBoxHtml(c) {
   }
   if (c.cloudCampaignId) {
     return `
-      <p class="helper-text" style="margin:0;">Sei nella storia: <strong>${c.cloudJoinCampaignName || c.cloudCampaignId}</strong> (Lv ${c.livello}).</p>
+      <p class="helper-text" style="margin:0;">Sei nella storia: <strong>${c.cloudJoinCampaignName || c.cloudCampaignId}</strong> (Lv ${c.livello})${c.cloudCampaignNarratoreName ? ` — Narratore: <strong>${escapeHtml(c.cloudCampaignNarratoreName)}</strong>` : ''}.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-ghost btn-sm" id="cs-sync">Sincronizza</button>
         ${c.cloudCampaignPremisePublished ? '<button class="btn btn-ghost btn-sm" id="cs-read-premise">📖 Leggi la premessa</button>' : ''}
