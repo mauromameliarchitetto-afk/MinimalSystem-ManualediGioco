@@ -362,6 +362,14 @@ function defaultShownTraits() {
   Object.keys(TRAIT_LISTS).forEach(k => { o[k] = []; });
   return o;
 }
+/* Punti extra concessi dal Narratore per motivi di trama (addestramento,
+   studio, salti temporali), separati per categoria: si sommano al pool
+   normale di quella categoria, non sono fungibili con le altre due. */
+function defaultTraitNarratoreBonus() {
+  const o = {};
+  Object.keys(TRAIT_LISTS).forEach(k => { o[k] = 0; });
+  return o;
+}
 
 function newCharacter(nome) {
   return {
@@ -403,6 +411,7 @@ function newCharacter(nome) {
     traits: defaultTraits(),
     customTraits: defaultCustomTraits(),
     shownTraits: defaultShownTraits(),
+    traitNarratoreBonus: defaultTraitNarratoreBonus(),
     hpMaxTracked: null, mpMaxTracked: null, prMaxTracked: null,
     hpCur: null, mpCur: null, ppCur: null, prCur: null,
     slots: defaultSlots(),
@@ -998,7 +1007,7 @@ function renderTraits(c) {
     const rows = TRAIT_LISTS[listKey]
       .filter(name => shown.includes(name))
       .map(name => traitRowHtml(listKey, name, c.traits[listKey][name] || 0, false, undefined, locked));
-    const customRows = (c.customTraits[listKey] || []).map((t, i) => traitRowHtml(listKey, t.name, t.value, true, i, locked));
+    const customRows = (c.customTraits[listKey] || []).map((t, i) => traitRowHtml(listKey, t.name, t.value, true, i, locked, t.narratore));
     const empty = !rows.length && !customRows.length
       ? `<div class="helper-text" style="padding:2px 2px 6px;">Nessun tratto ancora — aggiungine uno dal menù qui sotto.</div>` : '';
     const available = TRAIT_LISTS[listKey].filter(name => !shown.includes(name));
@@ -1016,6 +1025,7 @@ function renderTraits(c) {
   }).join('');
   updateTraitsRemaining(c);
   renderTraitRollSelect(c);
+  renderNarratoreGrants(c);
 }
 /* Punti spesi in una singola categoria (conoscenze/capacitaNormali/
    capacitaCombattive): tre "tipologie di punti" separate e non fungibili
@@ -1023,11 +1033,18 @@ function renderTraits(c) {
 function traitsSumForList(c, listKey) {
   let sum = 0;
   TRAIT_LISTS[listKey].forEach(name => { sum += Number(c.traits[listKey][name]) || 0; });
-  (c.customTraits[listKey] || []).forEach(t => { sum += Number(t.value) || 0; });
+  // i tratti scritti di suo pugno dal Narratore sono un dono: non consumano
+  // il pool del giocatore, restano fuori da questo conteggio
+  (c.customTraits[listKey] || []).forEach(t => { if (!t.narratore) sum += Number(t.value) || 0; });
   return sum;
 }
+/* Tetto di punti spendibili in una categoria: pool di livello (data.js) +
+   eventuali punti concessi dal Narratore per motivi di trama. */
+function traitsPoolForCharacter(c, listKey) {
+  return traitsPoolForList(listKey, c.livello || 1) + ((c.traitNarratoreBonus && c.traitNarratoreBonus[listKey]) || 0);
+}
 function traitsRemainingForList(c, listKey) {
-  return traitsPoolForList(listKey, c.livello || 1) - traitsSumForList(c, listKey);
+  return traitsPoolForCharacter(c, listKey) - traitsSumForList(c, listKey);
 }
 function allTraitsAtZero(c) {
   return Object.keys(TRAIT_LISTS).every(k => traitsRemainingForList(c, k) === 0);
@@ -1038,9 +1055,11 @@ function updateTraitsRemaining(c) {
     rowsEl.innerHTML = Object.keys(TRAIT_LISTS).map(listKey => {
       const remaining = traitsRemainingForList(c, listKey);
       const bonus = traitBonusAtLevel(c.livello || 1)[listKey] || 0;
+      const narratoreBonus = (c.traitNarratoreBonus && c.traitNarratoreBonus[listKey]) || 0;
       const cls = 'remaining' + (remaining < 0 ? ' neg' : (remaining === 0 ? ' zero' : ''));
+      const extra = [bonus ? `${bonus} dai level-up` : '', narratoreBonus ? `${narratoreBonus} dal Narratore` : ''].filter(Boolean).join(' + ');
       return `<div class="pointbuy-header">
-        <span class="label">${TRAIT_LIST_LABELS[listKey]}${bonus ? ` (${TRAIT_POOL_PER_LIST} + ${bonus} dai level-up)` : ''}</span>
+        <span class="label">${TRAIT_LIST_LABELS[listKey]}${extra ? ` (${TRAIT_POOL_PER_LIST} + ${extra})` : ''}</span>
         <span class="${cls}">${remaining}</span>
       </div>`;
     }).join('');
@@ -1092,13 +1111,14 @@ function cssEscapeAttr(v) {
   return v.replace(/["\\]/g, '\\$&');
 }
 
-function traitRowHtml(listKey, name, value, isCustom, idx, locked) {
+function traitRowHtml(listKey, name, value, isCustom, idx, locked, narratore) {
   const bonus = Number(value) || 0;
   const nameHtml = isCustom
     ? `<input type="text" value="${escapeHtml(name)}" data-customname="${listKey}" data-idx="${idx}" ${locked ? 'disabled' : ''} placeholder="Nome tratto">`
     : escapeHtml(name);
-  return `<div class="trait-row" data-trait="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''}>
-    <div class="t-name">${nameHtml}</div>
+  const badge = narratore ? ` <span class="chip buff-chip" title="Scritto dal Narratore: non consuma i punti del giocatore">Narratore</span>` : '';
+  return `<div class="trait-row" data-trait="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''} ${narratore ? 'data-narratore="1"' : ''}>
+    <div class="t-name">${nameHtml}${badge}</div>
     <span class="t-dice">+${bonus}</span>
     <input type="number" value="${value}" min="0" max="50" data-traitvalue="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''} ${locked ? 'disabled' : ''}>
     <button class="btn btn-icon btn-sm btn-ghost btn-roll" data-traitroll="${escapeHtml(name)}" data-list="${listKey}" title="Tira 1d20+valore">🎲</button>
@@ -1106,6 +1126,24 @@ function traitRowHtml(listKey, name, value, isCustom, idx, locked) {
       ? `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-delcustom="${listKey}" data-idx="${idx}" title="Rimuovi" ${locked ? 'disabled' : ''}>✕</button>`
       : `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-hidetrait="${escapeHtml(name)}" data-list="${listKey}" title="Rimuovi" ${locked ? 'disabled' : ''}>✕</button>`}
   </div>`;
+}
+/* Box "Concessioni del Narratore": punti extra per categoria (motivi di
+   trama: addestramento, studio, salti temporali) e tratti scritti di suo
+   pugno (gratuiti, non consumano il pool del giocatore). */
+function renderNarratoreGrants(c) {
+  const wrap = $('#narratore-grant-rows');
+  if (!wrap) return;
+  wrap.innerHTML = Object.keys(TRAIT_LISTS).map(listKey => {
+    const bonus = (c.traitNarratoreBonus && c.traitNarratoreBonus[listKey]) || 0;
+    return `<div class="row-between" data-narratoregrantrow="${listKey}" style="margin-bottom:10px;flex-wrap:wrap;">
+      <span class="label">${TRAIT_LIST_LABELS[listKey]}${bonus ? ` <span class="chip buff-chip" title="Punti concessi finora">+${bonus}</span>` : ''}</span>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <input type="number" min="1" value="1" data-narratoregrantinput="${listKey}" style="width:52px;">
+        <button type="button" class="btn btn-sm btn-ghost" data-narratoregrant="${listKey}">Concedi punti</button>
+        <button type="button" class="btn btn-sm btn-ghost" data-narratoreaddcustom="${listKey}">+ Tratto scritto dal Narratore</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 /* --------------------------------------------------------------- livelli */
@@ -2437,6 +2475,7 @@ function wireStaticEvents() {
       const list = valInput.dataset.list;
       const hasCustomIdx = valInput.dataset.customIdx !== undefined;
       const idx = hasCustomIdx ? Number(valInput.dataset.customIdx) : null;
+      const isNarratoreFree = hasCustomIdx && c.customTraits[list][idx] && !!c.customTraits[list][idx].narratore;
       const oldVal = hasCustomIdx
         ? (Number(c.customTraits[list][idx].value) || 0)
         : (Number(c.traits[list][valInput.dataset.traitvalue]) || 0);
@@ -2444,11 +2483,13 @@ function wireStaticEvents() {
       if (c.traitsConfirmed) {
         toast('Tratti confermati: si sbloccano solo con un level-up');
         v = oldVal;
-      } else if (v > oldVal) {
+      } else if (v > oldVal && !isNarratoreFree) {
         // fase di creazione/crescita: non si può superare il pool di QUESTA
-        // categoria (le tre tipologie di punti non sono fungibili tra loro)
+        // categoria (le tre tipologie di punti non sono fungibili tra loro).
+        // I tratti scritti dal Narratore sono un dono gratuito: non passano
+        // da questo controllo.
         const sum = traitsSumForList(c, list);
-        const pool = traitsPoolForList(list, c.livello || 1);
+        const pool = traitsPoolForCharacter(c, list);
         const maxAllowed = oldVal + Math.max(0, pool - sum);
         if (v > maxAllowed) {
           toast(`Punti esauriti in ${TRAIT_LIST_LABELS[list]}: hai già assegnato tutti i ${pool} punti disponibili`);
@@ -2469,6 +2510,38 @@ function wireStaticEvents() {
       if (c.traitsConfirmed) return;
       const list = nameInput.dataset.customname, idx = Number(nameInput.dataset.idx);
       c.customTraits[list][idx].name = nameInput.value;
+      touchActive();
+      return;
+    }
+  });
+
+  // ---- concessioni del Narratore (punti extra o tratto scritto a mano) ----
+  $('#narratore-grant-rows').addEventListener('click', e => {
+    const c = getActive(); if (!c) return;
+    const grantBtn = e.target.closest('[data-narratoregrant]');
+    const addBtn = e.target.closest('[data-narratoreaddcustom]');
+    if (grantBtn) {
+      const list = grantBtn.dataset.narratoregrant;
+      const input = $(`[data-narratoregrantinput="${list}"]`);
+      const n = Math.max(0, Math.floor(Number(input.value)) || 0);
+      if (n <= 0) return;
+      if (!c.traitNarratoreBonus) c.traitNarratoreBonus = defaultTraitNarratoreBonus();
+      c.traitNarratoreBonus[list] = (c.traitNarratoreBonus[list] || 0) + n;
+      // riapre subito la spesa dei tratti per usare i punti appena concessi,
+      // anche se erano già stati confermati
+      c.traitsConfirmed = false;
+      toast(`Il Narratore concede +${n} punti a ${TRAIT_LIST_LABELS[list]}`);
+      renderTraits(c);
+      touchActive();
+      return;
+    }
+    if (addBtn) {
+      const list = addBtn.dataset.narratoreaddcustom;
+      if (!Array.isArray(c.customTraits[list])) c.customTraits[list] = [];
+      c.customTraits[list].push({ name: '', value: 0, narratore: true });
+      // così il Narratore può subito scrivere nome e valore anche a scheda confermata
+      c.traitsConfirmed = false;
+      renderTraits(c);
       touchActive();
       return;
     }
