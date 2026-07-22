@@ -563,7 +563,7 @@ function syncActiveCharacterInBackground() {
   if (!c || !c.cloudCharacterId || typeof syncCharacterFromCloud !== 'function') return;
   syncCharacterFromCloud(c).then(changed => {
     if (changed && typeof renderCloudStoryBox === 'function') renderCloudStoryBox(c);
-    if (changed) updateStoriaLegacyVisibility(c);
+    if (changed) { updateStoriaLegacyVisibility(c); updateLevelLockUI(c); }
   }).catch(() => {});
 }
 
@@ -1074,7 +1074,6 @@ function renderTraits(c) {
   }).join('');
   updateTraitsRemaining(c);
   renderTraitRollSelect(c);
-  renderNarratoreGrants(c);
 }
 /* Punti spesi in una singola categoria (conoscenze/capacitaNormali/
    capacitaCombattive): tre "tipologie di punti" separate e non fungibili
@@ -1162,39 +1161,24 @@ function cssEscapeAttr(v) {
 
 function traitRowHtml(listKey, name, value, isCustom, idx, locked, narratore) {
   const bonus = Number(value) || 0;
+  // un tratto scritto dal Narratore non è mai modificabile o rimovibile dal
+  // giocatore, a prescindere dal blocco tratti: è un dono che gestisce solo
+  // lui, dal suo Account
+  const rowLocked = locked || narratore;
   const nameHtml = isCustom
-    ? `<input type="text" value="${escapeHtml(name)}" data-customname="${listKey}" data-idx="${idx}" ${locked ? 'disabled' : ''} placeholder="Nome tratto">`
+    ? `<input type="text" value="${escapeHtml(name)}" data-customname="${listKey}" data-idx="${idx}" ${rowLocked ? 'disabled' : ''} placeholder="Nome tratto">`
     : escapeHtml(name);
-  const badge = narratore ? ` <span class="chip buff-chip" title="Scritto dal Narratore: non consuma i punti del giocatore">Narratore</span>` : '';
+  const badge = narratore ? ` <span class="chip buff-chip" title="Scritto dal Narratore: non consuma i punti del giocatore, modificabile solo da lui">Narratore</span>` : '';
   return `<div class="trait-row" data-trait="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''} ${narratore ? 'data-narratore="1"' : ''}>
     <div class="t-name">${nameHtml}${badge}</div>
     <span class="t-dice">+${bonus}</span>
-    <input type="number" value="${value}" min="0" max="50" data-traitvalue="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''} ${locked ? 'disabled' : ''}>
+    <input type="number" value="${value}" min="0" max="50" data-traitvalue="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''} ${rowLocked ? 'disabled' : ''}>
     <button class="btn btn-icon btn-sm btn-ghost btn-roll" data-traitroll="${escapeHtml(name)}" data-list="${listKey}" title="Tira 1d20+valore">🎲</button>
     ${isCustom
-      ? `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-delcustom="${listKey}" data-idx="${idx}" title="Rimuovi" ${locked ? 'disabled' : ''}>✕</button>`
+      ? `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-delcustom="${listKey}" data-idx="${idx}" title="Rimuovi" ${rowLocked ? 'disabled' : ''}>✕</button>`
       : `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-hidetrait="${escapeHtml(name)}" data-list="${listKey}" title="Rimuovi" ${locked ? 'disabled' : ''}>✕</button>`}
   </div>`;
 }
-/* Box "Concessioni del Narratore": punti extra per categoria (motivi di
-   trama: addestramento, studio, salti temporali) e tratti scritti di suo
-   pugno (gratuiti, non consumano il pool del giocatore). */
-function renderNarratoreGrants(c) {
-  const wrap = $('#narratore-grant-rows');
-  if (!wrap) return;
-  wrap.innerHTML = Object.keys(TRAIT_LISTS).map(listKey => {
-    const bonus = (c.traitNarratoreBonus && c.traitNarratoreBonus[listKey]) || 0;
-    return `<div class="row-between" data-narratoregrantrow="${listKey}" style="margin-bottom:10px;flex-wrap:wrap;">
-      <span class="label">${TRAIT_LIST_LABELS[listKey]}${bonus ? ` <span class="chip buff-chip" title="Punti concessi finora">+${bonus}</span>` : ''}</span>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-        <input type="number" min="1" value="1" data-narratoregrantinput="${listKey}" style="width:52px;">
-        <button type="button" class="btn btn-sm btn-ghost" data-narratoregrant="${listKey}">Concedi punti</button>
-        <button type="button" class="btn btn-sm btn-ghost" data-narratoreaddcustom="${listKey}">+ Tratto scritto dal Narratore</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
 /* --------------------------------------------------------------- livelli */
 
 /* AP guadagnati raggiungendo un livello (tabella limiti di livello) */
@@ -1762,6 +1746,22 @@ function updateStoriaLegacyVisibility(c) {
   el.classList.toggle('hidden', !!(c.cloudCampaignId || c.cloudJoinRequestId));
 }
 
+/* Il livello, una volta in una campagna cloud, lo assegna solo il Narratore
+   (RPC narratore_set_level): il giocatore non deve poterlo modificare a mano
+   né dalla tab Livelli né dal diagramma, altrimenti si accrediterebbe da
+   solo AP non autorizzati. Fuori da una campagna (gioco locale, nessun
+   Narratore) resta libero come sempre. */
+function isLevelLocked(c) { return !!c.cloudCampaignId; }
+function updateLevelLockUI(c) {
+  const locked = isLevelLocked(c);
+  const input = $('#f-livello');
+  if (input) input.disabled = locked;
+  const note = $('#f-livello-lock-note');
+  if (note) note.classList.toggle('hidden', !locked);
+  const dg = document.querySelector('#stat-diagram [data-dg="lv"]');
+  if (dg) dg.classList.toggle('dg-ro', locked);
+}
+
 /* ----------------------------------------------------------- full render */
 
 function renderSheet() {
@@ -1777,6 +1777,7 @@ function renderSheet() {
   renderStoriaSelect(c);
   renderCloudStoryBox(c);
   updateStoriaLegacyVisibility(c);
+  updateLevelLockUI(c);
   $('#f-bellezza-manuale').value = c.bellezzaManuale !== null ? c.bellezzaManuale : '';
   $('#bellezza-result').textContent = c.bellezzaTirata !== null ? c.bellezzaTirata : '—';
   renderPrimaryStats(c);
@@ -2348,6 +2349,7 @@ function wireStaticEvents() {
       updateTertiaryRemaining(c);
       renderTertiaryPlusMinus(c);
     } else if (key === 'lv') {
+      if (isLevelLocked(c)) { inp.value = c.livello; toast('Sei in una storia: il livello lo assegna il Narratore'); return; }
       c.livello = clamp(isNaN(raw) ? 1 : raw, 1, 20);
       $('#f-livello').value = c.livello;
       $('#hud-lv').textContent = c.livello;
@@ -2576,41 +2578,10 @@ function wireStaticEvents() {
     }
   });
 
-  // ---- concessioni del Narratore (punti extra o tratto scritto a mano) ----
-  $('#narratore-grant-rows').addEventListener('click', e => {
-    const c = getActive(); if (!c) return;
-    const grantBtn = e.target.closest('[data-narratoregrant]');
-    const addBtn = e.target.closest('[data-narratoreaddcustom]');
-    if (grantBtn) {
-      const list = grantBtn.dataset.narratoregrant;
-      const input = $(`[data-narratoregrantinput="${list}"]`);
-      const n = Math.max(0, Math.floor(Number(input.value)) || 0);
-      if (n <= 0) return;
-      if (!c.traitNarratoreBonus) c.traitNarratoreBonus = defaultTraitNarratoreBonus();
-      c.traitNarratoreBonus[list] = (c.traitNarratoreBonus[list] || 0) + n;
-      // riapre subito la spesa dei tratti per usare i punti appena concessi,
-      // anche se erano già stati confermati
-      c.traitsConfirmed = false;
-      toast(`Il Narratore concede +${n} punti a ${TRAIT_LIST_LABELS[list]}`);
-      renderTraits(c);
-      touchActive();
-      return;
-    }
-    if (addBtn) {
-      const list = addBtn.dataset.narratoreaddcustom;
-      if (!Array.isArray(c.customTraits[list])) c.customTraits[list] = [];
-      c.customTraits[list].push({ name: '', value: 0, narratore: true });
-      // così il Narratore può subito scrivere nome e valore anche a scheda confermata
-      c.traitsConfirmed = false;
-      renderTraits(c);
-      touchActive();
-      return;
-    }
-  });
-
   // ---- livelli ----
   $('#f-livello').addEventListener('input', () => {
     const c = getActive(); if (!c) return;
+    if (isLevelLocked(c)) { $('#f-livello').value = c.livello; return; }
     c.livello = clamp(Math.floor(Number($('#f-livello').value)) || 1, 1, 20);
     $('#hud-lv').textContent = c.livello;
     $('#sheet-sub').textContent = `${BUILDS[c.build].label} · Livello ${c.livello}`;
