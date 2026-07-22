@@ -246,6 +246,26 @@ function logTecnicaAbilitaUsage(field, idx) {
   touchActive();
   if (field === 'tecniche') renderTecniche(c); else renderAbilita(c);
 }
+/* Level-up diretto: invece di apprendere una nuova Tecnica/Abilità, il
+   giocatore spende un apprendimento disponibile per portare una riga già
+   in scheda al livello successivo. Consuma un "apprendimento" dal totale
+   sbloccato per livello (c.tecDirectLvUsed/abDirectLvUsed), quindi non
+   compare più come riga vuota per una nuova Tecnica/Abilità. */
+function directLevelUpRow(field, idx) {
+  const c = getActive(); if (!c) return;
+  const rows = c[field];
+  const r = rows && rows[idx]; if (!r) return;
+  if (!r.nome || !String(r.nome).trim()) return;
+  const available = tecAbDirectAvailable(c, field);
+  if (available <= 0) { toast('Nessun apprendimento disponibile da usare per un level-up diretto'); return; }
+  const lv = Math.max(1, parseInt(r.lv, 10) || 1);
+  r.lv = String(lv + 1);
+  if (field === 'tecniche') c.tecDirectLvUsed = (c.tecDirectLvUsed || 0) + 1;
+  else c.abDirectLvUsed = (c.abDirectLvUsed || 0) + 1;
+  toast(`${r.nome} sale di livello (Lv ${lv} → ${lv + 1}) — apprendimento usato per il level-up diretto`);
+  touchActive();
+  if (field === 'tecniche') renderTecniche(c); else renderAbilita(c);
+}
 /* Cella di sola lettura per un valore già calcolato (costo/range/pp/limite) */
 function readonlyCell(value) {
   return `<td class="col-narrow" style="color:var(--testo-secondario-dark-2);">${escapeHtml(String(value == null ? '' : value))}</td>`;
@@ -257,6 +277,49 @@ function utilizziCellHtml(dataAttr, r, i) {
       <button type="button" class="btn btn-icon btn-ghost btn-sm" data-uselog="${dataAttr}" data-idx="${i}" title="Registra un utilizzo" style="width:22px;height:22px;padding:0;">+</button>
       <span style="white-space:nowrap;">${escapeHtml(r.utilizzi || '')}</span>
     </div>
+  </td>`;
+}
+/* Quanti apprendimenti sbloccati dal livello non sono ancora stati "spesi"
+   (né come nuova Tecnica/Abilità con nome, né come level-up diretto di una
+   già in scheda): è la capacità residua per il bottone di level-up diretto. */
+function tecAbDirectAvailable(c, field) {
+  const un = tecAbSbloccate(c.build, c.livello, c.tecAbChoices);
+  const total = field === 'tecniche' ? un.tec : un.ab;
+  const rows = c[field] || [];
+  const named = rows.filter(r => r.nome && String(r.nome).trim()).length;
+  const used = field === 'tecniche' ? (c.tecDirectLvUsed || 0) : (c.abDirectLvUsed || 0);
+  return Math.max(0, total - named - used);
+}
+/* Cella "Lv": campo impostabile a mano + bottone per il level-up diretto —
+   in alternativa ad apprendere una nuova Tecnica/Abilità, il giocatore può
+   spendere un apprendimento disponibile per portare una riga già in scheda
+   al livello successivo. Il bottone resta disabilitato se la riga non ha
+   ancora un nome o se non ci sono apprendimenti residui da spendere così. */
+function lvDirectCellHtml(dataAttr, field, r, i, available) {
+  const canUse = available > 0 && r.nome && String(r.nome).trim();
+  return `<td class="col-narrow">
+    <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
+      <input type="text" value="${escapeHtml(r.lv || '')}" data-${dataAttr}="lv" data-idx="${i}" style="width:32px;text-align:center;">
+      <button type="button" class="btn btn-icon btn-ghost btn-sm" data-directlv="${dataAttr}" data-idx="${i}" ${canUse ? '' : 'disabled'} title="Level-up diretto: usa un apprendimento disponibile per portare questa ${field === 'tecniche' ? 'Tecnica' : 'Abilità'} al livello successivo" style="width:22px;height:22px;padding:0;">▲</button>
+    </div>
+  </td>`;
+}
+/* Bonus/malus: uno o più per riga, ognuno un pallino "acceso" — il
+   Narratore stabilisce quale tratto/statistica si può richiamare, o quale
+   malus si applica se quel tratto non è in scheda (es. "-1 a Elusione" se
+   presente, "-15% con tiro di non competenza" se assente). */
+function bulletListHtml(text, malus) {
+  const lines = String(text || '').split('\n').map(s => s.trim()).filter(Boolean);
+  if (!lines.length) return '';
+  return `<ul class="bm-list">${lines.map(l => `<li class="bm-item${malus ? ' malus' : ''}"><span class="bm-dot"></span>${escapeHtml(l)}</li>`).join('')}</ul>`;
+}
+/* Cella Bonus/Malus: textarea (più spazio, più righe) + anteprima puntata
+   sotto, aggiornata quando si lascia il campo (vedi i listener "change"
+   su tecniche/abilita/boostrows-table). */
+function textareaCell(dataAttr, field, r, i, malus) {
+  return `<td class="col-wide">
+    <textarea data-${dataAttr}="${field}" data-idx="${i}" rows="2" placeholder="Un bonus/malus per riga...">${escapeHtml(r[field] || '')}</textarea>
+    ${bulletListHtml(r[field], malus)}
   </td>`;
 }
 function makeConsumabileRow() { return { nome: '', effetto: 'recuperoHp', target: '', valore: 0, quantita: 0 }; }
@@ -320,6 +383,7 @@ function newCharacter(nome) {
     primary: defaultPrimary(),
     tertiary: defaultTertiary(),
     tertiaryPM: defaultTertiaryPM(),
+    tertiaryFloor: {},
     bellezzaManuale: null,
     bellezzaTirata: null,
     qi: null,
@@ -345,6 +409,9 @@ function newCharacter(nome) {
     weaponSlots: defaultWeaponSlots(),
     tecniche: [],
     abilita: [],
+    tecAbChoices: {},
+    tecDirectLvUsed: 0,
+    abDirectLvUsed: 0,
     boostRows: [],
     boostRowsShown: 1,
     boost: defaultBoost(),
@@ -627,10 +694,14 @@ function renderPrimaryStats(c) {
   const grown = Number(c.livello) > 1;
   wrap.innerHTML = PRIMARY_STATS.map(stat => {
     const isHpMp = stat.key === 'hp' || stat.key === 'mp';
-    const val = (isHpMp && grown) ? (stat.key === 'hp' ? c.hpMaxTracked : c.mpMaxTracked) || 0 : c.primary[stat.key];
-    const min = (isHpMp && grown) ? 0 : PRIMARY_MIN;
+    const isPr = stat.key === 'pr';
+    // il P.R. è sempre "cresciuto" via AP fin dal Lv1 (nessuna fase a pool libero)
+    const val = isPr ? (c.prMaxTracked || 0)
+      : (isHpMp && grown) ? (stat.key === 'hp' ? c.hpMaxTracked : c.mpMaxTracked) || 0
+      : c.primary[stat.key];
+    const min = (isPr || (isHpMp && grown)) ? 0 : PRIMARY_MIN;
     const buff = buffTotal(c, stat.key);
-    const fullLabel = (isHpMp && grown) ? `${stat.full} (totale)` : stat.full;
+    const fullLabel = isPr ? `${stat.full} (totale)` : (isHpMp && grown) ? `${stat.full} (totale)` : stat.full;
     return `<div class="stat-row">
       <div class="stat-label ${stat.axis}${buff ? ' buffed' : ''}"><span class="abbr">${stat.label}</span><span class="full">${fullLabel}</span></div>
       <div class="stepper">
@@ -651,7 +722,7 @@ function renderStatRollSelect() {
   const sel = $('#stat-roll-select');
   if (!sel || sel.options.length) return;
   sel.innerHTML = PRIMARY_STATS
-    .filter(s => s.key !== 'hp' && s.key !== 'mp')
+    .filter(s => s.key !== 'hp' && s.key !== 'mp' && s.key !== 'pr')
     .map(s => `<option value="${s.key}">${s.label} — ${s.full}</option>`).join('');
 }
 function primaryRemaining(c) {
@@ -721,6 +792,7 @@ function buffTotal(c, key) {
 }
 function effectiveHpMax(c) { return (c.hpMaxTracked || 0) + buffTotal(c, 'hp'); }
 function effectiveMpMax(c) { return (c.mpMaxTracked || 0) + buffTotal(c, 'mp'); }
+function effectivePrMax(c) { return (c.prMaxTracked || 0) + buffTotal(c, 'pr'); }
 /* Soglia di K.O.: 10% degli HP massimi effettivi (incrementi attivi inclusi) */
 function koThreshold(c) { return Math.ceil(effectiveHpMax(c) * KO_THRESHOLD_PCT); }
 
@@ -775,19 +847,19 @@ function updateDerived(c) {
 function updatePlayBars(c) {
   const ppMax = (c.hpMaxTracked || 0) / 2 + (c.mpMaxTracked || 0) / 2;
   if (c.ppCur === null || c.ppCur === undefined) c.ppCur = ppMax;
-  const hpMaxEff = effectiveHpMax(c), mpMaxEff = effectiveMpMax(c);
+  const hpMaxEff = effectiveHpMax(c), mpMaxEff = effectiveMpMax(c), prMaxEff = effectivePrMax(c);
 
   // il campo mostra il massimo effettivo (incrementi attivi inclusi); se
   // l'utente lo modifica a mano, l'eventuale incremento resta scorporato
   // dal massimo base tracciato
   $('#hp-max').value = hpMaxEff;
   $('#mp-max').value = mpMaxEff;
-  $('#hud-pr-max').value = c.prMaxTracked || 0;
+  $('#hud-pr-max').value = prMaxEff;
 
   c.hpCur = clamp(c.hpCur, 0, hpMaxEff);
   c.mpCur = clamp(c.mpCur, 0, mpMaxEff);
   c.ppCur = clamp(c.ppCur, 0, ppMax);
-  c.prCur = clamp(c.prCur, 0, c.prMaxTracked || 0);
+  c.prCur = clamp(c.prCur, 0, prMaxEff);
 
   $('#hp-cur').textContent = c.hpCur;
   $('#mp-cur').textContent = c.mpCur;
@@ -879,11 +951,12 @@ function renderTertiaryStats(c) {
   const wrap = $('#tertiary-stats');
   wrap.innerHTML = TERTIARY_STATS.map(stat => {
     const val = c.tertiary[stat.key];
+    const floor = tertiaryFloorFor(c, stat.key);
     return `<div class="stat-row">
       <div class="stat-label neutral"><span class="abbr">${stat.label}</span></div>
       <div class="stepper">
         <button data-tstat="${stat.key}" data-dir="-1" aria-label="Diminuisci">−</button>
-        <input type="number" data-tstat-input="${stat.key}" value="${val}" min="${TERTIARY_MIN}">
+        <input type="number" data-tstat-input="${stat.key}" value="${val}" min="${floor}">
         <button data-tstat="${stat.key}" data-dir="1" aria-label="Aumenta">+</button>
       </div>
     </div>`;
@@ -1105,8 +1178,9 @@ function snapshotPrimaryFloor(c) {
   if (!c.primaryFloor) c.primaryFloor = {};
   PRIMARY_STATS.forEach(stat => {
     const isHpMp = stat.key === 'hp' || stat.key === 'mp';
-    const grown = isHpMp && Number(c.livello) > 1;
-    const trackedKey = stat.key === 'hp' ? 'hpMaxTracked' : 'mpMaxTracked';
+    const isPr = stat.key === 'pr';
+    const grown = (isHpMp && Number(c.livello) > 1) || isPr;
+    const trackedKey = stat.key === 'hp' ? 'hpMaxTracked' : stat.key === 'mp' ? 'mpMaxTracked' : 'prMaxTracked';
     c.primaryFloor[stat.key] = grown ? (Number(c[trackedKey]) || 0) : (Number(c.primary[stat.key]) || 0);
   });
 }
@@ -1117,10 +1191,25 @@ function primaryFloorFor(c, key, baseFloor) {
   const stored = c.primaryFloor && typeof c.primaryFloor[key] === 'number' ? c.primaryFloor[key] : null;
   return stored !== null ? Math.max(baseFloor, stored) : baseFloor;
 }
+/* Statistiche terziarie: non esiste un passaggio di "conferma" come per le
+   primarie, ma ogni volta che il meccanismo dei 3 successi (dg-pm-plus) fa
+   salire di livello una terziaria spendendo AP, quel valore va "blindato":
+   la point-buy libera (stepper/diagramma) non può più farla scendere sotto
+   quel punto, altrimenti si potrebbe pagare l'AP e poi riassegnarlo gratis
+   riabbassando la statistica coi punti liberi. */
+function tertiaryFloorFor(c, key) {
+  if (!c.tertiaryFloor) c.tertiaryFloor = {};
+  const stored = typeof c.tertiaryFloor[key] === 'number' ? c.tertiaryFloor[key] : null;
+  return stored !== null ? Math.max(TERTIARY_MIN, stored) : TERTIARY_MIN;
+}
 function changePrimary(c, key, newVal) {
   const isHpMp = key === 'hp' || key === 'mp';
-  const grown = isHpMp && Number(c.livello) > 1;
-  const trackedKey = key === 'hp' ? 'hpMaxTracked' : 'mpMaxTracked';
+  const isPr = key === 'pr';
+  // P.R. non ha mai una fase "pool libero" a Lv1 come gli altri attributi
+  // (parte fissa dal valore di classe): e' sempre "cresciuta", comprata
+  // con AP fin da subito, non appena ce ne sono.
+  const grown = (isHpMp && Number(c.livello) > 1) || isPr;
+  const trackedKey = key === 'hp' ? 'hpMaxTracked' : key === 'mp' ? 'mpMaxTracked' : 'prMaxTracked';
   const oldVal = grown ? (Number(c[trackedKey]) || 0) : (Number(c.primary[key]) || 0);
   newVal = Math.floor(Number(newVal));
   const floor = primaryFloorFor(c, key, grown ? 0 : PRIMARY_MIN);
@@ -1130,7 +1219,7 @@ function changePrimary(c, key, newVal) {
     toast('Statistiche confermate: si sbloccano solo con un level-up');
     return null;
   }
-  if (Number(c.livello) > 1) {
+  if (Number(c.livello) > 1 || isPr) {
     const costFn = key === 'hp' ? hpApCostForPoint : key === 'mp' ? mpApCostForPoint : primaryApCostForPoint;
     let cost = 0;
     if (newVal > oldVal) { for (let n = oldVal + 1; n <= newVal; n++) cost += costFn(n); }
@@ -1305,24 +1394,42 @@ function buildRows(rows, max, makeRow) {
   return rows.slice(0, visible);
 }
 function renderTecniche(c) {
-  const un = tecAbSbloccate(c.build, c.livello);
-  const max = tecAbSbloccate(c.build, 20);
-  const rows = buildRows(c.tecniche, un.tec, makeTecnicaRow);
+  const un = tecAbSbloccate(c.build, c.livello, c.tecAbChoices);
+  const max = tecAbSbloccate(c.build, 20, c.tecAbChoices);
+  const usedDirect = c.tecDirectLvUsed || 0;
+  const rows = buildRows(c.tecniche, Math.max(0, un.tec - usedDirect), makeTecnicaRow);
   rows.forEach(r => recomputeTecnicaRow(r, c.qi));
+  const available = tecAbDirectAvailable(c, 'tecniche');
   editTableRows('#tecniche-table', rows, 'tecnica',
     ['nome', 'bonus', 'malus', 'durata', 'utilizzi', 'lv'],
-    { utilizzi: (r, i) => utilizziCellHtml('tecnica', r, i) });
-  $('#tecniche-count').textContent = `${un.tec} / ${max.tec}`;
+    {
+      bonus: (r, i) => textareaCell('tecnica', 'bonus', r, i, false),
+      malus: (r, i) => textareaCell('tecnica', 'malus', r, i, true),
+      utilizzi: (r, i) => utilizziCellHtml('tecnica', r, i),
+      lv: (r, i) => lvDirectCellHtml('tecnica', 'tecniche', r, i, available)
+    });
+  $('#tecniche-count').textContent = usedDirect
+    ? `${un.tec} / ${max.tec} (${usedDirect} usati per level-up diretto)`
+    : `${un.tec} / ${max.tec}`;
 }
 function renderAbilita(c) {
-  const un = tecAbSbloccate(c.build, c.livello);
-  const max = tecAbSbloccate(c.build, 20);
-  const rows = buildRows(c.abilita, un.ab, makeAbilitaRow);
+  const un = tecAbSbloccate(c.build, c.livello, c.tecAbChoices);
+  const max = tecAbSbloccate(c.build, 20, c.tecAbChoices);
+  const usedDirect = c.abDirectLvUsed || 0;
+  const rows = buildRows(c.abilita, Math.max(0, un.ab - usedDirect), makeAbilitaRow);
   rows.forEach(r => recomputeAbilitaRow(r, c.qi));
+  const available = tecAbDirectAvailable(c, 'abilita');
   editTableRows('#abilita-table', rows, 'abilita',
     ['nome', 'bonus', 'costo', 'durata', 'utilizzi', 'lv'],
-    { costo: r => readonlyCell(r.costo), utilizzi: (r, i) => utilizziCellHtml('abilita', r, i) });
-  $('#abilita-count').textContent = `${un.ab} / ${max.ab}`;
+    {
+      bonus: (r, i) => textareaCell('abilita', 'bonus', r, i, false),
+      costo: r => readonlyCell(r.costo),
+      utilizzi: (r, i) => utilizziCellHtml('abilita', r, i),
+      lv: (r, i) => lvDirectCellHtml('abilita', 'abilita', r, i, available)
+    });
+  $('#abilita-count').textContent = usedDirect
+    ? `${un.ab} / ${max.ab} (${usedDirect} usati per level-up diretto)`
+    : `${un.ab} / ${max.ab}`;
   populateMpCostSelect(c);
 }
 /* Selettore "costo incantesimo" nel Fronte Scheda: elenca le Abilità con
@@ -1349,18 +1456,43 @@ function renderBoostRows(c) {
   rows.forEach(recomputeBoostRow);
   editTableRows('#boostrows-table', rows, 'boostrow',
     ['bonus', 'range', 'pp', 'costo', 'limite', 'lv'],
-    { range: r => readonlyCell(r.range), pp: r => readonlyCell(r.pp), costo: r => readonlyCell(r.costo), limite: r => readonlyCell(r.limite) });
+    {
+      bonus: (r, i) => textareaCell('boostrow', 'bonus', r, i, false),
+      range: r => readonlyCell(r.range), pp: r => readonlyCell(r.pp), costo: r => readonlyCell(r.costo), limite: r => readonlyCell(r.limite)
+    });
   $('#boost-add').classList.toggle('hidden', shown >= BOOST_ROWS_MAX);
   $('#boost-remove').classList.toggle('hidden', shown < 2);
 }
 function renderRetroNote(c) {
   const b = BUILDS[c.build];
-  const un = tecAbSbloccate(c.build, c.livello);
-  const max = tecAbSbloccate(c.build, 20);
+  const un = tecAbSbloccate(c.build, c.livello, c.tecAbChoices);
+  const max = tecAbSbloccate(c.build, 20, c.tecAbChoices);
   const next = prossimoSblocco(c.livello);
   $('#retro-build-note').textContent =
     `${b.label} · Lv ${c.livello}: ${un.tec} Tecniche e ${un.ab} Abilità sbloccate (al Lv 20: ${max.tec}+${max.ab}).`
     + (next ? ` Prossimo apprendimento al Lv ${next}.` : ' Tutti gli apprendimenti sbloccati.');
+  renderTecAbChoiceBox(c);
+}
+/* Solo l'Eclettico sceglie, ai Lv 8/16 (una volta raggiunti), tra 2
+   Tecniche / 2 Abilità / 1 Tecnica + 1 Abilità — Guerriero e Mago non
+   hanno questa scelta, restano sempre a 1+1 in quei livelli. */
+const TECAB_CHOICE_LABELS = { '1+1': '1 Tecnica + 1 Abilità', '2tec': '2 Tecniche', '2ab': '2 Abilità' };
+function renderTecAbChoiceBox(c) {
+  const box = $('#tecab-choice-box');
+  if (!box) return;
+  if (c.build !== 'eclettico') { box.innerHTML = ''; return; }
+  const reached = TECAB_ALL_LEVELS.filter(l => c.livello >= l);
+  if (!reached.length) { box.innerHTML = ''; return; }
+  box.innerHTML = reached.map(l => {
+    const current = (c.tecAbChoices && c.tecAbChoices[l]) || '1+1';
+    return `
+      <div class="field">
+        <label>Apprendimento al Lv ${l}</label>
+        <select data-tecabchoice="${l}">
+          ${Object.keys(TECAB_CHOICE_LABELS).map(v => `<option value="${v}" ${v === current ? 'selected' : ''}>${TECAB_CHOICE_LABELS[v]}</option>`).join('')}
+        </select>
+      </div>`;
+  }).join('');
 }
 
 function renderBoost(c) {
@@ -2109,7 +2241,8 @@ function wireStaticEvents() {
       updateDerived(c);
     } else if (key.startsWith('t:')) {
       const k = key.slice(2);
-      const v = isNaN(raw) ? TERTIARY_MIN : clamp(raw, TERTIARY_MIN, TERTIARY_MAX);
+      const floor = tertiaryFloorFor(c, k);
+      const v = isNaN(raw) ? floor : clamp(raw, floor, TERTIARY_MAX);
       c.tertiary[k] = v;
       const st = $(`#tertiary-stats input[data-tstat-input="${k}"]`);
       if (st) st.value = v;
@@ -2157,8 +2290,9 @@ function wireStaticEvents() {
     if (!btn) return;
     const c = getActive(); if (!c) return;
     const key = btn.dataset.pstat, dir = Number(btn.dataset.dir);
-    const grown = (key === 'hp' || key === 'mp') && Number(c.livello) > 1;
-    const trackedKey = key === 'hp' ? 'hpMaxTracked' : 'mpMaxTracked';
+    const isPr = key === 'pr';
+    const grown = ((key === 'hp' || key === 'mp') && Number(c.livello) > 1) || isPr;
+    const trackedKey = key === 'hp' ? 'hpMaxTracked' : key === 'mp' ? 'mpMaxTracked' : 'prMaxTracked';
     const current = grown ? (Number(c[trackedKey]) || 0) : Number(c.primary[key]);
     const floor = primaryFloorFor(c, key, grown ? 0 : PRIMARY_MIN);
     const next = current + dir;
@@ -2175,8 +2309,9 @@ function wireStaticEvents() {
     if (!input) return;
     const c = getActive(); if (!c) return;
     const key = input.dataset.pstatInput;
-    const grown = (key === 'hp' || key === 'mp') && Number(c.livello) > 1;
-    const trackedKey = key === 'hp' ? 'hpMaxTracked' : 'mpMaxTracked';
+    const isPr = key === 'pr';
+    const grown = ((key === 'hp' || key === 'mp') && Number(c.livello) > 1) || isPr;
+    const trackedKey = key === 'hp' ? 'hpMaxTracked' : key === 'mp' ? 'mpMaxTracked' : 'prMaxTracked';
     const applied = changePrimary(c, key, input.value);
     if (applied === null) { input.value = grown ? (Number(c[trackedKey]) || 0) : c.primary[key]; return; } // AP insufficienti
     updatePrimaryRemaining(c);
@@ -2223,7 +2358,9 @@ function wireStaticEvents() {
     const c = getActive(); if (!c) return;
     const key = btn.dataset.tstat, dir = Number(btn.dataset.dir);
     const next = Number(c.tertiary[key]) + dir;
-    if (next < TERTIARY_MIN || next > TERTIARY_MAX) return;
+    const floor = tertiaryFloorFor(c, key);
+    if (next < floor) { toast(`Valore minimo raggiunto (${floor})`); return; }
+    if (next > TERTIARY_MAX) return;
     c.tertiary[key] = next;
     $(`#tertiary-stats input[data-tstat-input="${key}"]`).value = next;
     updateTertiaryRemaining(c);
@@ -2236,9 +2373,10 @@ function wireStaticEvents() {
     if (!input) return;
     const c = getActive(); if (!c) return;
     const key = input.dataset.tstatInput;
+    const floor = tertiaryFloorFor(c, key);
     let v = Math.floor(Number(input.value));
-    if (isNaN(v)) v = TERTIARY_MIN;
-    v = clamp(v, TERTIARY_MIN, TERTIARY_MAX);
+    if (isNaN(v)) v = floor;
+    v = clamp(v, floor, TERTIARY_MAX);
     c.tertiary[key] = v;
     updateTertiaryRemaining(c);
     renderTertiaryPlusMinus(c);
@@ -2414,6 +2552,8 @@ function wireStaticEvents() {
           } else {
             pm.plus = 0;
             c.tertiary[key] = targetLv;
+            if (!c.tertiaryFloor) c.tertiaryFloor = {};
+            c.tertiaryFloor[key] = Math.max(c.tertiaryFloor[key] || TERTIARY_MIN, targetLv);
             c.apDisponibili = disponibili - cost;
             c.ledger.push({ id: uid(), desc: `+1 ${label} (→ ${targetLv})`, amt: cost, ts: Date.now() });
             toast(`${label} sale di livello! (-${cost} AP)`);
@@ -2442,6 +2582,19 @@ function wireStaticEvents() {
   wireEquipGrid('#slot-grid', c => c.slots, renderSlots);
   wireEquipGrid('#weapon-grid', c => c.weaponSlots, renderWeaponSlots);
 
+  // ---- scelta Eclettico ai Lv 8/16 (2 Tec / 2 Ab / 1+1) ----
+  $('#tecab-choice-box').addEventListener('change', e => {
+    const sel = e.target.closest('[data-tecabchoice]');
+    if (!sel) return;
+    const c = getActive(); if (!c) return;
+    if (!c.tecAbChoices) c.tecAbChoices = {};
+    c.tecAbChoices[sel.dataset.tecabchoice] = sel.value;
+    renderRetroNote(c);
+    renderTecniche(c);
+    renderAbilita(c);
+    touchActive();
+  });
+
   // ---- tecniche / abilità / boost personali (edit tables) ----
   wireEditTable('#tecniche-table', 'tecnica', 'tecniche');
   wireEditTable('#abilita-table', 'abilita', 'abilita');
@@ -2459,19 +2612,25 @@ function wireStaticEvents() {
   $('#tecniche-table').addEventListener('click', e => {
     const btn = e.target.closest('[data-uselog]');
     if (btn) logTecnicaAbilitaUsage('tecniche', Number(btn.dataset.idx));
+    const dbtn = e.target.closest('[data-directlv]');
+    if (dbtn) directLevelUpRow('tecniche', Number(dbtn.dataset.idx));
   });
+  // "lv" ricalcola costo/utilizzi; bonus/malus rinfrescano l'anteprima
+  // puntata sotto la textarea — in entrambi i casi solo lasciando il campo.
   $('#tecniche-table').addEventListener('change', e => {
-    if (e.target.dataset.tecnica === 'lv') { const c = getActive(); if (c) renderTecniche(c); }
+    if (['lv', 'bonus', 'malus'].includes(e.target.dataset.tecnica)) { const c = getActive(); if (c) renderTecniche(c); }
   });
   $('#abilita-table').addEventListener('click', e => {
     const btn = e.target.closest('[data-uselog]');
     if (btn) logTecnicaAbilitaUsage('abilita', Number(btn.dataset.idx));
+    const dbtn = e.target.closest('[data-directlv]');
+    if (dbtn) directLevelUpRow('abilita', Number(dbtn.dataset.idx));
   });
   $('#abilita-table').addEventListener('change', e => {
-    if (e.target.dataset.abilita === 'lv') { const c = getActive(); if (c) renderAbilita(c); }
+    if (['lv', 'bonus'].includes(e.target.dataset.abilita)) { const c = getActive(); if (c) renderAbilita(c); }
   });
   $('#boostrows-table').addEventListener('change', e => {
-    if (e.target.dataset.boostrow === 'lv') { const c = getActive(); if (c) renderBoostRows(c); }
+    if (['lv', 'bonus'].includes(e.target.dataset.boostrow)) { const c = getActive(); if (c) renderBoostRows(c); }
   });
   $('#boost-add').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
@@ -2710,7 +2869,7 @@ function wireStaticEvents() {
       // per sempre un incremento temporaneo
       if (sel === '#hp-max') c.hpMaxTracked = Math.max(0, (Number($(sel).value) || 0) - buffTotal(c, 'hp'));
       if (sel === '#mp-max') c.mpMaxTracked = Math.max(0, (Number($(sel).value) || 0) - buffTotal(c, 'mp'));
-      if (sel === '#hud-pr-max') c.prMaxTracked = Number($(sel).value) || 0;
+      if (sel === '#hud-pr-max') c.prMaxTracked = Math.max(0, (Number($(sel).value) || 0) - buffTotal(c, 'pr'));
       updatePlayBars(c);
       touchActive();
     });
@@ -3348,7 +3507,11 @@ function renderCharView(c) {
   (c.abilita || []).forEach(r => recomputeAbilitaRow(r, c.qi));
   (c.boostRows || []).forEach(recomputeBoostRow);
   const rowTable = (rows, fields) => (rows || []).filter(rowHasContent)
-    .map(r => `<tr>${fields.map(f => `<td>${escapeHtml(String(r[f] || ''))}</td>`).join('')}</tr>`).join('');
+    .map(r => `<tr>${fields.map(f =>
+      f === 'bonus' ? `<td>${bulletListHtml(r[f], false)}</td>`
+      : f === 'malus' ? `<td>${bulletListHtml(r[f], true)}</td>`
+      : `<td>${escapeHtml(String(r[f] || ''))}</td>`
+    ).join('')}</tr>`).join('');
   const tecniche = rowTable(c.tecniche, ['nome', 'bonus', 'malus', 'durata', 'utilizzi', 'lv']);
   const abilita = rowTable(c.abilita, ['nome', 'bonus', 'costo', 'durata', 'utilizzi', 'lv']);
   const boosts = rowTable(c.boostRows, ['bonus', 'range', 'pp', 'costo', 'limite', 'lv']);
