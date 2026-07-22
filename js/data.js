@@ -50,7 +50,11 @@ const BOOST_ROWS_MAX = 2;
 // Lv 8/16, Guerriero e Mago ai Lv 12/20) — scelte lasciate al giocatore.
 const TECAB_CLASS_LEVELS = [4, 12, 20];
 const TECAB_ALL_LEVELS = [8, 16];
-function tecAbSbloccate(buildKey, lv) {
+// Solo l'Eclettico sceglie, ai Lv 8/16, tra 2 Tecniche / 2 Abilità / 1+1
+// (Guerriero e Mago restano sempre a 1 Tecnica + 1 Abilità in quei livelli):
+// choices e' un oggetto {8: '2tec'|'2ab'|'1+1', 16: '...'}, non impostato =
+// '1+1' (comportamento di default).
+function tecAbSbloccate(buildKey, lv, choices) {
   let tec = 0, ab = 0;
   if (buildKey === 'guerriero') tec += 2;
   else if (buildKey === 'mago') ab += 2;
@@ -59,8 +63,16 @@ function tecAbSbloccate(buildKey, lv) {
   if (buildKey === 'guerriero') tec += 2 * classi;
   else if (buildKey === 'mago') ab += 2 * classi;
   else { tec += classi; ab += classi; }
-  const tutte = TECAB_ALL_LEVELS.filter(l => lv >= l).length;
-  tec += tutte; ab += tutte;
+  TECAB_ALL_LEVELS.filter(l => lv >= l).forEach(l => {
+    if (buildKey === 'eclettico') {
+      const scelta = (choices && choices[l]) || '1+1';
+      if (scelta === '2tec') tec += 2;
+      else if (scelta === '2ab') ab += 2;
+      else { tec += 1; ab += 1; }
+    } else {
+      tec += 1; ab += 1;
+    }
+  });
   return { tec, ab };
 }
 function prossimoSblocco(lv) {
@@ -71,6 +83,7 @@ function prossimoSblocco(lv) {
 const PRIMARY_STATS = [
   { key: 'hp',   label: 'HP',    full: 'Punti Vita',           axis: 'neutral' },
   { key: 'mp',   label: 'MP',    full: 'Punti Magia',          axis: 'neutral' },
+  { key: 'pr',   label: 'P.R.',  full: 'Punti Recupero',       axis: 'neutral' },
   { key: 'for',  label: 'FOR',   full: 'Forza',                axis: 'physical' },
   { key: 'mira', label: 'MIRA',  full: 'Mira',                 axis: 'physical' },
   { key: 'vel',  label: 'VEL',   full: 'Velocità',             axis: 'physical' },

@@ -805,10 +805,20 @@ table.edit-table input{
   width:100%;background:transparent;border:none;color:var(--testo-primario-dark);
   font-size:12px;padding:2px;
 }
+table.edit-table textarea{
+  width:100%;min-width:150px;background:transparent;border:none;color:var(--testo-primario-dark);
+  font-size:12px;padding:2px;resize:vertical;font-family:inherit;line-height:1.4;
+}
 table.edit-table td{padding:4px 6px;}
 table.edit-table td.col-wide{min-width:120px;}
 table.edit-table td.col-narrow{min-width:64px;}
 table.edit-table thead th{white-space:nowrap;}
+
+/* Bonus/malus: uno o più per riga, ciascuno un pallino "acceso" */
+.bm-list{list-style:none;padding:0;margin:4px 0 0;display:flex;flex-direction:column;gap:3px;}
+.bm-item{display:flex;align-items:flex-start;gap:6px;font-size:11.5px;line-height:1.4;color:var(--testo-secondario-dark-2);}
+.bm-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;flex-shrink:0;background:var(--fisico-forte);box-shadow:0 0 4px 1px var(--fisico-forte);}
+.bm-item.malus .bm-dot{background:#FF5C5C;box-shadow:0 0 4px 1px #FF5C5C;}
 
 /* ---------- Retro scheda: locazioni ---------- */
 .slot-grid{display:flex;flex-direction:column;gap:10px;}
