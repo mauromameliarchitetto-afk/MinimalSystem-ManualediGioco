@@ -65,29 +65,39 @@ async function ensureCloudAccount() {
   return data.session;
 }
 
-/* Accesso/registrazione via email: sul piano gratuito Supabase arriva solo
-   come link "Sign in" (vedi supabase-client.js). AUTH_REDIRECT_URL vale solo
-   nell'app nativa, per farlo tornare nell'app invece di aprire il browser;
-   sul web resta undefined e si usa il comportamento di default (Site URL). */
-async function sendEmailCode(email) {
-  const options = { shouldCreateUser: true };
-  if (AUTH_REDIRECT_URL) options.emailRedirectTo = AUTH_REDIRECT_URL;
-  const { error } = await withTimeout(sb.auth.signInWithOtp({ email, options }), 'Invio codice');
-  if (error) throw error;
-}
-async function verifyEmailCode(email, token) {
-  const { data, error } = await withTimeout(sb.auth.verifyOtp({ email, token, type: 'email' }), 'Verifica codice');
+/* Accesso/registrazione con email + password: niente email da inviare per
+   riaccedere (il piano gratuito Supabase ha un limite molto basso di email
+   all'ora, esaurito subito se ogni accesso ne manda una). L'email serve
+   solo la primissima volta, per la registrazione — e neppure li' serve
+   conferma, il progetto ha l'auto-conferma attiva apposta per questo. */
+async function signUpWithPassword(email, password) {
+  const { data, error } = await withTimeout(sb.auth.signUp({ email, password }), 'Registrazione');
   if (error) throw error;
   return data.session;
 }
+async function signInWithPassword(email, password) {
+  const { data, error } = await withTimeout(sb.auth.signInWithPassword({ email, password }), 'Accesso');
+  if (error) throw error;
+  return data.session;
+}
+/* Password dimenticata: qui l'email è inevitabile (serve dimostrare il
+   possesso della casella), ma capita di rado, non a ogni accesso. */
+async function sendPasswordReset(email) {
+  const options = {};
+  if (AUTH_REDIRECT_URL) options.redirectTo = AUTH_REDIRECT_URL;
+  const { error } = await withTimeout(sb.auth.resetPasswordForEmail(email, options), 'Recupero password');
+  if (error) throw error;
+}
 
-/* Ospite -> permanente: collega un'email all'utente anonimo gia' loggato.
-   Supabase invia un'email di conferma con un link: al click l'account
-   diventa permanente. */
-async function upgradeGuestWithEmail(email) {
+/* Ospite -> permanente: collega email+password all'utente anonimo gia'
+   loggato. A differenza della registrazione diretta, collegare un'email a
+   un utente esistente richiede sempre una conferma via email (protegge da
+   chi provasse a "rubare" l'email di qualcun altro): capita comunque una
+   sola volta, non a ogni accesso. */
+async function upgradeGuestWithEmail(email, password) {
   const options = {};
   if (AUTH_REDIRECT_URL) options.emailRedirectTo = AUTH_REDIRECT_URL;
-  const { error } = await withTimeout(sb.auth.updateUser({ email }, options), 'Collegamento email');
+  const { error } = await withTimeout(sb.auth.updateUser({ email, password }, options), 'Collegamento email');
   if (error) throw error;
 }
 
@@ -216,13 +226,14 @@ function accountStatusHtml(session, caps) {
   if (!session) {
     return `
       <p class="helper-text" style="margin:0;">Non sei connesso. Puoi comunque usare l'app in locale su questo dispositivo.</p>
-      <div class="field"><label>Email</label><input type="email" id="acc-email" placeholder="tua@email.it" autocomplete="email"></div>
-      <button class="btn btn-primary btn-sm" id="acc-send-code" style="align-self:flex-start;">Invia link di accesso</button>
-      <div id="acc-code-row" class="hidden" style="display:flex;flex-direction:column;gap:8px;">
-        <p class="helper-text" style="margin:0;">Ti abbiamo mandato un'email: apri il link "Sign in" che contiene per accedere (torni automaticamente qui). Se l'email mostra invece un codice, incollalo qui sotto.</p>
-        <div class="field"><label>Codice ricevuto via email (facoltativo)</label><input type="text" inputmode="numeric" id="acc-code" placeholder="123456"></div>
-        <button class="btn btn-primary btn-sm" id="acc-verify-code" style="align-self:flex-start;">Conferma codice</button>
+      <div class="tabs" id="acc-authmode-toggle" style="padding:0;border-bottom:none;">
+        <button class="tab-btn active" data-authmode="signin">Accedi</button>
+        <button class="tab-btn" data-authmode="signup">Registrati</button>
       </div>
+      <div class="field"><label>Email</label><input type="email" id="acc-email" placeholder="tua@email.it" autocomplete="email"></div>
+      <div class="field"><label>Password</label><input type="password" id="acc-password" placeholder="••••••••" autocomplete="current-password"></div>
+      <button class="btn btn-primary btn-sm" id="acc-submit-auth" data-mode="signin" style="align-self:flex-start;">Accedi</button>
+      <p class="helper-text" style="margin:0;"><a href="#" id="acc-forgot-password">Password dimenticata?</a></p>
       ${caps.google ? '<button class="btn btn-ghost btn-sm" id="acc-google">Accedi con Google</button>' : ''}
       ${caps.apple ? '<button class="btn btn-ghost btn-sm" id="acc-apple">Accedi con Apple</button>' : ''}
       ${(!caps.google || !caps.apple) ? '<p class="helper-text" style="margin:0;">Google/Apple/Passkey compariranno qui appena attivati dal Narratore nel Dashboard Supabase.</p>' : ''}
@@ -232,8 +243,9 @@ function accountStatusHtml(session, caps) {
     return `
       <p class="helper-text" style="margin:0;">Sei connesso come <strong>ospite</strong> (solo questo dispositivo): senza collegare un'identità, i dati non sincronizzati potrebbero andare persi.</p>
       <div class="field"><label>Email</label><input type="email" id="acc-email" placeholder="tua@email.it" autocomplete="email"></div>
+      <div class="field"><label>Password</label><input type="password" id="acc-password" placeholder="••••••••" autocomplete="new-password"></div>
       <button class="btn btn-primary btn-sm" id="acc-upgrade" style="align-self:flex-start;">Rendi permanente questo account</button>
-      <p class="helper-text" style="margin:0;">Ti arriverà un'email con un link: aprilo per confermare.</p>
+      <p class="helper-text" style="margin:0;">Ti arriverà un'email di conferma (solo questa volta): aprila per completare.</p>
     `;
   }
   return `
@@ -403,31 +415,45 @@ function wireCloudAccountEvents() {
 
   $('#account-status-box').addEventListener('click', async e => {
     const emailInput = $('#acc-email');
+    const passwordInput = $('#acc-password');
     const email = emailInput ? emailInput.value.trim() : '';
+    const password = passwordInput ? passwordInput.value : '';
 
-    if (e.target.id === 'acc-send-code') {
-      if (!email) { toast('Inserisci un\'email'); return; }
+    if (e.target.dataset.authmode) {
+      $$('#acc-authmode-toggle .tab-btn').forEach(b => b.classList.toggle('active', b === e.target));
+      const mode = e.target.dataset.authmode;
+      const submitBtn = $('#acc-submit-auth');
+      submitBtn.dataset.mode = mode;
+      submitBtn.textContent = mode === 'signup' ? 'Registrati' : 'Accedi';
+      return;
+    }
+    if (e.target.id === 'acc-submit-auth') {
+      if (!email || !password) { toast('Inserisci email e password'); return; }
       try {
-        await sendEmailCode(email);
-        $('#acc-code-row').classList.remove('hidden');
-        toast('Email inviata: apri il link "Sign in" per accedere');
+        if (e.target.dataset.mode === 'signup') {
+          await signUpWithPassword(email, password);
+          toast('Account creato e connesso');
+        } else {
+          await signInWithPassword(email, password);
+          toast('Accesso effettuato');
+        }
+        renderAccountArea();
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
-    if (e.target.id === 'acc-verify-code') {
-      const code = $('#acc-code').value.trim();
-      if (!code) { toast('Inserisci il codice ricevuto'); return; }
+    if (e.target.id === 'acc-forgot-password') {
+      e.preventDefault();
+      if (!email) { toast('Inserisci prima la tua email'); return; }
       try {
-        await verifyEmailCode(email, code);
-        toast('Accesso effettuato');
-        renderAccountArea();
-      } catch (err) { toast('Codice errato: ' + err.message); }
+        await sendPasswordReset(email);
+        toast('Email di recupero inviata: apri il link per impostare una nuova password');
+      } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
     if (e.target.id === 'acc-upgrade') {
-      if (!email) { toast('Inserisci un\'email'); return; }
+      if (!email || !password) { toast('Inserisci email e password'); return; }
       try {
-        await upgradeGuestWithEmail(email);
+        await upgradeGuestWithEmail(email, password);
         toast('Controlla la tua email per confermare e rendere permanente l\'account');
       } catch (err) { toast('Errore: ' + err.message); }
       return;
