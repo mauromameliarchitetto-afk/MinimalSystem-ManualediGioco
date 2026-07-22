@@ -203,6 +203,7 @@ function wireCloudCharacterEvents() {
         await pushCharacterToCloud(c);
         toast('Personaggio salvato nel cloud');
         renderCloudStoryBox(c);
+        if (typeof updateStoriaLegacyVisibility === 'function') updateStoriaLegacyVisibility(c);
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
@@ -215,6 +216,7 @@ function wireCloudCharacterEvents() {
         await requestJoinCampaign(c, campaignId, campaignName);
         toast('Richiesta inviata: in attesa di conferma del Narratore');
         renderCloudStoryBox(c);
+        if (typeof updateStoriaLegacyVisibility === 'function') updateStoriaLegacyVisibility(c);
         if (typeof renderPlayerStoriesBox === 'function') renderPlayerStoriesBox();
       } catch (err) { toast('Errore: ' + err.message); }
       return;
@@ -223,6 +225,7 @@ function wireCloudCharacterEvents() {
       try {
         const changed = await syncCharacterFromCloud(c);
         renderCloudStoryBox(c);
+        if (typeof updateStoriaLegacyVisibility === 'function') updateStoriaLegacyVisibility(c);
         if (typeof renderPlayerStoriesBox === 'function') renderPlayerStoriesBox();
         if (!changed) toast('Nessuna novità');
       } catch (err) { toast('Errore: ' + err.message); }

@@ -563,6 +563,7 @@ function syncActiveCharacterInBackground() {
   if (!c || !c.cloudCharacterId || typeof syncCharacterFromCloud !== 'function') return;
   syncCharacterFromCloud(c).then(changed => {
     if (changed && typeof renderCloudStoryBox === 'function') renderCloudStoryBox(c);
+    if (changed) updateStoriaLegacyVisibility(c);
   }).catch(() => {});
 }
 
@@ -885,6 +886,54 @@ function updatePlayBars(c) {
   renderDiagram(c);
 }
 function pct(cur, max) { return max > 0 ? clamp((cur / max) * 100, 0, 100) : 0; }
+
+/* ---------------------------------------------------------- riposo/P.R. */
+
+/* Riposo o meditazione: il moltiplicatore (0-24, a scaglioni di un quarto,
+   pensato come ore di riposo) applicato al P.R. effettivo dà il totale di
+   punti che si possono togliere dall'Uso di HP e MP, divisi come si vuole
+   tra i due. Il pannello è puramente transitorio (nessun campo salvato sul
+   personaggio): si azzera ogni volta che si apre una scheda. */
+function riposoState(c) {
+  const mult = Math.max(0, Number($('#riposo-moltiplicatore').value) || 0);
+  const budget = Math.floor(effectivePrMax(c) * mult);
+  const hpUso = Math.max(0, effectiveHpMax(c) - (c.hpCur || 0));
+  const mpUso = Math.max(0, effectiveMpMax(c) - (c.mpCur || 0));
+  return { budget, hpUso, mpUso };
+}
+function syncRiposoInputs(c, changed) {
+  const { budget, hpUso, mpUso } = riposoState(c);
+  let hp = clamp(Math.floor(Number($('#riposo-hp').value)) || 0, 0, hpUso);
+  let mp = clamp(Math.floor(Number($('#riposo-mp').value)) || 0, 0, mpUso);
+  // il campo appena modificato non può comunque superare il budget da solo;
+  // l'altro campo si riduce di conseguenza per restare nel totale disponibile
+  if (changed === 'mp') {
+    mp = Math.min(mp, budget);
+    hp = Math.min(hp, Math.max(0, budget - mp));
+  } else {
+    hp = Math.min(hp, budget);
+    mp = Math.min(mp, Math.max(0, budget - hp));
+  }
+  $('#riposo-hp').value = hp;
+  $('#riposo-mp').value = mp;
+  $('#riposo-residuo').textContent = Math.max(0, budget - hp - mp);
+}
+function renderRiposoPanel(c) {
+  $('#riposo-pr-eff').textContent = effectivePrMax(c);
+  $('#riposo-totale').textContent = riposoState(c).budget;
+  syncRiposoInputs(c);
+}
+function resetRiposoPanel() {
+  const panel = $('#riposo-panel');
+  if (!panel) return;
+  panel.classList.add('hidden');
+  $('#riposo-moltiplicatore').value = 0;
+  $('#riposo-hp').value = 0;
+  $('#riposo-mp').value = 0;
+  $('#riposo-totale').textContent = 0;
+  $('#riposo-residuo').textContent = 0;
+  $('#riposo-pr-eff').textContent = 0;
+}
 
 /* ------------------------------------------- diagramma scheda (fronte) */
 
@@ -1703,6 +1752,16 @@ function loadPortraitFile(file) {
   reader.readAsDataURL(file);
 }
 
+/* La vecchia sezione "Storia" (nome libero + selezione da elenco locale) è
+   ridondante appena il personaggio ha già una storia in cloud (attiva o in
+   attesa di conferma): "Storia in cloud" mostra già lo stato, tenerle
+   entrambe confonde su quale sia quella vera. */
+function updateStoriaLegacyVisibility(c) {
+  const el = $('#storia-legacy-section');
+  if (!el) return;
+  el.classList.toggle('hidden', !!(c.cloudCampaignId || c.cloudJoinRequestId));
+}
+
 /* ----------------------------------------------------------- full render */
 
 function renderSheet() {
@@ -1717,10 +1776,12 @@ function renderSheet() {
   $('#f-storia').value = c.storia;
   renderStoriaSelect(c);
   renderCloudStoryBox(c);
+  updateStoriaLegacyVisibility(c);
   $('#f-bellezza-manuale').value = c.bellezzaManuale !== null ? c.bellezzaManuale : '';
   $('#bellezza-result').textContent = c.bellezzaTirata !== null ? c.bellezzaTirata : '—';
   renderPrimaryStats(c);
   updateDerived(c);
+  resetRiposoPanel();
   renderDiagram(c);
   renderQi(c);
   renderTertiaryStats(c);
@@ -2932,6 +2993,37 @@ function wireStaticEvents() {
     c.ppCur = clamp(c.ppCur - b.costo, 0, ppMax);
     updatePlayBars(c);
     toast(`Boost Lv ${lv} attivato: -${b.costo} PP`);
+    touchActive();
+  });
+  // ---- riposo/meditazione: recupera HP/MP spendendo i P.R. ----
+  $('#btn-riposo-toggle').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const panel = $('#riposo-panel');
+    const opening = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden');
+    if (opening) renderRiposoPanel(c);
+  });
+  $('#riposo-moltiplicatore').addEventListener('input', () => {
+    const c = getActive(); if (!c) return;
+    let v = Math.round((Number($('#riposo-moltiplicatore').value) || 0) * 4) / 4;
+    v = clamp(v, 0, 24);
+    $('#riposo-moltiplicatore').value = v;
+    renderRiposoPanel(c);
+  });
+  $('#riposo-hp').addEventListener('input', () => { const c = getActive(); if (c) syncRiposoInputs(c, 'hp'); });
+  $('#riposo-mp').addEventListener('input', () => { const c = getActive(); if (c) syncRiposoInputs(c, 'mp'); });
+  $('#btn-riposo-applica').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const hp = Math.max(0, Math.floor(Number($('#riposo-hp').value)) || 0);
+    const mp = Math.max(0, Math.floor(Number($('#riposo-mp').value)) || 0);
+    if (!hp && !mp) { toast('Imposta quanto recuperare su HP o MP'); return; }
+    c.hpCur = clamp(c.hpCur + hp, 0, effectiveHpMax(c));
+    c.mpCur = clamp(c.mpCur + mp, 0, effectiveMpMax(c));
+    updatePlayBars(c);
+    toast(`Riposo applicato: +${hp} HP, +${mp} MP`);
+    $('#riposo-hp').value = 0;
+    $('#riposo-mp').value = 0;
+    renderRiposoPanel(c);
     touchActive();
   });
   ['#hp-max', '#mp-max', '#hud-pr-max'].forEach(sel => {
