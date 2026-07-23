@@ -107,9 +107,12 @@ input,select,textarea{font-family:var(--font-body);}
    dell'immagine di copertina, ora è testo vero al fondo della pagina — resta
    visibile sotto il modulo di accesso, qualunque sia lo stato dell'account. */
 .cover-tagline{
+  width:100%;
+  max-width:360px;
   color:var(--testo-secondario-dark-2);
   font-size:13px;
   letter-spacing:.02em;
+  text-align:center;
 }
 .cover-tagline-row{
   display:flex;
