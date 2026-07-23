@@ -523,8 +523,17 @@ function accountStatusHtml(session, caps, profile) {
       <p class="helper-text" style="margin:0;">Ti arriverà un'email di conferma (solo questa volta): aprila per completare.</p>
     `;
   }
+  // Account permanente: niente da fare in copertina, nickname ed uscita
+  // vivono nella sezione Account (vedi accountIdentityControlsHtml).
+  return '';
+}
+
+/* Nickname ed uscita per un account permanente: unici controlli che
+   restano legati all'identità dopo lo spostamento del modulo di
+   accesso/registrazione in copertina — per questo vivono nella sezione
+   Account (scelta del ruolo) e non in copertina. */
+function accountIdentityControlsHtml(profile) {
   return `
-    <p class="helper-text" style="margin:0;">Account permanente: <strong>${session.user.email || session.user.id}</strong></p>
     ${nicknameFieldHtml(profile)}
     <button class="btn btn-ghost btn-sm" id="acc-signout" style="align-self:flex-start;">Esci</button>
   `;
@@ -760,6 +769,7 @@ async function renderHomeIdentityBox() {
 async function renderAccountArea() {
   const campaignsBox = $('#account-campaigns-box');
   const trashBox = $('#account-trash-box');
+  const identityBox = $('#account-identity-controls');
   // Dato solo locale, nessuna rete: non deve aspettare le chiamate cloud qui sotto.
   renderPlayerStoriesBox();
 
@@ -769,8 +779,19 @@ async function renderAccountArea() {
   } catch (e) {
     campaignsBox.innerHTML = campaignsBoxHtml(null, null);
     if (trashBox) trashBox.innerHTML = trashBoxHtml(null, null);
+    if (identityBox) identityBox.innerHTML = '<p class="helper-text" style="margin:0;">Impossibile verificare l\'account.</p>';
     renderPlayerStoriesBox();
     return;
+  }
+
+  if (identityBox) {
+    if (session && !isGuestUser(session)) {
+      let profile = null;
+      try { profile = await getMyProfile(session.user.id); } catch (e) { /* nickname non essenziale: il campo resta vuoto */ }
+      identityBox.innerHTML = accountIdentityControlsHtml(profile);
+    } else {
+      identityBox.innerHTML = '<p class="helper-text" style="margin:0;">Accedi dalla copertina per modificare il nickname o uscire dall\'account.</p>';
+    }
   }
 
   if (session && !isGuestUser(session)) {
@@ -975,9 +996,24 @@ function wireCloudAccountEvents() {
       signInWithProvider('apple').catch(err => toast('Errore: ' + err.message));
       return;
     }
+  });
+
+  // ---- nickname/uscita per un account permanente: sezione Account, non più
+  // in copertina (vedi accountIdentityControlsHtml) ----
+  $('#account-identity-controls').addEventListener('click', async e => {
+    if (e.target.id === 'acc-save-nickname') {
+      const nicknameInput = $('#acc-nickname');
+      const nickname = nicknameInput ? nicknameInput.value : '';
+      try {
+        await updateMyDisplayName(nickname);
+        toast('Nickname salvato');
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
     if (e.target.id === 'acc-signout') {
       await signOutCloud();
       toast('Disconnesso');
+      renderAccountArea();
       renderHomeIdentityBox();
       return;
     }
