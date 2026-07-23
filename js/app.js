@@ -2663,11 +2663,11 @@ function wireStaticEvents() {
     const c = getActive(); if (!c) return;
     creditLevelAP(c);
   });
-  $('#f-ap-disponibili').addEventListener('input', () => {
-    setField('apDisponibili', Number($('#f-ap-disponibili').value) || 0);
-    const c = getActive();
-    if (c) $('#derived-ap').textContent = Number(c.apDisponibili) || 0;
-  });
+  // "AP disponibili" è solo un visualizzatore: il giocatore non deve poter
+  // scrivercisi direttamente sopra, altrimenti si attribuirebbe da solo AP
+  // per comprare statistiche. Gli AP arrivano solo da un level-up (in
+  // automatico, tramite creditLevelAP) o vengono spesi dalle funzioni che
+  // già li scalano correttamente (changePrimary, i tratti, i boost...).
 
   ['#growth-type', '#growth-current', '#growth-target'].forEach(sel => {
     $(sel).addEventListener('input', updateGrowthCost);
