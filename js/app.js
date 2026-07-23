@@ -633,23 +633,39 @@ function renderCharList() {
   const wrap = $('#char-list');
   if (!characters.length) {
     wrap.innerHTML = `<div class="empty-state">Nessun personaggio ancora.<br>Tocca "+" per crearne uno.</div>`;
-    return;
+  } else {
+    const sorted = [...characters].sort((a, b) => b.updatedAt - a.updatedAt);
+    wrap.innerHTML = sorted.map(c => {
+      const b = BUILDS[c.build];
+      const initial = (c.nome || '?').trim().charAt(0).toUpperCase() || '?';
+      const portraitStyle = c.portrait ? ` style="background-image:url(${c.portrait})"` : '';
+      return `<div class="char-card" data-id="${c.id}">
+        <div class="avatar ${axisClass(c.build)}${c.portrait ? ' has-portrait' : ''}"${portraitStyle}>${initial}</div>
+        <div class="info">
+          <div class="name">${escapeHtml(c.nome || 'Senza nome')}</div>
+          <div class="meta">${b.label} · Lv ${c.livello || 1}</div>
+        </div>
+        <button class="btn btn-icon btn-ghost" data-dup="${c.id}" title="Duplica" aria-label="Duplica">⎘</button>
+        <button class="btn btn-icon btn-ghost" data-del="${c.id}" title="Elimina" aria-label="Elimina">🗑</button>
+      </div>`;
+    }).join('');
   }
-  const sorted = [...characters].sort((a, b) => b.updatedAt - a.updatedAt);
-  wrap.innerHTML = sorted.map(c => {
-    const b = BUILDS[c.build];
-    const initial = (c.nome || '?').trim().charAt(0).toUpperCase() || '?';
-    const portraitStyle = c.portrait ? ` style="background-image:url(${c.portrait})"` : '';
-    return `<div class="char-card" data-id="${c.id}">
-      <div class="avatar ${axisClass(c.build)}${c.portrait ? ' has-portrait' : ''}"${portraitStyle}>${initial}</div>
-      <div class="info">
-        <div class="name">${escapeHtml(c.nome || 'Senza nome')}</div>
-        <div class="meta">${b.label} · Lv ${c.livello || 1}</div>
-      </div>
-      <button class="btn btn-icon btn-ghost" data-dup="${c.id}" title="Duplica" aria-label="Duplica">⎘</button>
-      <button class="btn btn-icon btn-ghost" data-del="${c.id}" title="Elimina" aria-label="Elimina">🗑</button>
-    </div>`;
-  }).join('');
+  syncMyCharactersInBackground();
+}
+
+/* All'apertura dell'elenco, importa in background gli eventuali personaggi
+   già salvati nel cloud da un altro dispositivo con lo stesso account (vedi
+   syncMyCharactersFromCloud in cloud-character.js): senza, un personaggio
+   creato sul telefono e salvato nel cloud non comparirebbe mai aprendo
+   l'app da un browser diverso. Nessun effetto per chi non ha un account
+   permanente (per un ospite non ha senso: è per definizione legato a questo
+   solo dispositivo). Si ri-renderizza l'elenco solo se arriva qualcosa di
+   nuovo, altrimenti il giro di rete resta invisibile. */
+function syncMyCharactersInBackground() {
+  if (typeof syncMyCharactersFromCloud !== 'function') return;
+  syncMyCharactersFromCloud().then(imported => {
+    if (imported) { renderCharList(); toast('Personaggi aggiornati dal tuo account'); }
+  }).catch(() => {});
 }
 
 function escapeHtml(s) {

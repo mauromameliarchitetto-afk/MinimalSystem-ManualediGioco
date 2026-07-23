@@ -636,7 +636,7 @@ function sessionLogRowHtml(l) {
 function campaignSessionLogsHtml(campaignId, logs) {
   const list = logs.length ? logs.map(sessionLogRowHtml).join('') : '<p class="helper-text" style="margin:0;">Nessun riassunto pubblicato ancora.</p>';
   return `
-    <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Previously on — registro sessioni</div>
+    <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Recap — registro sessioni</div>
     <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:10px;">
       <p class="helper-text" style="margin:0;">Riassunti che i giocatori possono leggere dalla propria scheda, per ricordare cosa è successo nella giocata precedente.</p>
       <div class="field-row">

@@ -94,6 +94,11 @@ input,select,textarea{font-family:var(--font-body);}
   text-align:center;
   gap:18px;
 }
+.cover-section-label{
+  font-family:var(--font-title);font-weight:600;font-size:11px;
+  text-transform:uppercase;letter-spacing:.14em;
+  color:var(--testo-secondario-dark-2);
+}
 .cover-actions{
   width:100%;
   max-width:360px;
