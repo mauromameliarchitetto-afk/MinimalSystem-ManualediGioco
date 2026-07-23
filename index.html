@@ -431,7 +431,7 @@
 
         <div class="section-title"><span class="dot neutral"></span>Boost <span class="chip" style="margin-left:auto;">max 2</span></div>
         <div class="table-scroll"><table class="data-table edit-table">
-          <thead><tr><th>Bonus</th><th>Range</th><th>PP</th><th>Costo</th><th>Limite</th><th>Lv</th></tr></thead>
+          <thead><tr><th>Nome</th><th>Bonus</th><th>Range</th><th>PP</th><th>Costo</th><th>Limite</th><th>Lv</th></tr></thead>
           <tbody id="boostrows-table"></tbody>
         </table></div>
         <div style="display:flex;gap:8px;">
@@ -734,7 +734,10 @@
       <h1 id="charview-title">Personaggio</h1>
       <button class="btn btn-icon btn-ghost" id="btn-del-charview" aria-label="Rimuovi dalla storia">🗑</button>
     </div>
-    <div class="list-scroll" id="charview-body"></div>
+    <div class="list-scroll">
+      <div id="charview-narratore-actions" class="hidden"></div>
+      <div id="charview-body"></div>
+    </div>
   </section>
 
 <div id="class-confirm" class="hidden confirm-modal">

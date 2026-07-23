@@ -85,6 +85,12 @@ let activeId = null;
 let stories = [];
 let activeStoryId = null;
 let viewingCharId = null;
+// 'story' (elenco locale del Narratore, storico) oppure 'cloud-narratore'
+// (scheda di un personaggio in una campagna cloud, aperta dal suo Account):
+// stabilisce cosa fanno i bottoni Indietro/Rimuovi nella scheda in sola
+// lettura, che è condivisa tra i due contesti.
+let charViewMode = 'story';
+let charViewCampaignId = null;
 
 /* ---------------------------------------------------------------- storage */
 
@@ -214,7 +220,7 @@ function clampSlotToRange(slot) {
    proprio, incrementato dal bottone nella cella Utilizzi. */
 function makeTecnicaRow() { return { nome: '', bonus: '', malus: '', durata: '', utilizziCount: 0, utilizzi: '', lv: '' }; }
 function makeAbilitaRow() { return { nome: '', bonus: '', costo: '', durata: '', utilizziCount: 0, utilizzi: '', lv: '' }; }
-function makeBoostRow()   { return { bonus: '', range: '', pp: '', costo: '', limite: '', lv: '' }; }
+function makeBoostRow()   { return { nome: '', bonus: '', range: '', pp: '', costo: '', limite: '', lv: '' }; }
 
 /* Ricalcola i campi derivati di una riga Tecnica/Abilità/Boost dal suo Lv
    (e, per gli utilizzi, dal Q.I. del personaggio): lv resta comunque
@@ -1547,7 +1553,7 @@ function renderBoostRows(c) {
   const rows = buildRows(c.boostRows, shown, makeBoostRow);
   rows.forEach(recomputeBoostRow);
   editTableRows('#boostrows-table', rows, 'boostrow',
-    ['bonus', 'range', 'pp', 'costo', 'limite', 'lv'],
+    ['nome', 'bonus', 'range', 'pp', 'costo', 'limite', 'lv'],
     {
       bonus: (r, i) => textareaCell('boostrow', 'bonus', r, i, false),
       range: r => readonlyCell(r.range), pp: r => readonlyCell(r.pp), costo: r => readonlyCell(r.costo), limite: r => readonlyCell(r.limite)
@@ -2120,13 +2126,26 @@ function wireStaticEvents() {
     if (!card) return;
     const s = getActiveStory(); if (!s) return;
     const c = s.characters.find(x => x.id === card.dataset.viewchar);
-    if (c) renderCharView(c);
+    if (c) { charViewMode = 'story'; renderCharView(c); }
   });
   $('#btn-back-story').addEventListener('click', () => {
+    if (charViewMode === 'cloud-narratore') { showView('account'); return; }
     renderStory();
     showView('story');
   });
-  $('#btn-del-charview').addEventListener('click', () => {
+  $('#btn-del-charview').addEventListener('click', async () => {
+    if (charViewMode === 'cloud-narratore') {
+      if (!viewingCharId) return;
+      const name = $('#charview-title').textContent || 'questo personaggio';
+      if (!confirm(`Rimuovere "${name}" dalla storia? La sua scheda resta al giocatore, solo scollegata da questa campagna.`)) return;
+      try {
+        await narratoreRemoveCharacterCloud(viewingCharId);
+        toast('Personaggio rimosso dalla storia');
+        viewingCharId = null;
+        showView('account');
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
     const s = getActiveStory(); if (!s || !viewingCharId) return;
     const c = s.characters.find(x => x.id === viewingCharId);
     if (!confirm(`Rimuovere "${(c && c.nome) || 'questo personaggio'}" dalla storia?`)) return;
@@ -3674,7 +3693,7 @@ function renderCharView(c) {
     ).join('')}</tr>`).join('');
   const tecniche = rowTable(c.tecniche, ['nome', 'bonus', 'malus', 'durata', 'utilizzi', 'lv']);
   const abilita = rowTable(c.abilita, ['nome', 'bonus', 'costo', 'durata', 'utilizzi', 'lv']);
-  const boosts = rowTable(c.boostRows, ['bonus', 'range', 'pp', 'costo', 'limite', 'lv']);
+  const boosts = rowTable(c.boostRows, ['nome', 'bonus', 'range', 'pp', 'costo', 'limite', 'lv']);
 
   const BG_LABELS = {
     nascitaData: 'Data di nascita', nascitaLuogo: 'Luogo di nascita', origini: 'Origini', frase: 'In una frase',
@@ -3722,7 +3741,7 @@ function renderCharView(c) {
     ${section('Scudo e armi (Atk/Dif/Durabilità · Bonus)', weaponSlots ? table(weaponSlots) : '')}
     ${section('Tecniche (Nome · Bonus · Malus · Durata · Utilizzi · Lv)', tecniche ? table(tecniche) : '')}
     ${section('Abilità (Nome · Bonus · Costo · Durata · Utilizzi · Lv)', abilita ? table(abilita) : '')}
-    ${section('Boost (Bonus · Range · PP · Costo · Limite · Lv)', boosts ? table(boosts) : '')}
+    ${section('Boost (Nome · Bonus · Range · PP · Costo · Limite · Lv)', boosts ? table(boosts) : '')}
     ${section('Oggetti consumabili (Nome · Effetto · Scorte)', consumabiliRows ? table(consumabiliRows) : '')}
     ${section('Incrementi attivi (da sospendere quando concordato)', buffRows ? table(buffRows) : '')}
     ${section('Background', bg ? table(bg) : '')}

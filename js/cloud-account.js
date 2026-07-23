@@ -333,6 +333,51 @@ async function rejectJoinRequestCloud(requestId) {
   const { error } = await withTimeout(sb.rpc('reject_join_request', { p_request_id: requestId }), 'Rifiuto richiesta');
   if (error) throw error;
 }
+/* Scheda completa di un personaggio della propria campagna, aperta da
+   Account → dettaglio campagna: riusa il visualizzatore in sola lettura già
+   esistente (renderCharView) più un pannello di azioni riservate al
+   Narratore (livello, concessioni tratti) — le uniche modifiche che può
+   applicare da qui, coerentemente con le RPC dedicate e sicure già in uso
+   altrove: non è un editor libero dell'intera scheda, che resta del
+   giocatore. */
+function narratoreCharviewActionsHtml(ch) {
+  const bonus = (ch.data && ch.data.traitNarratoreBonus) || {};
+  const traitRows = Object.keys(TRAIT_LISTS).map(listKey => {
+    const b = Number(bonus[listKey]) || 0;
+    return `<div class="row-between" style="padding:3px 0;flex-wrap:wrap;gap:6px;">
+      <span class="helper-text" style="margin:0;">${TRAIT_LIST_LABELS[listKey]}${b ? ` <strong>+${b}</strong>` : ''}</span>
+      <span style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+        <input type="number" min="1" value="1" data-cvtraitgrantinput="${listKey}" style="width:44px;">
+        <button type="button" class="btn btn-sm btn-ghost" data-cvtraitgrant="${listKey}">Concedi</button>
+        <button type="button" class="btn btn-sm btn-ghost" data-cvtraitcustom="${listKey}">+ Tratto</button>
+      </span>
+    </div>`;
+  }).join('');
+  return `
+    <div class="section-title"><span class="dot neutral"></span>Azioni del Narratore</div>
+    <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+      <div class="row-between" style="flex-wrap:wrap;gap:6px;">
+        <span class="helper-text" style="margin:0;">Livello attuale: <strong>${ch.level}</strong></span>
+        <span style="display:flex;gap:6px;align-items:center;">
+          <input type="number" min="1" max="20" value="${ch.level}" data-cvlevelinput style="width:52px;">
+          <button type="button" class="btn btn-sm btn-primary" data-cvsetlevel="${ch.id}">Assegna</button>
+        </span>
+      </div>
+      <div class="helper-text" style="margin:0;">Concessioni sui tratti</div>
+      ${traitRows}
+    </div></div>
+  `;
+}
+function openNarratoreCharacterView(ch, campaignId) {
+  const c = Object.assign({}, ch.data, { id: ch.id, nome: (ch.data && ch.data.nome) || ch.name });
+  charViewMode = 'cloud-narratore';
+  charViewCampaignId = campaignId;
+  renderCharView(c);
+  const box = $('#charview-narratore-actions');
+  box.innerHTML = narratoreCharviewActionsHtml(ch);
+  box.classList.remove('hidden');
+  showView('charview');
+}
 async function narratoreSetLevelCloud(characterId, newLevel) {
   const { error } = await withTimeout(sb.rpc('narratore_set_level', { p_character_id: characterId, p_new_level: newLevel }), 'Assegnazione livello');
   if (error) throw error;
@@ -541,7 +586,7 @@ function campaignCharacterTraitsHtml(ch) {
 }
 function campaignCharacterRowHtml(ch) {
   return `<div class="row-between" style="padding:4px 0;flex-wrap:wrap;gap:6px;" data-charrow="${ch.id}">
-    <span>${ch.name} <span class="helper-text" style="margin:0;">(${ch.playerName}) — Lv ${ch.level}</span></span>
+    <span><a href="#" data-opencharview="${ch.id}" style="color:inherit;text-decoration:underline;text-decoration-style:dotted;">${ch.name}</a> <span class="helper-text" style="margin:0;">(${ch.playerName}) — Lv ${ch.level}</span></span>
     <span style="display:flex;gap:4px;align-items:center;">
       <input type="number" min="1" max="20" value="${ch.level}" data-levelinput="${ch.id}" style="width:52px;">
       <button class="btn btn-sm btn-ghost" data-setlevel="${ch.id}">Assegna</button>
@@ -554,9 +599,15 @@ function campaignCharacterRowHtml(ch) {
   </div>`;
 }
 
+// Cache in memoria dell'ultimo elenco "Personaggi in gioco" caricato, per
+// poter aprire la scheda completa di un personaggio al click senza dover
+// rifare la chiamata di rete (i dati includono già l'intera "data" jsonb).
+let lastCampaignCharactersById = {};
+
 async function campaignDetailHtml(campaignId) {
   try {
     const [pending, chars, settings] = await Promise.all([listPendingJoinRequests(campaignId), listCampaignCharacters(campaignId), getCampaignSettingsInfo(campaignId)]);
+    chars.forEach(ch => { lastCampaignCharactersById[ch.id] = ch; });
     const pendingHtml = pending.length
       ? pending.map(joinRequestRowHtml).join('')
       : '<p class="helper-text" style="margin:0;">Nessuna richiesta in attesa.</p>';
@@ -883,6 +934,16 @@ function wireCloudAccountEvents() {
       if (box) box.classList.toggle('hidden');
       return;
     }
+    if (e.target.dataset.opencharview) {
+      e.preventDefault();
+      const charId = e.target.dataset.opencharview;
+      const ch = lastCampaignCharactersById[charId];
+      if (!ch) { toast('Personaggio non trovato, riprova'); return; }
+      const detail = e.target.closest('.cm-campaign-detail');
+      const campaignId = detail ? detail.dataset.detailfor : null;
+      openNarratoreCharacterView(ch, campaignId);
+      return;
+    }
     if (e.target.dataset.traitgrant) {
       const [charId, listKey] = e.target.dataset.traitgrant.split('::');
       const input = $(`[data-traitgrantinput="${charId}::${listKey}"]`);
@@ -1009,6 +1070,62 @@ function wireCloudAccountEvents() {
         await restoreCampaignCloud(e.target.dataset.restorecampaign);
         toast('Campagna ripristinata');
         renderAccountArea();
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+  });
+
+  // ---- azioni del Narratore dentro la scheda completa del personaggio ----
+  $('#charview-narratore-actions').addEventListener('click', async e => {
+    if (!viewingCharId) return;
+    if (e.target.dataset.cvsetlevel) {
+      const input = $('#charview-narratore-actions [data-cvlevelinput]');
+      const newLevel = Number(input.value);
+      if (!newLevel || newLevel < 1 || newLevel > 20) { toast('Livello non valido (1-20)'); return; }
+      try {
+        await narratoreSetLevelCloud(viewingCharId, newLevel);
+        toast(`Livello assegnato: Lv ${newLevel}`);
+        const ch = lastCampaignCharactersById[viewingCharId];
+        if (ch) {
+          ch.level = newLevel;
+          $('#charview-narratore-actions').innerHTML = narratoreCharviewActionsHtml(ch);
+        }
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.cvtraitgrant) {
+      const listKey = e.target.dataset.cvtraitgrant;
+      const input = $(`#charview-narratore-actions [data-cvtraitgrantinput="${listKey}"]`);
+      const points = Math.floor(Number(input.value));
+      if (!points || points <= 0) { toast('Inserisci un numero di punti positivo'); return; }
+      try {
+        await narratoreGrantTraitPointsCloud(viewingCharId, listKey, points);
+        toast(`Concessi +${points} punti a ${TRAIT_LIST_LABELS[listKey]}`);
+        const ch = lastCampaignCharactersById[viewingCharId];
+        if (ch) {
+          if (!ch.data.traitNarratoreBonus) ch.data.traitNarratoreBonus = {};
+          ch.data.traitNarratoreBonus[listKey] = (ch.data.traitNarratoreBonus[listKey] || 0) + points;
+          $('#charview-narratore-actions').innerHTML = narratoreCharviewActionsHtml(ch);
+        }
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.cvtraitcustom) {
+      const listKey = e.target.dataset.cvtraitcustom;
+      const name = prompt(`Nome del tratto (${TRAIT_LIST_LABELS[listKey]}):`);
+      if (!name || !name.trim()) return;
+      const valueStr = prompt('Valore del tratto:', '1');
+      const value = Math.max(0, Math.floor(Number(valueStr)) || 0);
+      try {
+        await narratoreAddCustomTraitCloud(viewingCharId, listKey, name.trim(), value);
+        toast(`Tratto "${name.trim()}" scritto sulla scheda`);
+        const ch = lastCampaignCharactersById[viewingCharId];
+        if (ch) {
+          if (!ch.data.customTraits) ch.data.customTraits = {};
+          if (!Array.isArray(ch.data.customTraits[listKey])) ch.data.customTraits[listKey] = [];
+          ch.data.customTraits[listKey].push({ name: name.trim(), value, narratore: true });
+          $('#charview-narratore-actions').innerHTML = narratoreCharviewActionsHtml(ch);
+        }
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
