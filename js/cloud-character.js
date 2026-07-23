@@ -37,6 +37,52 @@ async function pushCharacterToCloud(c) {
   }
 }
 
+/* Elenco (id/nome/livello/campagna/dati) di TUTTI i personaggi che l'utente
+   possiede nel cloud, indipendentemente dal dispositivo che li ha salvati:
+   basta la RLS "personaggi: proprietario" (owner_user_id = auth.uid()) già
+   esistente, nessuna RPC dedicata. Solo account permanenti: un ospite è per
+   definizione legato a questo solo dispositivo, non ha nulla da elencare da
+   un altro. */
+async function listMyCloudCharacters() {
+  const session = await currentCloudSession();
+  if (!session || isGuestUser(session)) return [];
+  const { data, error } = await withTimeout(
+    sb.from('characters').select('id, name, level, campaign_id, data, updated_at').eq('owner_user_id', session.user.id),
+    'I tuoi personaggi (cloud)'
+  );
+  if (error) throw error;
+  return data || [];
+}
+
+/* Importa in locale i personaggi dell'account salvati nel cloud da un ALTRO
+   dispositivo (qui ancora sconosciuti: nessuna riga locale ha il loro
+   cloudCharacterId) — senza, un personaggio creato e salvato nel cloud su
+   un dispositivo non comparirebbe mai aprendo l'app su un altro. Quelli già
+   presenti restano intoccati qui: se ne occupa syncCharacterFromCloud
+   quando li si apre. Un nuovo id locale viene sempre assegnato (l'id locale
+   è per-dispositivo, solo cloudCharacterId è la chiave condivisa). */
+async function syncMyCharactersFromCloud() {
+  let cloudChars;
+  try { cloudChars = await listMyCloudCharacters(); } catch (e) { return false; }
+  if (!cloudChars.length) return false;
+  let importedAny = false;
+  cloudChars.forEach(row => {
+    if (characters.some(c => c.cloudCharacterId === row.id)) return;
+    const c = Object.assign({}, row.data, {
+      id: uid(),
+      nome: (row.data && row.data.nome) || row.name,
+      livello: Number(row.level) || 1,
+      cloudCharacterId: row.id,
+      cloudCampaignId: row.campaign_id || null
+    });
+    ensureShape(c);
+    characters.push(c);
+    importedAny = true;
+  });
+  if (importedAny) saveAll();
+  return importedAny;
+}
+
 async function requestJoinCampaign(c, campaignId, campaignName) {
   if (!c.cloudCharacterId) throw new Error('Salva prima il personaggio nel cloud');
   const { data, error } = await withTimeout(
