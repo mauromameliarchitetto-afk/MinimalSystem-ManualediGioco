@@ -198,11 +198,56 @@ function premisePath(campaignId) { return `${campaignId}/premessa.pdf`; }
    giocatore ("listed") — un'unica lettura invece di due. */
 async function getCampaignSettingsInfo(campaignId) {
   const { data, error } = await withTimeout(
-    sb.from('campaigns').select('premise_title, premise_filename, premise_size, premise_published, premise_updated_at, listed').eq('id', campaignId).single(),
+    sb.from('campaigns').select('premise_title, premise_filename, premise_size, premise_published, premise_updated_at, listed, session_active, session_label').eq('id', campaignId).single(),
     'Impostazioni campagna'
   );
   if (error) throw error;
   return data;
+}
+
+/* ------------------------------------------------ sessione di gioco (Narratore) */
+
+/* Avvio/chiusura sessione: un gate di flusso di gioco, non di sicurezza sui
+   dati (a differenza di livello/tratti) — mentre e' chiusa, il giocatore non
+   puo' usare Riposo ne' registrare utilizzi di Tecniche/Abilita' (vedi
+   isSessionLocked in app.js). Passa comunque dalla RPC (non da un update
+   diretto) perche' "campagne: modifica solo owner" bloccherebbe un
+   co-narratore, che invece deve poterla avviare/chiudere come il Narratore. */
+async function narratoreSetSessionActiveCloud(campaignId, active, label) {
+  const { error } = await withTimeout(
+    sb.rpc('narratore_set_session_active', { p_campaign_id: campaignId, p_active: active, p_label: label || null }),
+    'Sessione di gioco'
+  );
+  if (error) throw error;
+}
+
+/* ---------------------------------------------- registro sessioni ("Previously on") */
+
+async function listSessionLogs(campaignId) {
+  const { data, error } = await withTimeout(
+    sb.from('campaign_session_logs').select('id, season, episode, title, body, created_at')
+      .eq('campaign_id', campaignId).order('season', { ascending: false }).order('episode', { ascending: false }),
+    'Registro sessioni'
+  );
+  if (error) throw error;
+  return data || [];
+}
+async function addSessionLogCloud(campaignId, season, episode, title, body) {
+  const session = await currentCloudSession();
+  if (!session) throw new Error('Serve un account');
+  const { error } = await withTimeout(
+    sb.from('campaign_session_logs').insert({ campaign_id: campaignId, season, episode, title, body, created_by: session.user.id }),
+    'Pubblicazione riassunto'
+  );
+  if (error) throw error;
+}
+async function updateSessionLogCloud(logId, fields) {
+  const { error } = await withTimeout(sb.from('campaign_session_logs').update(fields).eq('id', logId), 'Modifica riassunto');
+  if (error) throw error;
+}
+async function deleteSessionLogCloud(logId) {
+  const { error } = await withTimeout(sb.from('campaign_session_logs').delete().eq('id', logId), 'Eliminazione riassunto');
+  if (error) throw error;
 }
 
 async function uploadCampaignPremise(campaignId, file, title) {
@@ -557,6 +602,55 @@ function campaignPremiseHtml(campaignId, premise) {
   `;
 }
 
+/* Avvio/chiusura sessione: l'etichetta (es. "E01 S02") si chiede solo
+   all'avvio; alla chiusura resta quella gia' impostata (vedi RPC, che la
+   preserva se non ne arriva una nuova), cosi' il Narratore non deve
+   riscriverla ogni volta solo per richiuderla. */
+function campaignSessionHtml(campaignId, settings) {
+  const active = !!settings.session_active;
+  const label = settings.session_label || '';
+  return `
+    <div class="section-title" style="margin-top:10px;"><span class="dot ${active ? '' : 'neutral'}"></span>Sessione di gioco</div>
+    <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:10px;">
+      <p class="helper-text" style="margin:0;">${active
+        ? `🟢 Sessione in corso${label ? ': <strong>' + escapeHtml(label) + '</strong>' : ''}. I giocatori possono usare Riposo, Tecniche e Abilità.`
+        : 'Sessione chiusa: i giocatori non possono usare Riposo, Tecniche o Abilità finché non la avvii.'}</p>
+      ${active ? '' : `<div class="field"><label>Riferimento sessione (es. E01 S02)</label><input type="text" data-sessionlabel="${campaignId}" placeholder="E01 S02" value="${escapeHtml(label)}"></div>`}
+      <button type="button" class="btn btn-sm ${active ? 'btn-ghost' : 'btn-primary'}" data-togglesession="${campaignId}" data-active="${active}" style="align-self:flex-start;">${active ? '⏸ Chiudi sessione' : '▶ Avvia sessione'}</button>
+    </div></div>
+  `;
+}
+
+/* Registro "Previously on": una riga per riassunto pubblicato, con
+   riferimento stagione/episodio. Modifica/eliminazione riservate al
+   Narratore/co-narratore (RLS su campaign_session_logs). */
+function sessionLogRowHtml(l) {
+  return `<div class="row-between" style="padding:4px 0;flex-wrap:wrap;gap:6px;" data-logrow="${l.id}">
+    <span>E${String(l.episode).padStart(2, '0')} S${String(l.season).padStart(2, '0')}${l.title ? ' — ' + escapeHtml(l.title) : ''}</span>
+    <span style="display:flex;gap:4px;">
+      <button type="button" class="btn btn-icon btn-sm btn-ghost" data-editlog="${l.id}" title="Modifica">✎</button>
+      <button type="button" class="btn btn-icon btn-sm btn-ghost" data-deletelog="${l.id}" title="Elimina" style="color:var(--fisico-forte);">✕</button>
+    </span>
+  </div>`;
+}
+function campaignSessionLogsHtml(campaignId, logs) {
+  const list = logs.length ? logs.map(sessionLogRowHtml).join('') : '<p class="helper-text" style="margin:0;">Nessun riassunto pubblicato ancora.</p>';
+  return `
+    <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Previously on — registro sessioni</div>
+    <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:10px;">
+      <p class="helper-text" style="margin:0;">Riassunti che i giocatori possono leggere dalla propria scheda, per ricordare cosa è successo nella giocata precedente.</p>
+      <div class="field-row">
+        <div class="field" style="max-width:100px;"><label>Stagione</label><input type="number" min="1" value="1" data-newlogseason="${campaignId}"></div>
+        <div class="field" style="max-width:100px;"><label>Episodio</label><input type="number" min="1" value="1" data-newlogepisode="${campaignId}"></div>
+      </div>
+      <div class="field"><label>Titolo (facoltativo)</label><input type="text" data-newlogtitle="${campaignId}" placeholder="es. L'arrivo alla Torre"></div>
+      <div class="field"><label>Riassunto</label><textarea data-newlogbody="${campaignId}" rows="4" placeholder="Cosa è successo nella giocata precedente..."></textarea></div>
+      <button type="button" class="btn btn-primary btn-sm" data-addlog="${campaignId}" style="align-self:flex-start;">Pubblica riassunto</button>
+      <div style="margin-top:6px;">${list}</div>
+    </div></div>
+  `;
+}
+
 function joinRequestRowHtml(r) {
   return `<div class="row-between" style="padding:4px 0;">
     <span>${r.characterName} <span class="helper-text" style="margin:0;">(${r.playerName})</span></span>
@@ -606,7 +700,7 @@ let lastCampaignCharactersById = {};
 
 async function campaignDetailHtml(campaignId) {
   try {
-    const [pending, chars, settings] = await Promise.all([listPendingJoinRequests(campaignId), listCampaignCharacters(campaignId), getCampaignSettingsInfo(campaignId)]);
+    const [pending, chars, settings, logs] = await Promise.all([listPendingJoinRequests(campaignId), listCampaignCharacters(campaignId), getCampaignSettingsInfo(campaignId), listSessionLogs(campaignId)]);
     chars.forEach(ch => { lastCampaignCharactersById[ch.id] = ch; });
     const pendingHtml = pending.length
       ? pending.map(joinRequestRowHtml).join('')
@@ -617,6 +711,8 @@ async function campaignDetailHtml(campaignId) {
     return `
       ${campaignVisibilityHtml(campaignId, settings.listed)}
       ${campaignPremiseHtml(campaignId, settings)}
+      ${campaignSessionHtml(campaignId, settings)}
+      ${campaignSessionLogsHtml(campaignId, logs)}
       <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Richieste in attesa</div>
       ${pendingHtml}
       <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Personaggi in gioco</div>
@@ -717,6 +813,38 @@ function renderPlayerStoriesBox() {
       </span>
     </div>`;
   }).join('');
+}
+
+/* "Previously on": riassunti pubblicati dal Narratore per il personaggio
+   attivo, letti dalla sua campagna in cloud (se ne fa parte). Sola lettura
+   per il giocatore: modifica/eliminazione restano riservate al Narratore
+   dal suo Account (vedi campaignSessionLogsHtml). */
+function previouslyOnEntryHtml(l) {
+  return `<div class="box" style="margin-top:10px;"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:6px;">
+    <strong>E${String(l.episode).padStart(2, '0')} S${String(l.season).padStart(2, '0')}${l.title ? ' — ' + escapeHtml(l.title) : ''}</strong>
+    <p style="white-space:pre-wrap;margin:0;">${escapeHtml(l.body)}</p>
+    <p class="helper-text" style="margin:0;">${new Date(l.created_at).toLocaleDateString('it-IT')}</p>
+  </div></div>`;
+}
+async function renderPreviouslyOnView() {
+  const box = $('#previously-body');
+  if (!box) return;
+  const c = getActive();
+  if (!c || !c.cloudCampaignId) {
+    box.innerHTML = '<p class="helper-text" style="margin:0;">Il personaggio attivo non fa parte di nessuna storia in cloud: qui compariranno i riassunti pubblicati dal Narratore quando entrerà in una campagna.</p>';
+    return;
+  }
+  box.innerHTML = '<p class="helper-text" style="margin:0;">Verifica in corso…</p>';
+  try {
+    const logs = await listSessionLogs(c.cloudCampaignId);
+    const storyName = c.cloudJoinCampaignName || c.cloudCampaignName || 'questa storia';
+    box.innerHTML = `
+      <p class="helper-text">Riassunti pubblicati dal Narratore di «${escapeHtml(storyName)}», per ricordare cosa è successo prima di ricominciare a giocare.</p>
+      ${logs.length ? logs.map(previouslyOnEntryHtml).join('') : '<p class="helper-text" style="margin:0;">Il Narratore non ha ancora pubblicato nessun riassunto.</p>'}
+    `;
+  } catch (e) {
+    box.innerHTML = `<p class="helper-text" style="margin:0;">Errore: ${escapeHtml(e.message)}</p>`;
+  }
 }
 
 function wireCloudAccountEvents() {
@@ -972,6 +1100,62 @@ function wireCloudAccountEvents() {
         detail.innerHTML = await campaignDetailHtml(detail.dataset.detailfor);
         const box = $(`[data-chartraits="${charId}"]`);
         if (box) box.classList.remove('hidden');
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.togglesession) {
+      const campaignId = e.target.dataset.togglesession;
+      const currentlyActive = e.target.dataset.active === 'true';
+      let label = null;
+      if (!currentlyActive) {
+        const input = $(`[data-sessionlabel="${campaignId}"]`);
+        label = input ? input.value.trim() : '';
+        if (!label) { toast('Indica un riferimento sessione, es. E01 S02'); return; }
+      }
+      try {
+        await narratoreSetSessionActiveCloud(campaignId, !currentlyActive, label);
+        toast(!currentlyActive ? 'Sessione avviata: i giocatori possono giocare' : 'Sessione chiusa');
+        const detail = e.target.closest('.cm-campaign-detail');
+        detail.innerHTML = await campaignDetailHtml(detail.dataset.detailfor);
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.addlog) {
+      const campaignId = e.target.dataset.addlog;
+      const season = Math.max(1, Math.floor(Number($(`[data-newlogseason="${campaignId}"]`).value)) || 1);
+      const episode = Math.max(1, Math.floor(Number($(`[data-newlogepisode="${campaignId}"]`).value)) || 1);
+      const title = (($(`[data-newlogtitle="${campaignId}"]`) || {}).value || '').trim();
+      const body = (($(`[data-newlogbody="${campaignId}"]`) || {}).value || '').trim();
+      if (!body) { toast('Scrivi un riassunto'); return; }
+      try {
+        await addSessionLogCloud(campaignId, season, episode, title, body);
+        toast('Riassunto pubblicato');
+        const detail = e.target.closest('.cm-campaign-detail');
+        detail.innerHTML = await campaignDetailHtml(detail.dataset.detailfor);
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.editlog) {
+      const logId = e.target.dataset.editlog;
+      const titleStr = prompt('Titolo (vuoto per nessuno):');
+      if (titleStr === null) return;
+      const bodyStr = prompt('Riassunto:');
+      if (bodyStr === null || !bodyStr.trim()) { toast('Il riassunto non può restare vuoto'); return; }
+      try {
+        await updateSessionLogCloud(logId, { title: titleStr.trim(), body: bodyStr.trim() });
+        toast('Riassunto aggiornato');
+        const detail = e.target.closest('.cm-campaign-detail');
+        detail.innerHTML = await campaignDetailHtml(detail.dataset.detailfor);
+      } catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.deletelog) {
+      if (!confirm('Eliminare questo riassunto?')) return;
+      try {
+        await deleteSessionLogCloud(e.target.dataset.deletelog);
+        toast('Riassunto eliminato');
+        const detail = e.target.closest('.cm-campaign-detail');
+        detail.innerHTML = await campaignDetailHtml(detail.dataset.detailfor);
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }

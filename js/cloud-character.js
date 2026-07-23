@@ -93,14 +93,17 @@ async function syncCharacterFromCloud(c) {
   if (data.campaign_id) {
     try {
       const { data: camp } = await withTimeout(
-        sb.from('campaigns').select('deleted_at, purge_at, premise_title, premise_published, owner_user_id').eq('id', data.campaign_id).single(),
+        sb.from('campaigns').select('deleted_at, purge_at, premise_title, premise_published, owner_user_id, session_active, session_label').eq('id', data.campaign_id).single(),
         'Stato campagna'
       );
       const wasTrashed = !!c.cloudCampaignTrashedAt;
+      const wasSessionActive = !!c.cloudSessionActive;
       c.cloudCampaignTrashedAt = (camp && camp.deleted_at) || null;
       c.cloudCampaignPurgeAt = (camp && camp.purge_at) || null;
       c.cloudCampaignPremiseTitle = (camp && camp.premise_title) || null;
       c.cloudCampaignPremisePublished = !!(camp && camp.premise_published);
+      c.cloudSessionActive = !!(camp && camp.session_active);
+      c.cloudSessionLabel = (camp && camp.session_label) || null;
       if (camp && camp.owner_user_id) {
         const names = await fetchDisplayNames([camp.owner_user_id]);
         c.cloudCampaignNarratoreName = names[camp.owner_user_id] || null;
@@ -108,7 +111,12 @@ async function syncCharacterFromCloud(c) {
       if (c.cloudCampaignTrashedAt && !wasTrashed) {
         toast(`Il Narratore ha eliminato «${c.cloudCampaignName || 'la storia'}»: recuperabile ancora per qualche giorno. Esporta la tua scheda per sicurezza.`);
       }
-      changed = changed || (!!c.cloudCampaignTrashedAt !== wasTrashed);
+      if (c.cloudSessionActive && !wasSessionActive) {
+        toast('Il Narratore ha avviato la sessione: ora puoi usare Riposo, Tecniche e Abilità!');
+      } else if (!c.cloudSessionActive && wasSessionActive) {
+        toast('Il Narratore ha chiuso la sessione.');
+      }
+      changed = changed || (!!c.cloudCampaignTrashedAt !== wasTrashed) || (!!c.cloudSessionActive !== wasSessionActive);
     } catch (e) { /* nessun problema se non leggibile: restiamo con lo stato precedente */ }
   }
 
@@ -200,6 +208,9 @@ function cloudStoryBoxHtml(c) {
   if (c.cloudCampaignId) {
     return `
       <p class="helper-text" style="margin:0;">Sei nella storia: <strong>${c.cloudJoinCampaignName || c.cloudCampaignId}</strong> (Lv ${c.livello})${c.cloudCampaignNarratoreName ? ` — Narratore: <strong>${escapeHtml(c.cloudCampaignNarratoreName)}</strong>` : ''}.</p>
+      <p class="helper-text" style="margin:0;${c.cloudSessionActive ? '' : 'color:var(--fisico-forte);'}">${c.cloudSessionActive
+        ? `🟢 Sessione in corso${c.cloudSessionLabel ? ': <strong>' + escapeHtml(c.cloudSessionLabel) + '</strong>' : ''} — Riposo, Tecniche e Abilità sono disponibili.`
+        : '⏸ Sessione chiusa: Riposo, Tecniche e Abilità non sono disponibili finché il Narratore non avvia la giocata.'}</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-ghost btn-sm" id="cs-sync">Sincronizza</button>
         ${c.cloudCampaignPremisePublished ? '<button class="btn btn-ghost btn-sm" id="cs-read-premise">📖 Leggi la premessa</button>' : ''}
@@ -246,6 +257,7 @@ function wireCloudCharacterEvents() {
         renderCloudStoryBox(c);
         if (typeof updateStoriaLegacyVisibility === 'function') updateStoriaLegacyVisibility(c);
         if (typeof updateLevelLockUI === 'function') updateLevelLockUI(c);
+        if (typeof updateSessionLockUI === 'function') updateSessionLockUI(c);
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
@@ -260,6 +272,7 @@ function wireCloudCharacterEvents() {
         renderCloudStoryBox(c);
         if (typeof updateStoriaLegacyVisibility === 'function') updateStoriaLegacyVisibility(c);
         if (typeof updateLevelLockUI === 'function') updateLevelLockUI(c);
+        if (typeof updateSessionLockUI === 'function') updateSessionLockUI(c);
         if (typeof renderPlayerStoriesBox === 'function') renderPlayerStoriesBox();
       } catch (err) { toast('Errore: ' + err.message); }
       return;
@@ -270,6 +283,7 @@ function wireCloudCharacterEvents() {
         renderCloudStoryBox(c);
         if (typeof updateStoriaLegacyVisibility === 'function') updateStoriaLegacyVisibility(c);
         if (typeof updateLevelLockUI === 'function') updateLevelLockUI(c);
+        if (typeof updateSessionLockUI === 'function') updateSessionLockUI(c);
         if (typeof renderPlayerStoriesBox === 'function') renderPlayerStoriesBox();
         if (!changed) toast('Nessuna novità');
       } catch (err) { toast('Errore: ' + err.message); }
