@@ -251,6 +251,7 @@ function recomputeBoostRow(r) {
    mano in qualsiasi momento. */
 function logTecnicaAbilitaUsage(field, idx) {
   const c = getActive(); if (!c) return;
+  if (isSessionLocked(c)) { toast('Disponibile solo durante la sessione di gioco: attendi che il Narratore la avvii'); return; }
   const rows = c[field];
   const r = rows && rows[idx]; if (!r) return;
   const lv = Math.max(1, parseInt(r.lv, 10) || 1);
@@ -291,11 +292,13 @@ function directLevelUpRow(field, idx) {
 function readonlyCell(value) {
   return `<td class="col-narrow" style="color:var(--testo-secondario-dark-2);">${escapeHtml(String(value == null ? '' : value))}</td>`;
 }
-/* Cella "Utilizzi": conteggio calcolato + bottone per registrarne uno */
-function utilizziCellHtml(dataAttr, r, i) {
+/* Cella "Utilizzi": conteggio calcolato + bottone per registrarne uno.
+   Disabilitato mentre la sessione di gioco non è "avviata" dal Narratore
+   (vedi isSessionLocked): fuori da una campagna resta sempre libero. */
+function utilizziCellHtml(dataAttr, r, i, locked) {
   return `<td class="col-narrow">
     <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
-      <button type="button" class="btn btn-icon btn-ghost btn-sm" data-uselog="${dataAttr}" data-idx="${i}" title="Registra un utilizzo" style="width:22px;height:22px;padding:0;">+</button>
+      <button type="button" class="btn btn-icon btn-ghost btn-sm" data-uselog="${dataAttr}" data-idx="${i}" ${locked ? 'disabled' : ''} title="${locked ? 'Disponibile solo durante la sessione di gioco' : 'Registra un utilizzo'}" style="width:22px;height:22px;padding:0;">+</button>
       <span style="white-space:nowrap;">${escapeHtml(r.utilizzi || '')}</span>
     </div>
   </td>`;
@@ -584,7 +587,7 @@ function syncActiveCharacterInBackground() {
   if (!c || !c.cloudCharacterId || typeof syncCharacterFromCloud !== 'function') return;
   syncCharacterFromCloud(c).then(changed => {
     if (changed && typeof renderCloudStoryBox === 'function') renderCloudStoryBox(c);
-    if (changed) { updateStoriaLegacyVisibility(c); updateLevelLockUI(c); }
+    if (changed) { updateStoriaLegacyVisibility(c); updateLevelLockUI(c); updateSessionLockUI(c); }
   }).catch(() => {});
 }
 
@@ -1498,12 +1501,13 @@ function renderTecniche(c) {
   const rows = buildRows(c.tecniche, Math.max(0, un.tec - usedDirect), makeTecnicaRow);
   rows.forEach(r => recomputeTecnicaRow(r, c.qi));
   const available = tecAbDirectAvailable(c, 'tecniche');
+  const locked = isSessionLocked(c);
   editTableRows('#tecniche-table', rows, 'tecnica',
     ['nome', 'bonus', 'malus', 'durata', 'utilizzi', 'lv'],
     {
       bonus: (r, i) => textareaCell('tecnica', 'bonus', r, i, false),
       malus: (r, i) => textareaCell('tecnica', 'malus', r, i, true),
-      utilizzi: (r, i) => utilizziCellHtml('tecnica', r, i),
+      utilizzi: (r, i) => utilizziCellHtml('tecnica', r, i, locked),
       lv: (r, i) => lvDirectCellHtml('tecnica', 'tecniche', r, i, available)
     });
   $('#tecniche-count').textContent = usedDirect
@@ -1517,12 +1521,13 @@ function renderAbilita(c) {
   const rows = buildRows(c.abilita, Math.max(0, un.ab - usedDirect), makeAbilitaRow);
   rows.forEach(r => recomputeAbilitaRow(r, c.qi));
   const available = tecAbDirectAvailable(c, 'abilita');
+  const locked = isSessionLocked(c);
   editTableRows('#abilita-table', rows, 'abilita',
     ['nome', 'bonus', 'costo', 'durata', 'utilizzi', 'lv'],
     {
       bonus: (r, i) => textareaCell('abilita', 'bonus', r, i, false),
       costo: r => readonlyCell(r.costo),
-      utilizzi: (r, i) => utilizziCellHtml('abilita', r, i),
+      utilizzi: (r, i) => utilizziCellHtml('abilita', r, i, locked),
       lv: (r, i) => lvDirectCellHtml('abilita', 'abilita', r, i, available)
     });
   $('#abilita-count').textContent = usedDirect
@@ -1792,6 +1797,27 @@ function updateLevelLockUI(c) {
   if (dg) dg.classList.toggle('dg-ro', locked);
 }
 
+/* Sessione di gioco: quando il personaggio è in una campagna, Riposo e gli
+   utilizzi di Tecniche/Abilità restano disponibili solo mentre il Narratore
+   ha la sessione "avviata" (narratore_set_session_active) — così non si
+   attivano fuori dalla giocata vera e propria. Fuori da qualsiasi campagna
+   (gioco locale) resta tutto libero come sempre, nessun gate. A differenza
+   del livello/tratti non è un confine di sicurezza sui dati (nessun vantaggio
+   permanente in gioco a bypassarlo), quindi basta un gate lato client. */
+function isSessionLocked(c) { return !!(c && c.cloudCampaignId) && !c.cloudSessionActive; }
+function updateSessionLockUI(c) {
+  const locked = isSessionLocked(c);
+  const toggleBtn = $('#btn-riposo-toggle');
+  if (toggleBtn) toggleBtn.disabled = locked;
+  if (locked) { const panel = $('#riposo-panel'); if (panel) panel.classList.add('hidden'); }
+  const applyBtn = $('#btn-riposo-applica');
+  if (applyBtn) applyBtn.disabled = locked;
+  const note = $('#session-lock-note');
+  if (note) note.classList.toggle('hidden', !locked);
+  renderTecniche(c);
+  renderAbilita(c);
+}
+
 /* ----------------------------------------------------------- full render */
 
 function renderSheet() {
@@ -1808,6 +1834,7 @@ function renderSheet() {
   renderCloudStoryBox(c);
   updateStoriaLegacyVisibility(c);
   updateLevelLockUI(c);
+  updateSessionLockUI(c);
   $('#f-bellezza-manuale').value = c.bellezzaManuale !== null ? c.bellezzaManuale : '';
   $('#bellezza-result').textContent = c.bellezzaTirata !== null ? c.bellezzaTirata : '—';
   renderPrimaryStats(c);
@@ -1910,6 +1937,7 @@ function wireStaticEvents() {
     if (item.dataset.menuNav === 'master') { renderMasterArea(); showView('master'); return; }
     if (item.dataset.menuNav === 'premises') { renderPremisesArea(); showView('premises'); return; }
     if (item.dataset.menuNav === 'account') { renderAccountArea(); showView('account'); return; }
+    if (item.dataset.menuNav === 'previously') { renderPreviouslyOnView(); showView('previously'); return; }
     if (item.dataset.menuTab) openSheetAtTab(item.dataset.menuTab);
   });
 
@@ -3012,6 +3040,7 @@ function wireStaticEvents() {
   // ---- riposo/meditazione: recupera HP/MP spendendo i P.R. ----
   $('#btn-riposo-toggle').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
+    if (isSessionLocked(c)) { toast('Riposo disponibile solo durante la sessione di gioco'); return; }
     const panel = $('#riposo-panel');
     const opening = panel.classList.contains('hidden');
     panel.classList.toggle('hidden');
@@ -3028,6 +3057,7 @@ function wireStaticEvents() {
   $('#riposo-mp').addEventListener('input', () => { const c = getActive(); if (c) syncRiposoInputs(c, 'mp'); });
   $('#btn-riposo-applica').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
+    if (isSessionLocked(c)) { toast('Riposo disponibile solo durante la sessione di gioco'); return; }
     const hp = Math.max(0, Math.floor(Number($('#riposo-hp').value)) || 0);
     const mp = Math.max(0, Math.floor(Number($('#riposo-mp').value)) || 0);
     if (!hp && !mp) { toast('Imposta quanto recuperare su HP o MP'); return; }

@@ -33,6 +33,7 @@
     <nav class="cover-menu hidden" id="cover-menu" aria-label="Indice">
       <div class="cm-label">Indice</div>
       <button class="cm-item" data-menu-nav="account">Account</button>
+      <button class="cm-item" data-menu-nav="previously">Previously on</button>
       <button class="cm-item" data-menu-nav="rules">Le regole</button>
       <div class="cm-sep"></div>
       <div class="cm-label">Scheda personaggio</div>
@@ -320,6 +321,7 @@
         <p class="helper-text">Il riposo o la meditazione recuperano HP/MP spendendo i P.R.: imposta il moltiplicatore (a scaglioni di un quarto, es. 0.25, 0.5, 0.75, 1, 1.25…) e scegli come dividere il recupero ottenuto tra HP e MP in Uso.</p>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
           <button class="btn btn-ghost btn-sm" id="btn-riposo-toggle" style="align-self:flex-start;">💤 Riposo / Meditazione</button>
+          <p class="helper-text hidden" id="session-lock-note" style="margin:8px 0 0;color:var(--fisico-forte);">In attesa che il Narratore avvii la sessione di gioco: Riposo, Tecniche e Abilità sono disponibili solo durante la giocata.</p>
           <div id="riposo-panel" class="hidden" style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
             <div class="field"><label>Moltiplicatore (0 – 24, a scaglioni di 0,25)</label>
               <input type="number" id="riposo-moltiplicatore" min="0" max="24" step="0.25" value="0">
@@ -666,6 +668,18 @@
           <p class="helper-text" style="margin:0;">—</p>
         </div></div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ PREVIOUSLY ON ============ -->
+  <section id="view-previously" class="view hidden">
+    <div class="topbar">
+      <button class="btn btn-icon btn-ghost" data-nav="cover" aria-label="Indietro">←</button>
+      <h1>Previously on</h1>
+      <span style="width:40px;"></span>
+    </div>
+    <div class="list-scroll" id="previously-body">
+      <p class="helper-text" style="margin:0;">Verifica in corso…</p>
     </div>
   </section>
 
