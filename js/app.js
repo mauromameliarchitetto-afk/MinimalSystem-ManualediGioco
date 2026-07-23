@@ -162,10 +162,25 @@ function saveAll() {
 function getActive() {
   return characters.find(c => c.id === activeId) || null;
 }
+/* Finché il personaggio non è mai stato salvato nel cloud (nessun
+   cloudCharacterId), "Salva nel cloud" resta un'azione una tantum del
+   giocatore. Una volta salvato, però, ogni modifica successiva (nome,
+   statistiche, tratti...) deve arrivare al Narratore senza dover ripetere
+   a mano quel salvataggio: qui si riversa in cloud da sola, con un piccolo
+   ritardo per non spedire una richiesta a ogni singolo tasto premuto. */
+let cloudAutoPushTimer = null;
+function scheduleCloudAutoPush(c) {
+  if (!c || !c.cloudCharacterId || typeof pushCharacterToCloud !== 'function') return;
+  clearTimeout(cloudAutoPushTimer);
+  cloudAutoPushTimer = setTimeout(() => {
+    pushCharacterToCloud(c).catch(() => { /* prossimo giro va bene, non blocchiamo l'utente per un errore di rete */ });
+  }, 2500);
+}
 function touchActive() {
   const c = getActive();
   if (c) c.updatedAt = Date.now();
   saveAll();
+  scheduleCloudAutoPush(c);
 }
 
 /* ------------------------------------------------------------- factories */
