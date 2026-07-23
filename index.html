@@ -46,10 +46,8 @@
         <span class="ub-text" id="update-banner-text">Nuova versione disponibile</span>
         <button class="btn btn-sm btn-primary" id="update-banner-btn">Aggiorna</button>
       </div>
-      <div class="cover-section-label">Sezione di gioco</div>
-      <div class="cover-actions">
-        <button class="btn btn-primary" id="btn-goto-list">I tuoi personaggi</button>
-        <button class="btn btn-ghost" id="btn-new-from-cover">Crea nuovo personaggio</button>
+      <div class="cover-actions" id="home-status-box" style="display:flex;flex-direction:column;gap:10px;">
+        <p class="helper-text" style="margin:0;">Verifica in corso…</p>
       </div>
     </div>
   </section>
@@ -627,13 +625,8 @@
       <span style="width:40px;"></span>
     </div>
     <div class="list-scroll">
-      <p class="helper-text">Serve solo per salvare nel cloud, creare una campagna o entrare in una storia: il resto dell'app funziona come sempre, solo su questo dispositivo.</p>
-      <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Il tuo account</div>
-      <div class="box"><div class="box-bar"></div><div class="box-pad" id="account-status-box" style="display:flex;flex-direction:column;gap:10px;">
-        <p class="helper-text" style="margin:0;">Verifica in corso…</p>
-      </div></div>
-
-      <div class="tabs" id="account-mode-toggle" style="padding:0;border-bottom:none;margin:16px 0 0;">
+      <p class="helper-text">Scegli con quale ruolo vuoi usare l'app: Narratore per gestire le tue campagne, Giocatore per i tuoi personaggi. Accesso e registrazione si trovano in copertina.</p>
+      <div class="tabs" id="account-mode-toggle" style="padding:0;border-bottom:none;margin:10px 0 0;">
         <button class="tab-btn active" data-accmode="narratore">Narratore</button>
         <button class="tab-btn" data-accmode="giocatore">Giocatore</button>
       </div>
