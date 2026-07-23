@@ -37,6 +37,15 @@ async function pushCharacterToCloud(c) {
   }
 }
 
+/* Eliminazione locale di un personaggio già salvato nel cloud: senza
+   cancellare anche la riga cloud (RLS "personaggi: elimina solo
+   proprietario", già in uso), syncMyCharactersFromCloud lo re-importerebbe
+   subito, facendolo "resuscitare" alla prossima apertura dell'elenco. */
+async function deleteCharacterCloud(cloudCharacterId) {
+  const { error } = await withTimeout(sb.from('characters').delete().eq('id', cloudCharacterId), 'Eliminazione scheda dal cloud');
+  if (error) throw error;
+}
+
 /* Elenco (id/nome/livello/campagna/dati) di TUTTI i personaggi che l'utente
    possiede nel cloud, indipendentemente dal dispositivo che li ha salvati:
    basta la RLS "personaggi: proprietario" (owner_user_id = auth.uid()) già

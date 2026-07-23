@@ -3195,10 +3195,19 @@ function duplicateCharacter(id) {
   renderCharList();
   toast('Duplicato');
 }
-function deleteCharacter(id) {
+/* Se il personaggio è già stato salvato nel cloud, va eliminata anche quella
+   riga: altrimenti resterebbe lì, e syncMyCharactersFromCloud (che importa
+   automaticamente i personaggi dell'account da altri dispositivi) lo
+   re-importerebbe subito, facendolo "resuscitare" alla prossima apertura
+   dell'elenco. */
+async function deleteCharacter(id) {
   const c = characters.find(x => x.id === id);
   if (!c) return;
   if (!confirm(`Eliminare "${c.nome || 'personaggio senza nome'}"? L'azione non è reversibile.`)) return;
+  if (c.cloudCharacterId && typeof deleteCharacterCloud === 'function') {
+    try { await deleteCharacterCloud(c.cloudCharacterId); }
+    catch (err) { toast('Eliminazione dal cloud non riuscita: ' + err.message); return; }
+  }
   characters = characters.filter(x => x.id !== id);
   if (activeId === id) activeId = null;
   saveAll();
