@@ -600,28 +600,6 @@ function openCharacter(id) {
   syncActiveCharacterInBackground();
 }
 
-/* Apre la scheda direttamente su un tab (dall'indice in copertina).
-   Usa il personaggio attivo, altrimenti l'ultimo modificato; se non
-   esiste ancora nessun personaggio rimanda alla lista. */
-function openSheetAtTab(tab) {
-  let c = getActive();
-  if (!c && characters.length) {
-    c = [...characters].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-    activeId = c.id;
-    saveAll();
-  }
-  if (!c) {
-    renderCharList();
-    showView('list');
-    toast('Crea prima un personaggio');
-    return;
-  }
-  renderSheet();
-  showView('sheet');
-  showTab(tab);
-  syncActiveCharacterInBackground();
-}
-
 /* ---------------------------------------------------------- lista schede */
 
 function axisClass(buildKey) {
@@ -1954,7 +1932,8 @@ function wireStaticEvents() {
     if (item.dataset.menuNav === 'premises') { renderPremisesArea(); showView('premises'); return; }
     if (item.dataset.menuNav === 'account') { renderAccountArea(); showView('account'); return; }
     if (item.dataset.menuNav === 'previously') { renderPreviouslyOnView(); showView('previously'); return; }
-    if (item.dataset.menuTab) openSheetAtTab(item.dataset.menuTab);
+    if (item.dataset.menuNav === 'charlist') { renderCharList(); showView('list'); return; }
+    if (item.dataset.menuNav === 'newchar') { createCharacterFlow(); return; }
   });
 
   // ---- Area Master ----
