@@ -1871,6 +1871,7 @@ function init() {
   }
   showView('cover');
   wireStaticEvents();
+  renderHomeIdentityBox();
   registerServiceWorker();
   // conferma al plugin OTA che il bundle avviato funziona (altrimenti
   // dopo un timeout tornerebbe automaticamente alla versione precedente)
@@ -1881,8 +1882,6 @@ function init() {
 
 function wireStaticEvents() {
   // ---- navigazione ----
-  $('#btn-goto-list').addEventListener('click', () => { renderCharList(); showView('list'); });
-  $('#btn-new-from-cover').addEventListener('click', createCharacterFlow);
   $('#btn-new-char').addEventListener('click', createCharacterFlow);
   $$('[data-nav]').forEach(b => b.addEventListener('click', () => {
     const target = b.dataset.nav;

@@ -492,7 +492,7 @@ function nicknameFieldHtml(profile) {
 function accountStatusHtml(session, caps, profile) {
   if (!session) {
     return `
-      <p class="helper-text" style="margin:0;">Non sei connesso. Puoi comunque usare l'app in locale su questo dispositivo.</p>
+      <p class="helper-text" style="margin:0;"><strong>Stai accedendo come ospite.</strong> Accedi o registrati per salvare i tuoi personaggi nel cloud e ritrovarli su ogni dispositivo.</p>
       <div class="tabs" id="acc-authmode-toggle" style="padding:0;border-bottom:none;">
         <button class="tab-btn active" data-authmode="signin">Accedi</button>
         <button class="tab-btn" data-authmode="signup">Registrati</button>
@@ -515,7 +515,7 @@ function accountStatusHtml(session, caps, profile) {
   }
   if (isGuestUser(session)) {
     return `
-      <p class="helper-text" style="margin:0;">Sei connesso come <strong>ospite</strong> (solo questo dispositivo): senza collegare un'identità, i dati non sincronizzati potrebbero andare persi.</p>
+      <p class="helper-text" style="margin:0;"><strong>Stai accedendo come ospite</strong> (solo questo dispositivo): senza collegare un'identità, i dati non sincronizzati potrebbero andare persi.</p>
       ${nicknameFieldHtml(profile)}
       <div class="field"><label>Email</label><input type="email" id="acc-email" placeholder="tua@email.it" autocomplete="email"></div>
       <div class="field"><label>Password</label><input type="password" id="acc-password" placeholder="••••••••" autocomplete="new-password"></div>
@@ -735,29 +735,43 @@ function trashBoxHtml(session, trashed) {
   `).join('');
 }
 
-async function renderAccountArea() {
-  const statusBox = $('#account-status-box');
-  const campaignsBox = $('#account-campaigns-box');
-  const trashBox = $('#account-trash-box');
-  statusBox.innerHTML = '<p class="helper-text" style="margin:0;">Verifica in corso…</p>';
-  // Dato solo locale, nessuna rete: non deve aspettare le chiamate cloud qui sotto.
-  renderPlayerStoriesBox();
-
+/* Identità dell'account (accesso/registrazione se non connesso, o stato +
+   nickname + uscita se già connesso): vive in copertina, non più in
+   Account, così è la prima cosa che si vede aprendo l'app — la sezione
+   Account resta così libera per la sola scelta del ruolo. */
+async function renderHomeIdentityBox() {
+  const box = $('#home-status-box');
+  if (!box) return;
+  box.innerHTML = '<p class="helper-text" style="margin:0;">Verifica in corso…</p>';
   let session, caps;
   try {
     [session, caps] = await Promise.all([currentCloudSession(), getAuthCapabilities()]);
   } catch (e) {
-    statusBox.innerHTML = `<p class="helper-text" style="margin:0;">Impossibile verificare l'account: ${e.message}</p>`;
-    campaignsBox.innerHTML = campaignsBoxHtml(null, null);
-    if (trashBox) trashBox.innerHTML = trashBoxHtml(null, null);
-    renderPlayerStoriesBox();
+    box.innerHTML = `<p class="helper-text" style="margin:0;">Impossibile verificare l'account: ${e.message}</p>`;
     return;
   }
   let profile = null;
   if (session && !pendingPasswordRecovery) {
     try { profile = await getMyProfile(session.user.id); } catch (e) { /* nickname non essenziale: il campo resta vuoto */ }
   }
-  statusBox.innerHTML = accountStatusHtml(session, caps, profile);
+  box.innerHTML = accountStatusHtml(session, caps, profile);
+}
+
+async function renderAccountArea() {
+  const campaignsBox = $('#account-campaigns-box');
+  const trashBox = $('#account-trash-box');
+  // Dato solo locale, nessuna rete: non deve aspettare le chiamate cloud qui sotto.
+  renderPlayerStoriesBox();
+
+  let session;
+  try {
+    session = await currentCloudSession();
+  } catch (e) {
+    campaignsBox.innerHTML = campaignsBoxHtml(null, null);
+    if (trashBox) trashBox.innerHTML = trashBoxHtml(null, null);
+    renderPlayerStoriesBox();
+    return;
+  }
 
   if (session && !isGuestUser(session)) {
     try {
@@ -874,7 +888,7 @@ function wireCloudAccountEvents() {
     if (row) { openCharacter(row.dataset.openchar); showTab('identita'); return; }
   });
 
-  $('#account-status-box').addEventListener('click', async e => {
+  $('#home-status-box').addEventListener('click', async e => {
     const emailInput = $('#acc-email');
     const passwordInput = $('#acc-password');
     const email = emailInput ? emailInput.value.trim() : '';
@@ -904,7 +918,7 @@ function wireCloudAccountEvents() {
           await signInWithPassword(email, password);
           toast('Accesso effettuato');
         }
-        renderAccountArea();
+        renderHomeIdentityBox();
       } catch (err) {
         if (/already registered|already exists/i.test(err.message)) {
           toast('Esiste già un account con questa email. Usa "Accedi", oppure "Password dimenticata" se non hai mai impostato una password.');
@@ -932,7 +946,7 @@ function wireCloudAccountEvents() {
       try {
         await setNewPassword(newPassword);
         toast('Nuova password impostata: ora sei connesso');
-        renderAccountArea();
+        renderHomeIdentityBox();
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
@@ -964,7 +978,7 @@ function wireCloudAccountEvents() {
     if (e.target.id === 'acc-signout') {
       await signOutCloud();
       toast('Disconnesso');
-      renderAccountArea();
+      renderHomeIdentityBox();
       return;
     }
   });
@@ -1321,6 +1335,7 @@ function wireCloudAccountEvents() {
     // stesso caso arriva invece da completeSessionFromDeepLink, vedi
     // supabase-client.js).
     if (event === 'PASSWORD_RECOVERY') pendingPasswordRecovery = true;
+    renderHomeIdentityBox();
     if (!$('#view-account').classList.contains('hidden')) renderAccountArea();
   });
 }
