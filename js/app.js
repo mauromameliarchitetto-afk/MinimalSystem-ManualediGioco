@@ -3190,7 +3190,10 @@ async function deleteCharacter(id) {
   if (activeId === id) activeId = null;
   saveAll();
   renderCharList();
-  toast('Eliminato');
+  // Il nome nel messaggio evita confusione se il toast si vede ancora
+  // sfumare su un'altra schermata (es. dopo aver aperto subito un altro
+  // personaggio): un "Eliminato" da solo non direbbe cosa.
+  toast(`Eliminato: ${c.nome || 'personaggio senza nome'}`);
 }
 function charMenu() {
   const c = getActive(); if (!c) return;
