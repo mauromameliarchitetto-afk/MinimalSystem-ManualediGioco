@@ -103,6 +103,31 @@ input,select,textarea{font-family:var(--font-body);}
   margin-top:6px;
   text-align:left;
 }
+/* Motto ("da una semplice idea a infinite possibilità"): prima faceva parte
+   dell'immagine di copertina, ora è testo vero al fondo della pagina — resta
+   visibile sotto il modulo di accesso, qualunque sia lo stato dell'account. */
+.cover-tagline{
+  color:var(--testo-secondario-dark-2);
+  font-size:13px;
+  letter-spacing:.02em;
+}
+.cover-tagline-row{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+}
+.cover-tagline-row .ct-line{
+  flex:1 1 40px;
+  max-width:70px;
+  height:1px;
+  background:var(--bordo-scuro);
+}
+.cover-tagline-row .ct-text{
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+.cover-tagline-sub{margin-top:4px;}
 
 /* ---------- Avviso aggiornamento (solo app nativa) ---------- */
 .update-banner{
