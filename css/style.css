@@ -96,15 +96,15 @@ input,select,textarea{font-family:var(--font-body);}
 }
 .cover-logo{
   flex:none;
-  width:180px;
-  max-width:46vw;
+  width:210px;
+  max-width:52vw;
   height:auto;
   margin-top:2px;
 }
 .cover-content{
   position:relative;
   z-index:2;
-  flex:none;
+  flex:1;
   padding:24px 24px calc(36px + var(--safe-bottom));
   display:flex;
   flex-direction:column;
@@ -122,11 +122,14 @@ input,select,textarea{font-family:var(--font-body);}
   text-align:left;
 }
 /* Motto ("da una semplice idea a infinite possibilità"): prima faceva parte
-   dell'immagine di copertina, ora è testo vero al fondo della pagina — resta
-   visibile sotto il modulo di accesso, qualunque sia lo stato dell'account. */
+   dell'immagine di copertina, ora è testo vero. margin-top:auto lo spinge
+   sempre in fondo alla pagina (.cover-content è flex:1) qualunque sia
+   l'altezza del modulo di accesso sopra di lui, invece di seguirlo a ruota
+   e finire a metà schermo quando quel modulo è basso. */
 .cover-tagline{
   width:100%;
   max-width:360px;
+  margin-top:auto;
   color:var(--testo-secondario-dark-2);
   font-size:13px;
   letter-spacing:.02em;
