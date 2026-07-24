@@ -474,6 +474,21 @@ input,select,textarea{font-family:var(--font-body);}
 }
 .rules-index-item{margin-bottom:10px;}
 .rule-title .arrow{color:var(--testo-secondario-dark);}
+/* Capitolo aperto: pop-up a schermo intero sopra l'indice, stessa
+   struttura del lettore PDF della premessa (head fisso + corpo scorrevole). */
+#rules-popup{
+  position:fixed;inset:0;z-index:95;
+  background:#0b0c10;
+  display:flex;flex-direction:column;
+}
+/* Copertina illustrata di una sezione (quando esiste in
+   RULES_SECTION_COVERS): a piena larghezza, prima del titolo. */
+.rule-cover{
+  width:100%;height:auto;display:block;
+  border-radius:var(--radius);
+  margin-top:14px;
+}
+.rule-cover:first-child{margin-top:0;}
 /* Corpo testuale di una sezione dentro la pagina di un capitolo: stesso
    .box usato in tutta l'app, sempre leggibile per intero (niente accordion
    da espandere: sei già entrato nel capitolo apposta per leggerlo). */
@@ -1051,7 +1066,7 @@ table.edit-table select{
   }
   /* i popup a schermo intero (e il toast) restano dentro la "cornice" del
      telefono invece di coprire tutta la finestra del browser */
-  .confirm-modal,#prem-popup,#portrait-lightbox,#pdf-viewer,#toast{
+  .confirm-modal,#prem-popup,#portrait-lightbox,#pdf-viewer,#rules-popup,#toast{
     position:absolute;
   }
 }

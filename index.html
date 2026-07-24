@@ -673,8 +673,8 @@
   <!-- ============ LE REGOLE ============ -->
   <section id="view-rules" class="view hidden">
     <div class="topbar">
-      <button class="btn btn-icon btn-ghost" id="btn-rules-back" aria-label="Indietro">←</button>
-      <h1 id="rules-title">Le regole</h1>
+      <button class="btn btn-icon btn-ghost" data-nav="cover" aria-label="Indietro">←</button>
+      <h1>Le regole</h1>
       <span style="width:40px;"></span>
     </div>
     <div class="list-scroll" id="rules-body"></div>
@@ -933,6 +933,15 @@
     <div class="pdfv-pages" id="pdf-viewer-pages"></div>
     <div class="pdfv-watermark" id="pdf-viewer-watermark"></div>
   </div>
+</div>
+
+<!-- Capitolo de "Le regole": pagina leggibile a pop-up sopra l'indice -->
+<div id="rules-popup" class="hidden">
+  <div class="pdfv-head">
+    <div class="pdfv-title" id="rules-popup-title">Capitolo</div>
+    <button class="btn btn-icon btn-ghost" id="rules-popup-close" aria-label="Chiudi">✕</button>
+  </div>
+  <div class="list-scroll" id="rules-popup-body"></div>
 </div>
 
 <div id="toast"></div>

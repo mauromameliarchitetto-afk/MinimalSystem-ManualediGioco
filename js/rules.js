@@ -85,14 +85,15 @@ const RULES_CHAPTERS = [
   { t: 'Level Up', sections: [16] }
 ];
 
-/* null = indice dei capitoli, altrimenti indice del capitolo aperto in
-   RULES_CHAPTERS: serve al bottone Indietro per sapere se deve tornare
-   all'indice o uscire dalla vista "Le regole". */
-let rulesChapterOpen = null;
+/* Copertina illustrata per una sezione (chiave = s.t in RULES_SECTIONS):
+   arriva un capitolo alla volta via upload, quindi la maggior parte delle
+   sezioni non ha ancora una voce qui — renderRulesChapter la mostra solo
+   se presente, altrimenti la sezione resta testo puro come prima. */
+const RULES_SECTION_COVERS = {
+  // 'Premessa': 'img/rules/premessa.jpg',
+};
 
 function renderRulesIndex() {
-  rulesChapterOpen = null;
-  $('#rules-title').textContent = 'Le regole';
   $('#rules-body').innerHTML =
     `<p class="helper-text">Il Manuale di Gioco in forma testuale, diviso per capitoli — tocca un capitolo per aprirlo.</p>` +
     RULES_CHAPTERS.map((c, i) => `
@@ -100,33 +101,36 @@ function renderRulesIndex() {
     `).join('');
 }
 
-function renderRulesChapter(i) {
+/* Punto d'ingresso invariato per chi già chiama renderRules() (nav in
+   copertina e menù a tendina): mostra sempre l'indice dei capitoli — i
+   capitoli si aprono nel pop-up #rules-popup, sopra questa vista. */
+function renderRules() {
+  renderRulesIndex();
+}
+
+function openRulesChapter(i) {
   const chapter = RULES_CHAPTERS[i];
   if (!chapter) return;
-  rulesChapterOpen = i;
-  $('#rules-title').textContent = chapter.t;
-  $('#rules-body').innerHTML = chapter.sections.map(si => {
+  $('#rules-popup-title').textContent = chapter.t;
+  $('#rules-popup-body').innerHTML = chapter.sections.map(si => {
     const s = RULES_SECTIONS[si];
+    const cover = RULES_SECTION_COVERS[s.t];
     return `
+      ${cover ? `<img class="rule-cover" src="${cover}" alt="${escapeHtml(s.t)}">` : ''}
       <div class="section-title" style="margin-top:14px;"><span class="dot neutral"></span>${escapeHtml(s.t)}</div>
       <div class="box"><div class="box-bar"></div><div class="box-pad rule-text">${escapeHtml(s.b)}</div></div>
     `;
   }).join('');
+  $('#rules-popup').classList.remove('hidden');
 }
-
-/* Punto d'ingresso invariato per chi già chiama renderRules() (nav in
-   copertina e menù a tendina): riparte sempre dall'indice dei capitoli. */
-function renderRules() {
-  renderRulesIndex();
+function closeRulesChapter() {
+  $('#rules-popup').classList.add('hidden');
 }
 
 function wireRulesEvents() {
   $('#rules-body').addEventListener('click', e => {
     const item = e.target.closest('[data-rules-chapter]');
-    if (item) renderRulesChapter(Number(item.dataset.rulesChapter));
+    if (item) openRulesChapter(Number(item.dataset.rulesChapter));
   });
-  $('#btn-rules-back').addEventListener('click', () => {
-    if (rulesChapterOpen !== null) renderRulesIndex();
-    else showView('cover');
-  });
+  $('#rules-popup-close').addEventListener('click', closeRulesChapter);
 }
