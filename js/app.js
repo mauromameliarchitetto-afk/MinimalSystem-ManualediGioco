@@ -496,8 +496,11 @@ function defaultBg() {
   keys.forEach(k => { o[k] = ''; });
   return o;
 }
-/* Le 5 sezioni a tendina del Background: ciascuna si apre/chiude a parte e
-   ha un proprio blocco sola-lettura/modifica indipendente dalle altre. */
+/* I 5 contenitori del Background (Dati generali+Aspetto accorpati, Vita,
+   Atteggiamento, Passato, Relazioni): un solo menu a tendina (#bg-nav-select)
+   decide quale contenitore è visibile alla volta, invece di impilarli tutti
+   in un'unica pagina a scorrimento chilometrico. Ciascuno resta comunque un
+   blocco sola-lettura/modifica indipendente dagli altri. */
 const BG_SECTIONS = ['datiAspetto', 'vita', 'atteggiamento', 'passato', 'relazioni'];
 /* Sola lettura di default: il testo va sempre modificato "su richiesta"
    (bottone Modifica), poi confermato per tornare bloccato — anche per i
@@ -3528,25 +3531,21 @@ function wireStaticEvents() {
     touchActive();
   });
 
-  // ---- Background: sezioni a tendina (apri/chiudi, modifica, blocca) ----
+  // ---- Background: un contenitore alla volta (scelto dal menu #bg-nav-select), modifica, blocca ----
   let pendingBgLockSection = null;
+  $('#bg-nav-select').addEventListener('change', e => {
+    const key = e.target.value;
+    document.querySelectorAll('[data-bgsection]').forEach(section => {
+      const active = section.dataset.bgsection === key;
+      section.classList.toggle('hidden', !active);
+      // era display:none finché non selezionato: scrollHeight non era
+      // misurabile, va ricalcolato solo ora che il contenitore si mostra
+      if (active) section.querySelectorAll('textarea').forEach(autoResizeTextarea);
+    });
+  });
   $('[data-panel="note"]').addEventListener('click', e => {
-    const toggle = e.target.closest('[data-bgtoggle]');
     const editBtn = e.target.closest('[data-bgedit]');
     const lockBtn = e.target.closest('[data-bglock]');
-    if (toggle) {
-      const key = toggle.dataset.bgtoggle;
-      const body = document.querySelector(`[data-bgbody="${key}"]`);
-      const expanded = toggle.getAttribute('aria-expanded') === 'true';
-      toggle.setAttribute('aria-expanded', String(!expanded));
-      if (body) {
-        body.classList.toggle('hidden', expanded);
-        // mentre la sezione è chiusa (display:none) scrollHeight non è
-        // misurabile: l'altezza va ricalcolata solo ora che si è aperta
-        if (expanded === false) body.querySelectorAll('textarea').forEach(autoResizeTextarea);
-      }
-      return;
-    }
     if (editBtn) {
       // sbloccare per modificare non richiede conferma, solo il ribloccare
       const c = getActive(); if (!c) return;
@@ -3578,7 +3577,6 @@ function wireStaticEvents() {
     $('#bg-lock-confirm').classList.add('hidden');
     pendingBgLockSection = null;
   });
-
   // ---- barre in gioco: danno HP, costo incantesimo MP e attivazione Boost, sommati in Uso ----
   $('#hp-dmg-apply').addEventListener('click', () => {
     const c = getActive(); if (!c) return;

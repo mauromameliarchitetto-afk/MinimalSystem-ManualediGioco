@@ -794,7 +794,7 @@ body.pdf-lock-scroll{overflow:hidden;}
 .field-row{display:flex;gap:10px;flex-wrap:wrap;}
 .field-row .field{flex:1 1 120px;min-width:0;}
 
-/* ---------- Background: sezioni a tendina + sola lettura/modifica ---------- */
+/* ---------- Background: contenitori (uno alla volta, scelti dal menu #bg-nav-select) + sola lettura/modifica ---------- */
 .bg-section{
   background:var(--antracite-2);
   border:1px solid var(--bordo-scuro);
@@ -805,18 +805,12 @@ body.pdf-lock-scroll{overflow:hidden;}
   display:flex;align-items:center;gap:8px;flex-wrap:wrap;
   padding:12px 12px;
 }
-.bg-section-toggle{
-  flex:1 1 auto;min-width:0;
-  display:flex;align-items:center;gap:8px;
-  background:none;border:none;padding:0;cursor:pointer;text-align:left;
-}
-.bg-section-toggle .bg-section-title{
+.bg-section-head .bg-section-title{
   font-family:var(--font-title);font-weight:600;font-size:12.5px;
   text-transform:uppercase;letter-spacing:.1em;
   color:var(--testo-secondario-dark-2);
+  margin-right:auto;
 }
-.bg-chevron{margin-left:auto;font-size:11px;color:var(--testo-secondario-dark);transition:transform .15s ease;}
-.bg-section-toggle[aria-expanded="true"] .bg-chevron{transform:rotate(180deg);}
 .bg-section-body{padding:0 12px 14px;}
 /* campo di sola lettura: niente bordo/sfondo a rilievo, testo comunque
    interamente leggibile (auto-altezza via JS, mai troncato o a scorrimento) */

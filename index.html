@@ -161,17 +161,25 @@
 
       <!-- ---- BACKGROUND ---- -->
       <div class="tab-panel" data-panel="note">
-        <p class="helper-text">Il testo grigio in ogni campo è un consiglio di compilazione: sparisce appena scrivi qualcosa di tuo. Ogni sezione si apre/chiude toccando il titolo; i campi si leggono per intero così come sono — per modificarli tocca "Modifica", poi "Conferma e blocca" quando hai finito (evita ritocchi involontari).</p>
+        <p class="helper-text">Il testo grigio in ogni campo è un consiglio di compilazione: sparisce appena scrivi qualcosa di tuo. Ogni argomento è un contenitore a sé: scegli quale aprire dal menu qui sotto, invece di scorrere un'unica pagina lunghissima. I campi si leggono per intero così come sono — per modificarli tocca "Modifica", poi "Conferma e blocca" quando hai finito (evita ritocchi involontari).</p>
+
+        <div class="field"><label>Contenitore da aprire</label>
+          <select id="bg-nav-select">
+            <option value="datiAspetto">Dati generali e Aspetto</option>
+            <option value="vita">Vita</option>
+            <option value="atteggiamento">Atteggiamento</option>
+            <option value="passato">Passato</option>
+            <option value="relazioni">Relazioni</option>
+          </select>
+        </div>
 
         <div class="bg-section" data-bgsection="datiAspetto">
           <div class="bg-section-head">
-            <button type="button" class="bg-section-toggle" data-bgtoggle="datiAspetto">
-              <span class="dot neutral"></span><span class="bg-section-title">Dati generali e Aspetto</span><span class="bg-chevron">▾</span>
-            </button>
+            <span class="dot neutral"></span><span class="bg-section-title">Dati generali e Aspetto</span>
             <button type="button" class="btn btn-ghost btn-sm bg-edit-btn" data-bgedit="datiAspetto">✎ Modifica</button>
             <button type="button" class="btn btn-primary btn-sm bg-lock-btn hidden" data-bglock="datiAspetto">🔒 Conferma e blocca</button>
           </div>
-          <div class="bg-section-body hidden" data-bgbody="datiAspetto">
+          <div class="bg-section-body" data-bgbody="datiAspetto">
             <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
               <div class="field-row">
                 <div class="field"><label>Data di nascita</label><textarea rows="1" data-bg="nascitaData" placeholder="Quando è nato/a"></textarea></div>
@@ -197,15 +205,13 @@
           </div>
         </div>
 
-        <div class="bg-section" data-bgsection="vita">
+        <div class="bg-section hidden" data-bgsection="vita">
           <div class="bg-section-head">
-            <button type="button" class="bg-section-toggle" data-bgtoggle="vita">
-              <span class="dot neutral"></span><span class="bg-section-title">Vita</span><span class="bg-chevron">▾</span>
-            </button>
+            <span class="dot neutral"></span><span class="bg-section-title">Vita</span>
             <button type="button" class="btn btn-ghost btn-sm bg-edit-btn" data-bgedit="vita">✎ Modifica</button>
             <button type="button" class="btn btn-primary btn-sm bg-lock-btn hidden" data-bglock="vita">🔒 Conferma e blocca</button>
           </div>
-          <div class="bg-section-body hidden" data-bgbody="vita">
+          <div class="bg-section-body" data-bgbody="vita">
             <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
               <div class="field"><label>Incompetenze</label><textarea data-bg="incompetenze" placeholder="Cosa non sa fare: lacune e limiti"></textarea></div>
               <div class="field"><label>Debolezze</label><textarea data-bg="debolezze" placeholder="Punti deboli fisici o mentali, dipendenze e il loro prezzo"></textarea></div>
@@ -215,15 +221,13 @@
           </div>
         </div>
 
-        <div class="bg-section" data-bgsection="atteggiamento">
+        <div class="bg-section hidden" data-bgsection="atteggiamento">
           <div class="bg-section-head">
-            <button type="button" class="bg-section-toggle" data-bgtoggle="atteggiamento">
-              <span class="dot neutral"></span><span class="bg-section-title">Atteggiamento</span><span class="bg-chevron">▾</span>
-            </button>
+            <span class="dot neutral"></span><span class="bg-section-title">Atteggiamento</span>
             <button type="button" class="btn btn-ghost btn-sm bg-edit-btn" data-bgedit="atteggiamento">✎ Modifica</button>
             <button type="button" class="btn btn-primary btn-sm bg-lock-btn hidden" data-bglock="atteggiamento">🔒 Conferma e blocca</button>
           </div>
-          <div class="bg-section-body hidden" data-bgbody="atteggiamento">
+          <div class="bg-section-body" data-bgbody="atteggiamento">
             <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
               <div class="field"><label>Personalità</label><textarea data-bg="personalita" placeholder="Com'è di carattere e come si comporta con gli altri"></textarea></div>
               <div class="field"><label>Morale</label><textarea data-bg="morale" placeholder="La sua bussola morale: cosa è giusto per lui/lei, che codice segue"></textarea></div>
@@ -239,15 +243,13 @@
           </div>
         </div>
 
-        <div class="bg-section" data-bgsection="passato">
+        <div class="bg-section hidden" data-bgsection="passato">
           <div class="bg-section-head">
-            <button type="button" class="bg-section-toggle" data-bgtoggle="passato">
-              <span class="dot neutral"></span><span class="bg-section-title">Passato</span><span class="bg-chevron">▾</span>
-            </button>
+            <span class="dot neutral"></span><span class="bg-section-title">Passato</span>
             <button type="button" class="btn btn-ghost btn-sm bg-edit-btn" data-bgedit="passato">✎ Modifica</button>
             <button type="button" class="btn btn-primary btn-sm bg-lock-btn hidden" data-bglock="passato">🔒 Conferma e blocca</button>
           </div>
-          <div class="bg-section-body hidden" data-bgbody="passato">
+          <div class="bg-section-body" data-bgbody="passato">
             <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
               <div class="field"><label>Infanzia</label><textarea data-bg="infanzia" placeholder="Dove e come è cresciuto/a: famiglia, ambiente, primi valori"></textarea></div>
               <div class="field"><label>Evento passato importante</label><textarea data-bg="eventoImportante" placeholder="Uno o più eventi che l'hanno segnato/a profondamente"></textarea></div>
@@ -258,15 +260,13 @@
           </div>
         </div>
 
-        <div class="bg-section" data-bgsection="relazioni">
+        <div class="bg-section hidden" data-bgsection="relazioni">
           <div class="bg-section-head">
-            <button type="button" class="bg-section-toggle" data-bgtoggle="relazioni">
-              <span class="dot neutral"></span><span class="bg-section-title">Relazioni</span><span class="bg-chevron">▾</span>
-            </button>
+            <span class="dot neutral"></span><span class="bg-section-title">Relazioni</span>
             <button type="button" class="btn btn-ghost btn-sm bg-edit-btn" data-bgedit="relazioni">✎ Modifica</button>
             <button type="button" class="btn btn-primary btn-sm bg-lock-btn hidden" data-bglock="relazioni">🔒 Conferma e blocca</button>
           </div>
-          <div class="bg-section-body hidden" data-bgbody="relazioni">
+          <div class="bg-section-body" data-bgbody="relazioni">
             <p class="helper-text">Familiari, amici, colleghi o chiunque abbia un legame col personaggio: aggiungi una scheda per ogni NPC.</p>
             <div id="relazioni-list" style="display:flex;flex-direction:column;gap:10px;"></div>
             <button class="btn btn-ghost btn-sm" id="relazioni-add" style="align-self:flex-start;">+ Aggiungi relazione</button>
