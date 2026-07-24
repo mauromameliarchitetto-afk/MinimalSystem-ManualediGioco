@@ -1600,13 +1600,14 @@ function equipBonusRowHtml(b, i, bi, itemKind) {
     ? cachedCampaignKnownTraits(activeCharForTraits.cloudCampaignId).capacitaCombattive.filter(n => n && !traitOptions.includes(n))
     : [];
   const isCustomTrait = !traitOptions || (!traitOptions.includes(b.name) && !knownExtra.includes(b.name));
+  // scudo/arma: la categoria è sempre "Capacità Combattive" (unica su cui il
+  // manuale li fa incidere), niente selettore libero come per l'armatura
   const traitField = traitOptions
     ? `<select data-bonustraitpreset="${i}::${bi}">
         ${traitOptions.map(n => `<option value="${n}" ${!isCustomTrait && b.name === n ? 'selected' : ''}>${n}</option>`).join('')}
         ${knownExtra.length ? `<optgroup label="Già usati in questa storia">${knownExtra.map(n => `<option value="${escapeHtml(n)}" ${!isCustomTrait && b.name === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}</optgroup>` : ''}
         <option value="__custom__" ${isCustomTrait ? 'selected' : ''}>Nuovo tratto personalizzato…</option>
       </select>
-      <select data-bonuslistkey="${i}::${bi}" class="${isCustomTrait ? '' : 'hidden'}">${listOpts}</select>
       <input type="text" data-bonusname="${i}::${bi}" value="${escapeHtml(b.name || '')}" placeholder="Nome tratto" maxlength="40" class="${isCustomTrait ? '' : 'hidden'}">`
     : `<select data-bonuslistkey="${i}::${bi}">${listOpts}</select>
       <input type="text" data-bonusname="${i}::${bi}" value="${escapeHtml(b.name || '')}" placeholder="Nome tratto" maxlength="40">`;
@@ -3753,8 +3754,11 @@ function wireEquipGrid(sel, getSlots, doRender) {
       if (b.kind === 'tertiary' && !TERTIARY_STATS.some(s => s.key === b.key)) b.key = TERTIARY_STATS[0].key;
       if (b.kind === 'trait') {
         const traitOptions = traitOptionsFor(itemKind);
-        if (traitOptions && !traitOptions.includes(b.name)) { b.name = traitOptions[0]; b.listKey = 'capacitaCombattive'; }
-        else if (!b.listKey) b.listKey = Object.keys(TRAIT_LISTS)[0];
+        if (traitOptions) {
+          // scudo/arma: categoria sempre "Capacità Combattive", non scelta libera
+          b.listKey = 'capacitaCombattive';
+          if (!traitOptions.includes(b.name)) b.name = traitOptions[0];
+        } else if (!b.listKey) b.listKey = Object.keys(TRAIT_LISTS)[0];
       }
       doRender(c);
     } else if (bonusKey) {
@@ -3778,9 +3782,11 @@ function wireEquipGrid(sel, getSlots, doRender) {
       } else {
         // svuota il nome: altrimenti, se combaciava ancora con un
         // suggerimento, il render lo riconoscerebbe come preset e non come
-        // "personalizzato", ripristinando la tendina alla voce precedente
+        // "personalizzato", ripristinando la tendina alla voce precedente.
+        // Questo select esiste solo per scudo/arma: la categoria resta
+        // sempre "Capacità Combattive", niente scelta libera come l'armatura.
         b.name = '';
-        if (!b.listKey) b.listKey = Object.keys(TRAIT_LISTS)[0];
+        b.listKey = 'capacitaCombattive';
       }
       doRender(c);
     } else if (bonusName) {
