@@ -69,3 +69,88 @@ const RULES_SECTIONS = [
   "b": "Durante le fasi di gioco sarà possibile effettuare dei lv up del personaggio, la curva di sviluppo definisce i punti exp da assegnare durante il LvUp. AP: i classici punti esperienza, assegnati secondo una scala di valori crescente, servono alla crescita delle Statistiche Primarie, Secondarie e Terziarie come Punti Recupero, Carisma, Stile e Fortuna. Vengono definiti durante il LvUp. Crescita Statistiche Primarie:\n\nHP: da 0 a 100: 1 AP = 1 HP da 101 a 250: 2 AP = 1 HP da 251 a 400: 4 AP = 1 HP Sopra il 400 incrementano del doppio il loro costo ogni 100 punti. MP: da 0 a 100: 1,5 AP = 1 MP da 101 a 250: 3 AP = 1 MP da 251 a 400: 6 AP = 1 MP Incrementano del doppio il loro costo ogni 100 punti. Attributi primari (Forza; Forza Magica; Difesa; Difesa Magica; Mira; Destrezza; Velocità): da 1 a 10: 2 EXP = 1 AP da 10 a 20: 3 EXP = 1 AP da 21 a 30: 5 EXP = 1 AP da 31 a 40: 10 EXP = 1 AP da 41 a 50: 15 EXP = 1 AP Oltre i 50 incrementano di 5 ogni decina. Attributo secondario (Punti Recupero): Per quanto riguarda i P.R. il loro incremento seguirà gli stessi step degli attributi primari, ovvero: da 1 a 10: 2 EXP = 1 AP da 10 a 20: 3 EXP = 1 AP da 21 a 30: 5 EXP = 1 AP da 31 a 40: 10 EXP = 1 AP da 41 a 50: 15 EXP = 1 AP 50 è il valore massimo raggiungibile. Attributi terziari (Carisma, Fortuna, Stile): Il loro incremento è definito secondo la formula: Val. Lv da raggiungere X 4; Es: Carisma +3 -> 4 = 4 X 4 = 16 AP. L’incremento di queste caratteristiche verrà facilitato anche chiamando l’azione e ottenendo un risultato ottimale del dado. In questo caso si otterrà un più ( + ) da segnare all’interno del campo, quando i + saranno 3 la caratteristica aumenterà di livello. Qualora però l’azione sia risultata negativa durante i tiri verrà segnato un meno ( - ). Nel caso di compresenza di + e - il valore di + da raggiungere sarà 4. Ogni 3 valori - si toglie un valore +. Nel caso di valori negativi il raggiungimento del livello massimo della caratteristica avrà un valore aggiuntivo.\n\nIncremento Lv caratteristiche terziarie:-1 = 16AP; 0 = 8AP; 1 = 4AP; 2 = 8AP; 3 = 12AP; 4 = 16AP; 5 = 20AP; 6 = 24AP; 7 = 28AP; 8 = 32AP; 9 = 36AP; 10 = 40AP; 11 = 44AP; 12 = 48AP; 13 = 52AP; 14 = 56AP; 15 = 60AP; 16 = 64AP; 17 = 68AP; 18 = 72AP; 19 = 76AP; 20 = 80AP. Il valore Max di queste caratteristiche è il 20. Limiti di Livello: I valori sono riferiti al livello attuale, es: da livello 1 al livello 2 si ottengono 30AP.- LV 2: 0/30AP (+ 2 perk alle capacità + 1 perk alle capacità combattive + 1 perk alle conoscenze)- LV 3: 0/30AP (+ 1 perk alle capacità + 1 perk alle capacità combattive + 1 perk alle conoscenze)- LV 4: 0/35AP (+ 1 perk alle capacità + 1 perk alle capacità combattive + 1 perk alle conoscenze) Guerriero: 2 Tecniche; Eclettico: 1 Tecnica + 1 Abilità; Mago: 2 Abilità.- LV 5: 0/35AP (+ 2 perk alle capacità + 2 perk alle capacità combattive + 2 perk alle conoscenze)- LV 6: 0/40AP (+ 1 perk alle capacità + 1 perk alle capacità combattive + 1 perk alle conoscenze)- LV 7: 0/40AP (+ 1 perk alle capacità + 2 perk alle capacità combattive + 2 perk alle conoscenze)- LV 8: 0/45AP (+ 2 perk alle capacità + 2 perk alle capacità combattive + 3 perk alle conoscenze) Tutte le classi apprendono 1 Tecnica e una Abilità.- LV 9:\n\n0/45AP (+ 1 perk alle capacità + 1 perk alle capacità combattive + 1 perk alle conoscenze)- LV 10: 0/50AP (+ 3 perk alle capacità + 3 perk alle capacità combattive + 2 perk alle conoscenze)- LV 11: 0/55AP (+ 2 perk alle capacità + 2 perk alle capacità combattive + 2 perk alle conoscenze)- LV 12: 0/55AP (+ 1 perk alle capacità + 1 perk alle capacità combattive + 1 perk alle conoscenze) Guerriero: 2 Tecniche; Eclettico: 1 Tecnica + 1 Abilità; Mago: 2 Abilità.- LV 13: 0/60AP (+ 1 perk alle capacità + 1 perk alle capacità combattive + 1 perk alle conoscenze)- LV 14: 0/70AP (+ 1 perk alle capacità + 1 perk alle capacità combattive + 1 perk alle conoscenze)- LV 15: 0/70AP (+ 3 perk alle capacità + 3 perk alle capacità combattive + 3 perk alle conoscenze)- LV 16: 0/80AP (+ 1 perk alle capacità + 1 perk alle capacità combattive + 1 perk alle conoscenze) Tutte le classi apprendono 1 Tecnica e una Abilità.- LV 17:\n\n0/80AP (+ 1 perk alle capacità + 1 perk alle capacità combattive + 1 perk alle conoscenze)- LV 18: 0/90AP (+ 2 perk alle capacità + 2 perk alle capacità combattive + 2 perk alle conoscenze)- LV 19: 0/95AP (+ 2 perk alle capacità + 2 perk alle capacità combattive + 2 perk alle conoscenze)- LV 20: 0/100AP (+ 5 perk alle capacità + 5 perk alle capacità combattive + 5 perk alle conoscenze) Guerriero: 2 Tecniche; Eclettico: 1 Tecnica + 1 Abilità; Mago: 2 Abilità. N.B. Per quanto riguarda la classe dell’Eclettico si potrà scegliere se apprendere 2 Tecniche, 2 Abilità, oppure una Tecnica e un’Abilità durante i livelli 8 e 16. Ogni perk aggiuntivo può essere speso per apprendere una nuova tecnica, capacità o conoscenza. Qualora il giocatore esplorando il mondo apprenda anche grazie ad un addestramento o studio determinate conoscenze verranno implementate tra quelle già presenti. Si potranno spendere 2 apprendimenti dello stesso tipo per livellare una delle Tecniche o Abilità già apprese, questo avverrà ai livelli 8 e 16 per la classe Eclettico e 12 e 20 per Guerriero e Mago. Es: Mago Lv 12 -> 2 Abilità vengono spese per l’aumento di LV di una Abilità."
  }
 ];
+
+/* Indice per capitoli ("raccoglitori"): raggruppa le sezioni di
+   RULES_SECTIONS (il testo resta lì, non duplicato) in 8 capitoli
+   navigabili invece di un unico elenco piatto lunghissimo. Gli indici
+   sono posizioni dentro RULES_SECTIONS. */
+const RULES_CHAPTERS = [
+  { t: 'Premessa', sections: [0] },
+  { t: 'Come giocare', sections: [1, 2] },
+  { t: 'Le regole', sections: [3, 4, 5] },
+  { t: 'Tratti', sections: [6, 9, 7, 8] },
+  { t: 'Tecniche e magia', sections: [10, 11, 12] },
+  { t: 'Equipaggiamento', sections: [15] },
+  { t: 'Combattimento', sections: [13, 14] },
+  { t: 'Level Up', sections: [16] }
+];
+
+/* Copertina illustrata di un intero capitolo (chiave = t in RULES_CHAPTERS):
+   compare una sola volta in cima al pop-up, prima di tutte le sue
+   sotto-sezioni. Le immagini arrivano un gruppo alla volta via upload,
+   quindi non tutti i capitoli ne hanno ancora una. */
+const RULES_CHAPTER_COVERS = {
+  'Premessa': 'img/rules/premessa.jpg',
+  'Come giocare': 'img/rules/creare-un-personaggio.jpg',
+  'Le regole': 'img/rules/le-regole.jpg',
+  'Tratti': 'img/rules/tratti-conoscenze-capacita.jpg',
+  'Tecniche e magia': 'img/rules/tecniche-magie.jpg',
+  'Equipaggiamento': 'img/rules/equipaggiamento.jpg',
+  'Combattimento': 'img/rules/combattimento-scontri.jpg',
+  'Level Up': 'img/rules/level-up.jpg'
+};
+
+/* Copertina illustrata di una singola sotto-sezione (chiave = s.t in
+   RULES_SECTIONS): usata per gli argomenti che hanno una propria immagine
+   dedicata oltre (o al posto di) quella dell'intero capitolo — es. "Boost"
+   dentro "Tecniche e magia". Sezioni senza voce qui restano testo puro. */
+const RULES_SECTION_COVERS = {
+  'Come giocare': 'img/rules/come-giocare.jpg',
+  'Personalità e Background': 'img/rules/personalita-background.jpg',
+  'Caratteristiche primarie': 'img/rules/caratteristiche-primarie.jpg',
+  'Boost': 'img/rules/boost.jpg'
+};
+
+function renderRulesIndex() {
+  $('#rules-body').innerHTML =
+    `<p class="helper-text">Il Manuale di Gioco in forma testuale, diviso per capitoli — tocca un capitolo per aprirlo.</p>` +
+    RULES_CHAPTERS.map((c, i) => `
+      <button type="button" class="rule-title rules-index-item" data-rules-chapter="${i}">${escapeHtml(c.t)} <span class="arrow">›</span></button>
+    `).join('');
+}
+
+/* Punto d'ingresso invariato per chi già chiama renderRules() (nav in
+   copertina e menù a tendina): mostra sempre l'indice dei capitoli — i
+   capitoli si aprono nel pop-up #rules-popup, sopra questa vista. */
+function renderRules() {
+  renderRulesIndex();
+}
+
+function openRulesChapter(i) {
+  const chapter = RULES_CHAPTERS[i];
+  if (!chapter) return;
+  $('#rules-popup-title').textContent = chapter.t;
+  const chapterCover = RULES_CHAPTER_COVERS[chapter.t];
+  const chapterCoverHtml = chapterCover ? `<img class="rule-cover rule-cover-chapter" src="${chapterCover}" alt="${escapeHtml(chapter.t)}">` : '';
+  $('#rules-popup-body').innerHTML = chapterCoverHtml + chapter.sections.map(si => {
+    const s = RULES_SECTIONS[si];
+    const cover = RULES_SECTION_COVERS[s.t];
+    return `
+      ${cover ? `<img class="rule-cover" src="${cover}" alt="${escapeHtml(s.t)}">` : ''}
+      <div class="section-title" style="margin-top:14px;"><span class="dot neutral"></span>${escapeHtml(s.t)}</div>
+      <div class="box"><div class="box-bar"></div><div class="box-pad rule-text">${escapeHtml(s.b)}</div></div>
+    `;
+  }).join('');
+  $('#rules-popup').classList.remove('hidden');
+}
+function closeRulesChapter() {
+  $('#rules-popup').classList.add('hidden');
+}
+
+function wireRulesEvents() {
+  $('#rules-body').addEventListener('click', e => {
+    const item = e.target.closest('[data-rules-chapter]');
+    if (item) openRulesChapter(Number(item.dataset.rulesChapter));
+  });
+  $('#rules-popup-close').addEventListener('click', closeRulesChapter);
+}
