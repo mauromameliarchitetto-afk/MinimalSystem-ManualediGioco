@@ -313,6 +313,7 @@ function wireCloudCharacterEvents() {
         if (typeof updateStoriaLegacyVisibility === 'function') updateStoriaLegacyVisibility(c);
         if (typeof updateLevelLockUI === 'function') updateLevelLockUI(c);
         if (typeof updateSessionLockUI === 'function') updateSessionLockUI(c);
+        if (typeof updateEntryLockUI === 'function') updateEntryLockUI(c);
       } catch (err) { toast('Errore: ' + err.message); }
       return;
     }
@@ -328,6 +329,7 @@ function wireCloudCharacterEvents() {
         if (typeof updateStoriaLegacyVisibility === 'function') updateStoriaLegacyVisibility(c);
         if (typeof updateLevelLockUI === 'function') updateLevelLockUI(c);
         if (typeof updateSessionLockUI === 'function') updateSessionLockUI(c);
+        if (typeof updateEntryLockUI === 'function') updateEntryLockUI(c);
         if (typeof renderPlayerStoriesBox === 'function') renderPlayerStoriesBox();
       } catch (err) { toast('Errore: ' + err.message); }
       return;
@@ -339,6 +341,7 @@ function wireCloudCharacterEvents() {
         if (typeof updateStoriaLegacyVisibility === 'function') updateStoriaLegacyVisibility(c);
         if (typeof updateLevelLockUI === 'function') updateLevelLockUI(c);
         if (typeof updateSessionLockUI === 'function') updateSessionLockUI(c);
+        if (typeof updateEntryLockUI === 'function') updateEntryLockUI(c);
         if (typeof renderPlayerStoriesBox === 'function') renderPlayerStoriesBox();
         if (!changed) toast('Nessuna novità');
       } catch (err) { toast('Errore: ' + err.message); }

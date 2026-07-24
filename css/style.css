@@ -872,6 +872,24 @@ table.edit-table thead th{white-space:nowrap;}
 .slot-fields label{font-size:8.5px;text-transform:uppercase;color:var(--testo-secondario-dark);letter-spacing:.04em;}
 .slot-fields label .sf-range{text-transform:none;letter-spacing:0;font-family:var(--font-mono);}
 .slot-card .slot-bonus{margin-top:10px;}
+.equip-bonuses{margin-top:10px;}
+.equip-bonus-row{
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+  padding:6px 0;border-top:1px solid var(--bordo-scuro);
+}
+.equip-bonus-row select{
+  background:var(--antracite-1);border:1px solid var(--bordo-scuro);border-radius:5px;
+  color:var(--testo-primario-dark);font-size:12px;padding:5px 6px;min-width:0;
+}
+.equip-bonus-row input[type="number"]{
+  background:var(--antracite-1);border:1px solid var(--bordo-scuro);border-radius:5px;
+  color:var(--testo-primario-dark);font-family:var(--font-mono);text-align:center;padding:5px 2px;font-size:13px;
+}
+.equip-bonus-row input[type="text"]{
+  background:var(--antracite-1);border:1px solid var(--bordo-scuro);border-radius:5px;
+  color:var(--testo-primario-dark);font-size:12px;padding:5px 6px;min-width:0;flex:1 1 100px;
+}
+.equip-bonus-trait{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 auto;}
 .slot-fields input{
   background:var(--antracite-1);border:1px solid var(--bordo-scuro);border-radius:5px;
   color:var(--testo-primario-dark);font-family:var(--font-mono);text-align:center;padding:6px 2px;font-size:13px;
