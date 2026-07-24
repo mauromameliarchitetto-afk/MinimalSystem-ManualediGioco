@@ -94,12 +94,15 @@ input,select,textarea{font-family:var(--font-body);}
   height:auto;
   display:block;
 }
+/* Nella copertina originale il cerchio ha praticamente la stessa larghezza
+   del titolo (non un terzo, come restava qui prima): stessa larghezza
+   massima di .cover-title per rispettarne le proporzioni. */
 .cover-logo{
   flex:none;
-  width:210px;
-  max-width:52vw;
+  width:100%;
+  max-width:300px;
   height:auto;
-  margin-top:2px;
+  margin-top:10px;
 }
 .cover-content{
   position:relative;
