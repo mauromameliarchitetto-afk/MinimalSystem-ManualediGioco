@@ -477,12 +477,23 @@
         </table></div>
         <div class="box-lore" id="boost-top-note" style="margin-top:8px;">Oltre il livello 5 (Lv Top): -10% sui costi di attivazione di tutti i livelli appresi.</div>
 
-        <div class="section-title"><span class="dot neutral"></span>Inventario</div>
+        <div class="section-title"><span class="dot neutral"></span>Zaino</div>
+        <p class="helper-text">Regola del Peso (manuale): peso trasportabile = (FOR + peso corporeo) / 2, in Kg — il peso corporeo si legge dal campo "Peso" in Background &gt; Aspetto. Conta solo ciò che sta riposto nello Zaino: oggetti normali e armi/scudi NON equipaggiati (l'equipaggiamento indossato/impugnato non pesa qui).</p>
+        <div class="box"><div class="box-bar"></div><div class="box-pad">
+          <div class="pointbuy-header">
+            <span class="label">Peso occupato</span>
+            <span class="remaining" id="zaino-peso-summary">0 / 0 Kg</span>
+          </div>
+        </div></div>
         <div class="table-scroll"><table class="data-table edit-table">
-          <thead><tr><th>Oggetto</th><th>Note</th></tr></thead>
+          <thead><tr><th>Oggetto</th><th>Peso (Kg)</th><th>Note</th></tr></thead>
           <tbody id="inventario-table"></tbody>
         </table></div>
         <button class="btn btn-ghost btn-sm" id="inv-add" style="align-self:flex-start;">+ Aggiungi oggetto</button>
+
+        <div class="section-title" style="margin-top:14px;"><span class="dot neutral"></span>Armi e scudi in Inventario</div>
+        <p class="helper-text">Elenco di sola lettura: per equipaggiare/disequipaggiare un'arma o uno scudo (e impostarne il peso) vai in Fronte Scheda &gt; Scudo e armi.</p>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" id="zaino-armi-list"></div></div>
       </div>
 
       <!-- ---- STATISTICHE (Primarie + Terziarie) ---- -->

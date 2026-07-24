@@ -203,7 +203,9 @@ function defaultSlots() {
    (bianca/da tiro, mutuamente esclusive nello stesso attacco) e i flag delle
    caratteristiche con cui agiscono (FOR/DEX/F.MEN). */
 function makeWeaponSlot(kind) {
-  const s = { name: kind === 'scudo' ? 'Scudo' : 'Arma', kind, size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, bonuses: [], equipaggiato: true };
+  // peso (Kg): conta nello Zaino solo quando il pezzo non è equipaggiato
+  // (vedi zainoPesoUsato) — indossato/impugnato non pesa sulla regola del peso
+  const s = { name: kind === 'scudo' ? 'Scudo' : 'Arma', kind, size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, peso: 0, bonuses: [], equipaggiato: true };
   if (kind === 'arma') { s.weaponClass = 'bianca'; s.usaFor = true; s.usaDex = false; s.usaFmen = false; }
   return s;
 }
@@ -573,10 +575,15 @@ function ensureShape(c) {
     if (s.size && !armorSizes.includes(s.size)) { s.size = ''; s.quality = ''; s.atk = 0; s.dif = 0; s.dur = 0; }
     if (s.quality === undefined) s.quality = '';
     if (!Array.isArray(s.bonuses)) s.bonuses = [];
+    // il P.R. (statistica secondaria) non è mai un bersaglio valido per
+    // l'equipaggiamento, armatura inclusa: solo i consumabili possono
+    // incrementarlo — un eventuale bonus salvato su 'pr' viene riallineato
+    (s.bonuses || []).forEach(b => { if (b.kind === 'primary' && b.key === 'pr') b.key = PRIMARY_STATS[0].key; });
   });
   (c.weaponSlots || []).forEach(s => {
     if (s.quality === undefined) s.quality = '';
     if (!Array.isArray(s.bonuses)) s.bonuses = [];
+    if (typeof s.peso !== 'number') s.peso = 0;
     // personaggi creati prima del flag equipaggiato/inventario: erano già
     // sempre "attivi" prima di questa funzione, quindi restano equipaggiati
     if (s.equipaggiato === undefined) s.equipaggiato = true;
@@ -601,6 +608,8 @@ function ensureShape(c) {
       });
     }
   });
+  // oggetti dello Zaino salvati prima dell'introduzione del peso
+  (c.inventario || []).forEach(r => { if (typeof r.peso !== 'number') r.peso = 0; });
   // il vincolo "solo Scudo e Arma 1" è superato: ora si possono aggiungere ed
   // equipaggiare più armi (vedi equipaggiato/weaponClass sopra), quindi le
   // vecchie locazioni "Arma 2"/"Arma 3" filtrate in passato non vanno più
@@ -1519,15 +1528,16 @@ function updateGrowthCost() {
 
 /* ------------------------------------------------------------- retro/eq */
 
-/* Statistiche primarie (+ l'unica secondaria, P.R.) selezionabili per un
-   bonus su questo pezzo: scudo e arma sono limitati alle sole statistiche
-   indicate per l'equipaggiamento (DIF/D.MEN per gli scudi, FOR/DEX/F.MEN
-   per le armi) — l'armatura resta generica su tutte, P.R. incluso, come
-   già in uso prima di separarlo dalla lista delle primarie. */
+/* Statistiche primarie selezionabili per un bonus su questo pezzo: scudo e
+   arma sono limitati alle sole statistiche indicate per l'equipaggiamento
+   (DIF/D.MEN per gli scudi, FOR/DEX/F.MEN per le armi), l'armatura resta
+   generica su tutte le primarie. Il P.R. (statistica secondaria) NON è mai
+   un bersaglio valido per l'equipaggiamento: solo i consumabili possono
+   incrementarlo (vedi il target select in renderConsumabili). */
 function primaryBonusKeysFor(itemKind) {
   if (itemKind === 'scudo') return SHIELD_PRIMARY_BONUS_KEYS;
   if (itemKind === 'arma') return WEAPON_PRIMARY_BONUS_KEYS;
-  return [...PRIMARY_STATS, ...SECONDARY_STATS].map(s => s.key);
+  return PRIMARY_STATS.map(s => s.key);
 }
 /* Tratti selezionabili per un bonus su questo pezzo: elenco chiuso
    (SHIELD_TRAIT_OPTIONS/WEAPON_TRAIT_OPTIONS) + "nuovo tratto
@@ -1547,7 +1557,7 @@ function traitOptionsFor(itemKind) {
 function equipBonusRowHtml(b, i, bi, itemKind) {
   const kind = b.kind || 'primary';
   const primaryKeys = primaryBonusKeysFor(itemKind);
-  const primaryOpts = [...PRIMARY_STATS, ...SECONDARY_STATS].filter(s => primaryKeys.includes(s.key))
+  const primaryOpts = PRIMARY_STATS.filter(s => primaryKeys.includes(s.key))
     .map(s => `<option value="${s.key}" ${kind === 'primary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
   const tertiaryOpts = TERTIARY_STATS.map(s => `<option value="${s.key}" ${kind === 'tertiary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
   const listOpts = Object.keys(TRAIT_LISTS).map(lk => `<option value="${lk}" ${kind === 'trait' && b.listKey === lk ? 'selected' : ''}>${TRAIT_LIST_LABELS[lk]}</option>`).join('');
@@ -1638,6 +1648,10 @@ function equipCardHtml(s, i, namePlaceholder, removable) {
         ${rangeField('Dif', 'dif')}
         ${rangeField('Durabilità', 'dur')}
       </div>
+      ${removable ? `<div class="field" style="max-width:120px;">
+        <label>Peso (Kg) — conta nello Zaino se non equipaggiato</label>
+        <input type="number" min="0" step="0.5" value="${Number(s.peso) || 0}" data-slotfield="peso" data-idx="${i}">
+      </div>` : ''}
       <div class="field slot-bonus">
         <label>Note (testo libero)</label>
         <input type="text" value="${escapeHtml(s.bonus || '')}" data-slotfield="bonus" data-idx="${i}" placeholder="es. incisa con rune, appartenuta al nonno...">
@@ -1666,6 +1680,9 @@ function renderWeaponSlots(c) {
   $('#weapon-grid').innerHTML = order.map(i => cards[i]).join('');
   renderBlockSection(c);
   renderAttackWeaponList(c);
+  // il peso delle armi/scudi conta nello Zaino solo quando non equipaggiati:
+  // ogni cambio qui (equip/inventario, peso) deve tenere aggiornato il totale
+  renderZainoSummary(c);
 }
 
 /* ------------------------------------------------------- Bloccare/Attacca */
@@ -1876,12 +1893,49 @@ function populateBoostActivateSelect(c) {
     : '<option value="">Nessun boost appreso</option>';
   if (prevVal && sel.querySelector(`option[value="${cssEscapeAttr(prevVal)}"]`)) sel.value = prevVal;
 }
+/* Peso corporeo del personaggio: letto dal campo libero di background
+   (Aspetto > Peso). Se non contiene un numero, conta 0 (la Regola del Peso
+   resta comunque indicativa, a discrezione del Narratore). */
+function pesoCorporeoOf(c) {
+  const n = parseFloat(String((c.bg && c.bg.peso) || '').replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+/* Peso trasportabile nello Zaino (Regola del Peso, manuale): FOR effettiva
+   (bonus attivi inclusi) + peso corporeo, /2. */
+function zainoPesoMax(c) {
+  const forEff = (Number(c.primary.for) || 0) + buffTotal(c, 'for');
+  return pesoTrasportabile(forEff, pesoCorporeoOf(c));
+}
+/* Peso occupato: oggetti normali + armi/scudi NON equipaggiati. Ciò che è
+   indossato/impugnato non pesa sullo Zaino, solo ciò che sta riposto. */
+function zainoPesoUsato(c) {
+  const oggetti = (c.inventario || []).reduce((s, r) => s + (Number(r.peso) || 0), 0);
+  const armiScudi = (c.weaponSlots || []).filter(s => s.equipaggiato === false)
+    .reduce((s, sl) => s + (Number(sl.peso) || 0), 0);
+  return oggetti + armiScudi;
+}
+function renderZainoSummary(c) {
+  const el = $('#zaino-peso-summary');
+  if (!el) return;
+  const usato = zainoPesoUsato(c), max = zainoPesoMax(c);
+  el.textContent = `${usato} / ${max} Kg`;
+  el.className = 'remaining' + (usato > max ? ' neg' : '');
+  const inZaino = (c.weaponSlots || []).filter(s => s.equipaggiato === false);
+  const listEl = $('#zaino-armi-list');
+  if (listEl) {
+    listEl.innerHTML = inZaino.length
+      ? inZaino.map(s => `<div class="row-between"><span>${escapeHtml(s.name || (s.kind === 'scudo' ? 'Scudo' : 'Arma'))} <span class="chip">${s.kind === 'scudo' ? 'Scudo' : 'Arma'}</span></span><span class="num">${Number(s.peso) || 0} Kg</span></div>`).join('')
+      : `<p class="helper-text" style="margin:0;">Nessuna arma o scudo in Inventario: sono tutti equipaggiati.</p>`;
+  }
+}
 function renderInventario(c) {
   $('#inventario-table').innerHTML = c.inventario.map((r, i) => `
     <tr>
       <td><input type="text" value="${escapeHtml(r.nome)}" data-inv="nome" data-idx="${i}" placeholder="Oggetto"></td>
+      <td><input type="number" min="0" step="0.5" value="${Number(r.peso) || 0}" data-inv="peso" data-idx="${i}"></td>
       <td><input type="text" value="${escapeHtml(r.note)}" data-inv="note" data-idx="${i}" placeholder="Note"></td>
-    </tr>`).join('') || `<tr><td colspan="2" class="helper-text">Nessun oggetto.</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="3" class="helper-text">Nessun oggetto.</td></tr>`;
+  renderZainoSummary(c);
 }
 
 /* ------------------------------------------------------- consumo oggetti */
@@ -2761,6 +2815,7 @@ function wireStaticEvents() {
     $(`[data-pstat-input="${key}"]`).value = applied;
     updatePrimaryRemaining(c);
     updateDerived(c);
+    if (key === 'for') renderZainoSummary(c); // la FOR entra nella Regola del Peso
     touchActive();
   }
   function handlePstatInput(e) {
@@ -2775,6 +2830,7 @@ function wireStaticEvents() {
     if (applied === null) { input.value = grown ? (Number(c[trackedKey]) || 0) : c.primary[key]; return; } // AP insufficienti
     updatePrimaryRemaining(c);
     updateDerived(c);
+    if (key === 'for') renderZainoSummary(c);
     touchActive();
   }
   $('#primary-stats').addEventListener('click', handlePstatClick);
@@ -3205,7 +3261,7 @@ function wireStaticEvents() {
   // ---- inventario ----
   $('#inv-add').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
-    c.inventario.push({ nome: '', note: '' });
+    c.inventario.push({ nome: '', note: '', peso: 0 });
     renderInventario(c);
     touchActive();
   });
@@ -3214,7 +3270,8 @@ function wireStaticEvents() {
     if (!input) return;
     const c = getActive(); if (!c) return;
     const idx = Number(input.dataset.idx), field = input.dataset.inv;
-    c.inventario[idx][field] = input.value;
+    c.inventario[idx][field] = field === 'peso' ? (Number(input.value) || 0) : input.value;
+    if (field === 'peso') renderZainoSummary(c);
     touchActive();
   });
 
@@ -3368,6 +3425,7 @@ function wireStaticEvents() {
     if (!el) return;
     const c = getActive(); if (!c) return;
     c.bg[el.dataset.bg] = el.value;
+    if (el.dataset.bg === 'peso') renderZainoSummary(c); // entra nella Regola del Peso dello Zaino
     touchActive();
   });
   $('#n-libere').addEventListener('input', () => {
@@ -3501,6 +3559,9 @@ function wireEquipGrid(sel, getSlots, doRender) {
       slots[idx][field] = field === 'bonus' ? fieldInput.value : (Number(fieldInput.value) || 0);
       const out = fieldInput.parentElement.querySelector('.sf-val');
       if (out) out.textContent = slots[idx][field];
+      // il peso di un'arma/scudo non equipaggiato conta nello Zaino: tenere
+      // aggiornato il totale a ogni modifica, non solo al re-render della card
+      if (field === 'peso') renderZainoSummary(c);
       touchActive();
     } else if (bonusName) {
       // solo il nome, senza rinfrescare a ogni tasto: altrimenti si perde il

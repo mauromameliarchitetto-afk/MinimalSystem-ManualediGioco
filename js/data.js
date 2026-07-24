@@ -200,6 +200,14 @@ function equipRange(type, size, quality) {
   return q || null;
 }
 
+// Regola del Peso (manuale, sezione Equipaggiamento): il peso trasportabile
+// (Kg) è (FOR pura + peso corporeo) / 2 — es. FOR 8 + peso 50 Kg = 29 Kg.
+// Non riguarda l'equipaggiamento indossato/impugnato, solo ciò che sta nello
+// Zaino (oggetti normali + armi/scudi non equipaggiati).
+function pesoTrasportabile(forPura, pesoCorporeo) {
+  return Math.floor(((Number(forPura) || 0) + (Number(pesoCorporeo) || 0)) / 2);
+}
+
 // Armi: due tipologie mutuamente esclusive nello stesso attacco (manuale,
 // sezione Equipaggiamento) — un'arma bianca e una da tiro non si combinano.
 const WEAPON_CLASSES = [
