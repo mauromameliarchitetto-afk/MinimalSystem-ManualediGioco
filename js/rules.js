@@ -85,12 +85,24 @@ const RULES_CHAPTERS = [
   { t: 'Level Up', sections: [16] }
 ];
 
-/* Copertina illustrata per una sezione (chiave = s.t in RULES_SECTIONS):
-   arriva un capitolo alla volta via upload, quindi la maggior parte delle
-   sezioni non ha ancora una voce qui — renderRulesChapter la mostra solo
-   se presente, altrimenti la sezione resta testo puro come prima. */
+/* Copertina illustrata di un intero capitolo (chiave = t in RULES_CHAPTERS):
+   compare una sola volta in cima al pop-up, prima di tutte le sue
+   sotto-sezioni. Le immagini arrivano un gruppo alla volta via upload,
+   quindi non tutti i capitoli ne hanno ancora una. */
+const RULES_CHAPTER_COVERS = {
+  'Tratti': 'img/rules/tratti-conoscenze-capacita.jpg',
+  'Tecniche e magia': 'img/rules/tecniche-magie.jpg',
+  'Equipaggiamento': 'img/rules/equipaggiamento.jpg',
+  'Combattimento': 'img/rules/combattimento-scontri.jpg',
+  'Level Up': 'img/rules/level-up.jpg'
+};
+
+/* Copertina illustrata di una singola sotto-sezione (chiave = s.t in
+   RULES_SECTIONS): usata per gli argomenti che hanno una propria immagine
+   dedicata oltre (o al posto di) quella dell'intero capitolo — es. "Boost"
+   dentro "Tecniche e magia". Sezioni senza voce qui restano testo puro. */
 const RULES_SECTION_COVERS = {
-  // 'Premessa': 'img/rules/premessa.jpg',
+  // 'Caratteristiche primarie': 'img/rules/caratteristiche-primarie.jpg',
 };
 
 function renderRulesIndex() {
@@ -112,7 +124,9 @@ function openRulesChapter(i) {
   const chapter = RULES_CHAPTERS[i];
   if (!chapter) return;
   $('#rules-popup-title').textContent = chapter.t;
-  $('#rules-popup-body').innerHTML = chapter.sections.map(si => {
+  const chapterCover = RULES_CHAPTER_COVERS[chapter.t];
+  const chapterCoverHtml = chapterCover ? `<img class="rule-cover rule-cover-chapter" src="${chapterCover}" alt="${escapeHtml(chapter.t)}">` : '';
+  $('#rules-popup-body').innerHTML = chapterCoverHtml + chapter.sections.map(si => {
     const s = RULES_SECTIONS[si];
     const cover = RULES_SECTION_COVERS[s.t];
     return `
