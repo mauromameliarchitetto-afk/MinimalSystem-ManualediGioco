@@ -76,6 +76,76 @@ completamente offline e non dipende da GitHub Pages né da alcun URL.
 
 ---
 
+## Sviluppo locale (script in `scripts/`)
+
+Comandi pronti per iterare senza rieseguire l'intera pipeline CI. Ogni
+comando ha una versione `.sh` (Linux/macOS/WSL/Git Bash) e `.bat`
+(Windows/cmd). Vedi anche `CLAUDE.md` per le regole generali di workflow.
+
+- **Avviare la web app** (solo frontend, nessuna build, ricarica manuale
+  del browser dopo ogni modifica):
+  ```
+  scripts/dev-web.sh          # oppure scripts\dev-web.bat
+  ```
+  Serve i file reali della root su `http://localhost:8080` (porta
+  personalizzabile: `scripts/dev-web.sh 3000`).
+
+- **Aggiornare solo Android** (modifiche native: `AndroidManifest.xml`,
+  `android/app/src/`, `build.gradle`, plugin nativi — il frontend non è
+  cambiato, quindi non serve ricompilare la web app né risincronizzare):
+  ```
+  scripts/update-android-native.sh   # oppure scripts\update-android-native.bat
+  ```
+  Esegue solo: build Gradle incrementale → `installDebug` → riavvio app sul
+  device/emulatore connesso (via `adb`, se disponibile).
+
+- **Aggiornare web + APK** (modifiche frontend, o quando vuoi essere sicuro
+  che l'APK contenga l'ultima versione web):
+  ```
+  scripts/update-android-full.sh     # oppure scripts\update-android-full.bat
+  ```
+  Esegue: build web (`npm run build:www`) → `npx cap sync android` → build
+  Gradle incrementale → `installDebug` → riavvio app.
+
+  Alla prima esecuzione (in assenza della cartella `android/`, che non è
+  versionata — vedi `.gitignore`) entrambi gli script `update-android-*`
+  fanno da soli il bootstrap una tantum: `npx cap add android`, patch del
+  deep-link (`.github/scripts/patch_android_manifest.py`) e aggiunta dei
+  flag di performance a `android/gradle.properties`
+  (`org.gradle.daemon`, `org.gradle.parallel`, `org.gradle.caching`,
+  `org.gradle.configuration-cache`, `kotlin.incremental`). Le esecuzioni
+  successive riusano la cartella così com'è, per build davvero
+  incrementali.
+
+- **Generare una build debug manualmente** (equivalente a quanto fanno gli
+  script sopra, ma passo per passo):
+  ```
+  cd android && ./gradlew installDebug
+  ```
+
+- **Generare una build release** (stessa build che produce la GitHub
+  Action in `.github/workflows/build-apk.yml`, firmata con
+  `release.keystore`):
+  ```
+  cd android && ./gradlew assembleRelease
+  ```
+  In locale l'APK risultante (`android/app/build/outputs/apk/release/app-release-unsigned.apk`)
+  va ancora allineato e firmato (vedi lo step "Align and sign APK" del
+  workflow per i comandi `zipalign`/`apksigner` esatti); in CI questo
+  avviene automaticamente a ogni push su `main`.
+
+- **Usare `clean` in via eccezionale** (solo se una build risulta
+  incoerente, es. dopo un aggiornamento di Capacitor/Gradle o una cache
+  corrotta — **non fa parte del flusso di sviluppo normale**, nessuno
+  script lo richiama automaticamente):
+  ```
+  cd android && ./gradlew clean
+  ```
+  Dopo un `clean`, la build successiva (`installDebug` o `assembleRelease`)
+  torna a essere una compilazione completa, non incrementale.
+
+---
+
 > Nota: per ora il progetto genera **solo l'APK Android**. Su
 > iPhone/iPad si può comunque usare la PWA: aprire l'URL di GitHub Pages
 > con Safari → Condividi → "Aggiungi alla schermata Home".

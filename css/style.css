@@ -23,6 +23,8 @@
   --magico-forte:#33D6E8;
   --incremento:#C9A227;
   --incremento-forte:#FFD873;
+  --equip-momentaneo:#3DDC84;
+  --equip-momentaneo-forte:#6BFFAF;
 
   --font-title:'Rajdhani',sans-serif;
   --font-body:'Inter',sans-serif;
@@ -71,23 +73,39 @@ input,select,textarea{font-family:var(--font-body);}
 /* ---------- Copertina ---------- */
 #view-cover{
   position:relative;
-  background:#050608; /* stesso nero di fondo dell'immagine di copertina */
-  justify-content:flex-end;
-  overflow:hidden;
+  background:#050608; /* stesso nero di fondo delle immagini di titolo/logo */
+  /* niente più justify-content:flex-end + immagine flex:1 che si schiacciava
+     con l'altezza della finestra: titolo e logo hanno una dimensione fissa
+     (vedi sotto), quindi se lo spazio verticale non basta è la pagina a
+     scorrere (esattamente come già succede con motto e bottoni sotto),
+     non un rimpicciolimento dell'immagine. */
 }
-#view-cover .cover-img{
-  flex:1 1 0;
-  min-height:0;
+.cover-header{
+  flex:none;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:calc(28px + var(--safe-top)) 24px 0;
+}
+.cover-title{
+  flex:none;
   width:100%;
-  padding-top:calc(8px + var(--safe-top));
-  object-fit:contain;      /* immagine intera, senza tagli, sopra i bottoni */
-  object-position:center top;
+  max-width:320px;
+  height:auto;
+  display:block;
 }
-#view-cover .cover-scrim{display:none;}
+.cover-logo{
+  flex:none;
+  width:180px;
+  max-width:46vw;
+  height:auto;
+  margin-top:2px;
+}
 .cover-content{
   position:relative;
   z-index:2;
-  padding:32px 24px calc(36px + var(--safe-bottom));
+  flex:none;
+  padding:24px 24px calc(36px + var(--safe-bottom));
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -658,15 +676,26 @@ body.pdf-lock-scroll{overflow:hidden;}
   border-bottom:1px solid rgba(255,255,255,0.05);
 }
 .stat-row:last-child{border-bottom:none;}
-.stat-row .stat-label{width:72px;flex:none;}
+.stat-row .stat-label{width:104px;flex:none;}
 .stat-row .stat-label .abbr{font-family:var(--font-title);font-weight:700;font-size:13px;}
-.stat-row .stat-label .full{display:block;font-size:9.5px;color:var(--testo-secondario-dark);text-transform:uppercase;letter-spacing:.03em;}
+.stat-row .stat-label .full{
+  display:block;font-size:9px;color:var(--testo-secondario-dark);
+  text-transform:uppercase;letter-spacing:.02em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
 .stat-label.physical .abbr{color:var(--fisico-forte);}
 .stat-label.magic .abbr{color:var(--magico-forte);}
 .stat-label.neutral .abbr{color:var(--bianco-artico);}
 .stat-label.buffed .abbr{color:var(--incremento-forte) !important;}
 .buff-chip{
   border-color:var(--incremento);color:var(--incremento-forte);
+  font-family:var(--font-mono);flex:none;
+}
+/* Bonus da arma/scudo equipaggiati: verde, a indicare che statistica o
+   tratto sono momentanei (durano finché il pezzo resta equipaggiato),
+   a differenza del giallo/ambra usato per gli incrementi da consumabile. */
+.buff-chip-equip{
+  border-color:var(--equip-momentaneo);color:var(--equip-momentaneo-forte);
   font-family:var(--font-mono);flex:none;
 }
 .stepper{display:flex;align-items:center;gap:0;flex:1;justify-content:flex-end;}
@@ -764,6 +793,35 @@ body.pdf-lock-scroll{overflow:hidden;}
 .field textarea{resize:vertical;min-height:70px;line-height:1.5;font-family:var(--font-body);}
 .field-row{display:flex;gap:10px;flex-wrap:wrap;}
 .field-row .field{flex:1 1 120px;min-width:0;}
+
+/* ---------- Background: contenitori (uno alla volta, scelti dal menu #bg-nav-select) + sola lettura/modifica ---------- */
+.bg-section{
+  background:var(--antracite-2);
+  border:1px solid var(--bordo-scuro);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.bg-section-head{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:12px 12px;
+}
+.bg-section-head .bg-section-title{
+  font-family:var(--font-title);font-weight:600;font-size:12.5px;
+  text-transform:uppercase;letter-spacing:.1em;
+  color:var(--testo-secondario-dark-2);
+  margin-right:auto;
+}
+.bg-section-body{padding:0 12px 14px;}
+/* campo di sola lettura: niente bordo/sfondo a rilievo, testo comunque
+   interamente leggibile (auto-altezza via JS, mai troncato o a scorrimento) */
+.field textarea[data-bg][readonly],.field input[data-bg][readonly]{
+  background:transparent;border-color:transparent;padding-left:0;padding-right:0;
+  color:var(--testo-primario-dark);cursor:default;
+}
+.field textarea[data-bg]{resize:none;overflow:hidden;}
+/* campi "corti" (data di nascita, altezza...): niente min-height da 70px,
+   l'altezza reale la decide comunque l'auto-resize via JS */
+.field textarea[data-bg][rows="1"]{min-height:0;}
 
 /* ---------- Tratti ---------- */
 .trait-group{display:flex;flex-direction:column;gap:6px;}
@@ -903,6 +961,23 @@ table.edit-table thead th{white-space:nowrap;}
   display:block;text-align:center;font-family:var(--font-mono);font-size:12px;
   color:var(--testo-primario-dark);
 }
+
+/* ---------- Scudo/armi: equipaggiato vs inventario, tipo, caratteristiche ---------- */
+.slot-equip-toggle{display:flex;gap:8px;margin-bottom:8px;}
+.slot-equip-toggle .btn{flex:1;}
+.slot-card-inventory{opacity:.6;}
+.slot-card-inventory .slot-name{color:var(--testo-secondario-dark);}
+.chk-inline{
+  display:flex;align-items:center;gap:5px;font-size:12px;color:var(--testo-secondario-dark-2);
+  background:var(--antracite-1);border:1px solid var(--bordo-scuro);border-radius:var(--radius-sm);
+  padding:6px 9px;cursor:pointer;flex:1;min-width:64px;justify-content:center;
+}
+.chk-inline input{accent-color:var(--fisico-forte);}
+.weapon-stat-flags{flex-wrap:wrap;}
+.attack-weapon-list{display:flex;flex-direction:column;gap:8px;}
+.attack-weapon-row{justify-content:flex-start;gap:8px;}
+.attack-results{display:flex;flex-direction:column;gap:6px;}
+.attack-result-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 
 /* ---------- Note toast ---------- */
 #toast{

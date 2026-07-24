@@ -196,12 +196,23 @@ function defaultSlots() {
   return ['Capo', 'Busto', 'Braccio Sx', 'Braccio Dx', 'Gamba Sx', 'Gamba Dx']
     .map(name => ({ name, kind: 'armatura', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, bonuses: [] }));
 }
-/* Fronte scheda: 1 scudo + 1 arma, equipaggiabili insieme */
+/* Fronte scheda: scudi e armi, ciascuno flaggabile come equipaggiato o no —
+   se non equipaggiato, non entra nel calcolo di Bloccare/Attacca né nei
+   bonus meccanici e passa a fare da "inventario" (resta comunque in scheda,
+   riequipaggiabile in qualsiasi momento). Le armi hanno anche una classe
+   (bianca/da tiro, mutuamente esclusive nello stesso attacco) e i flag delle
+   caratteristiche con cui agiscono (FOR/DEX/F.MEN). */
+function makeWeaponSlot(kind) {
+  // peso (Kg): conta nello Zaino solo quando il pezzo non è equipaggiato
+  // (vedi zainoPesoUsato) — indossato/impugnato non pesa sulla regola del peso
+  const s = { name: kind === 'scudo' ? 'Scudo' : 'Arma', kind, size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, peso: 0, bonuses: [], equipaggiato: true };
+  if (kind === 'arma') { s.weaponClass = 'bianca'; s.usaFor = true; s.usaDex = false; s.usaFmen = false; }
+  return s;
+}
 function defaultWeaponSlots() {
-  return [
-    { name: 'Scudo', kind: 'scudo', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, bonuses: [] },
-    { name: 'Arma 1', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, bonuses: [] }
-  ];
+  const scudo = makeWeaponSlot('scudo');
+  const arma = makeWeaponSlot('arma'); arma.name = 'Arma 1';
+  return [scudo, arma];
 }
 /* Una riga di "bonus meccanico" su un pezzo di equipaggiamento (arma, scudo
    o armatura): a differenza del vecchio campo Bonus (testo libero, mai letto
@@ -210,7 +221,12 @@ function defaultWeaponSlots() {
    TERTIARY_STATS) | 'trait' (listKey + name: se il tratto non è ancora in
    scheda viene aggiunto in automatico, partendo da base 0 — il bonus da solo
    ne determina il valore). */
-function makeEquipBonusRow() { return { id: uid(), kind: 'primary', key: 'for', listKey: '', name: '', valore: 1 }; }
+/* Default sensato in base al pezzo: scudo parte da DIF, arma da FOR,
+   armatura (o pezzo sconosciuto) resta su FOR come già in uso prima. */
+function makeEquipBonusRow(itemKind) {
+  const key = itemKind === 'scudo' ? 'dif' : 'for';
+  return { id: uid(), kind: 'primary', key, listKey: '', name: '', valore: 1 };
+}
 /* Se taglia/qualità sono entrambe scelte, riporta atk/dif/dur nel range
    ufficiale corrispondente (usato quando cambia una delle due scelte) */
 function clampSlotToRange(slot) {
@@ -462,6 +478,7 @@ function newCharacter(nome) {
     portrait: null,
     relazioni: [],
     bg: defaultBg(),
+    bgLocked: defaultBgLocked(),
     note: { aspetto: '', morale: '', background: '', libere: '' }
   };
 }
@@ -479,6 +496,26 @@ function defaultBg() {
   keys.forEach(k => { o[k] = ''; });
   return o;
 }
+/* I 5 contenitori del Background (Dati generali+Aspetto accorpati, Vita,
+   Atteggiamento, Passato, Relazioni): un solo menu a tendina (#bg-nav-select)
+   decide quale contenitore è visibile alla volta, invece di impilarli tutti
+   in un'unica pagina a scorrimento chilometrico. Ciascuno resta comunque un
+   blocco sola-lettura/modifica indipendente dagli altri. */
+const BG_SECTIONS = ['datiAspetto', 'vita', 'atteggiamento', 'passato', 'relazioni'];
+/* Sola lettura di default: il testo va sempre modificato "su richiesta"
+   (bottone Modifica), poi confermato per tornare bloccato — anche per i
+   personaggi già esistenti, che partono tutti bloccati alla migrazione. */
+function defaultBgLocked() {
+  const o = {};
+  BG_SECTIONS.forEach(k => { o[k] = true; });
+  return o;
+}
+/* Altezza del campo adattata al contenuto: nessun testo del Background va
+   letto scorrendo dentro una textarea piccola, deve comparire per intero. */
+function autoResizeTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
 
 /* Colma eventuali campi mancanti se il personaggio arriva da una versione precedente dell'app */
 function ensureShape(c) {
@@ -494,6 +531,12 @@ function ensureShape(c) {
   // da quando il giocatore lo conferma esplicitamente per la prima volta,
   // Object.keys(d) sotto imposta già primaryConfirmed:false di default
   Object.keys(d).forEach(k => { if (c[k] === undefined) c[k] = d[k]; });
+  // il P.R. non è (mai stato, di fatto) una statistica primaria: il vero
+  // valore vive solo in prMaxTracked/prCur, quindi il residuo c.primary.pr
+  // dei personaggi salvati prima di questa correzione viene ripulito (non
+  // veniva più letto da nessun calcolo, restava solo a intaccare per errore
+  // il pool dei 40 punti delle primarie vere e proprie)
+  if (c.primary) delete c.primary.pr;
   if (!hadBuildConfirmed) c.buildConfirmed = true;
   // personaggi con statistiche gia' confermate prima dell'introduzione del
   // "pavimento" per livello: i valori attuali sono gia' quelli confermati
@@ -553,13 +596,45 @@ function ensureShape(c) {
     if (s.size && !armorSizes.includes(s.size)) { s.size = ''; s.quality = ''; s.atk = 0; s.dif = 0; s.dur = 0; }
     if (s.quality === undefined) s.quality = '';
     if (!Array.isArray(s.bonuses)) s.bonuses = [];
+    // il P.R. (statistica secondaria) non è mai un bersaglio valido per
+    // l'equipaggiamento, armatura inclusa: solo i consumabili possono
+    // incrementarlo — un eventuale bonus salvato su 'pr' viene riallineato
+    (s.bonuses || []).forEach(b => { if (b.kind === 'primary' && b.key === 'pr') b.key = PRIMARY_STATS[0].key; });
   });
   (c.weaponSlots || []).forEach(s => {
     if (s.quality === undefined) s.quality = '';
     if (!Array.isArray(s.bonuses)) s.bonuses = [];
+    if (typeof s.peso !== 'number') s.peso = 0;
+    // personaggi creati prima del flag equipaggiato/inventario: erano già
+    // sempre "attivi" prima di questa funzione, quindi restano equipaggiati
+    if (s.equipaggiato === undefined) s.equipaggiato = true;
+    if (s.kind === 'arma') {
+      if (s.weaponClass !== 'bianca' && s.weaponClass !== 'tiro') s.weaponClass = 'bianca';
+      if (typeof s.usaFor !== 'boolean' && typeof s.usaDex !== 'boolean' && typeof s.usaFmen !== 'boolean') s.usaFor = true;
+      if (typeof s.usaFor !== 'boolean') s.usaFor = false;
+      if (typeof s.usaDex !== 'boolean') s.usaDex = false;
+      if (typeof s.usaFmen !== 'boolean') s.usaFmen = false;
+    }
+    // scudi e armi incidono solo su DIF/D.MEN (scudo) o FOR/DEX/F.MEN (arma)
+    // e sui tratti dei rispettivi elenchi chiusi: eventuali bonus salvati
+    // fuori da queste regole (es. da prima di questa correzione) vengono
+    // riallineati al primo bersaglio valido, senza perdere il valore assegnato
+    if (s.kind === 'scudo' || s.kind === 'arma') {
+      const allowedPrimary = primaryBonusKeysFor(s.kind);
+      (s.bonuses || []).forEach(b => {
+        if (b.kind === 'tertiary') { b.kind = 'primary'; b.key = allowedPrimary[0]; }
+        else if (b.kind === 'primary' && !allowedPrimary.includes(b.key)) { b.key = allowedPrimary[0]; }
+        // un tratto già salvato con un nome fuori dall'elenco suggerito resta
+        // com'è: è la scelta "nuovo tratto personalizzato", sempre valida
+      });
+    }
   });
-  // rimosse le locazioni Arma 2/Arma 3: restano solo Scudo e Arma 1, equipaggiabili insieme
-  if (c.weaponSlots) c.weaponSlots = c.weaponSlots.filter(s => s.name !== 'Arma 2' && s.name !== 'Arma 3');
+  // oggetti dello Zaino salvati prima dell'introduzione del peso
+  (c.inventario || []).forEach(r => { if (typeof r.peso !== 'number') r.peso = 0; });
+  // il vincolo "solo Scudo e Arma 1" è superato: ora si possono aggiungere ed
+  // equipaggiare più armi (vedi equipaggiato/weaponClass sopra), quindi le
+  // vecchie locazioni "Arma 2"/"Arma 3" filtrate in passato non vanno più
+  // rimosse a ogni caricamento
   return c;
 }
 
@@ -725,6 +800,23 @@ function renderBuildGrid(c) {
 
 /* ------------------------------------------------------------ primarie */
 
+/* Riga con stepper condivisa da statistiche primarie e dalla (unica)
+   secondaria: stessa card, stesso comportamento di bonus (consumabile in
+   ambra, equip in verde) — cambia solo quali chiavi/dati arrivano da fuori. */
+function statStepperRowHtml(c, stat, val, min, locked, fullLabel) {
+  const equipBuff = equipBonusTotal(c, 'primary', stat.key);
+  const consumableBuff = buffTotal(c, stat.key) - equipBuff;
+  return `<div class="stat-row">
+    <div class="stat-label ${stat.axis}${(consumableBuff || equipBuff) ? ' buffed' : ''}"><span class="abbr">${stat.label}</span><span class="full">${fullLabel}</span></div>
+    <div class="stepper">
+      <button data-pstat="${stat.key}" data-dir="-1" aria-label="Diminuisci" ${locked ? 'disabled' : ''}>−</button>
+      <input type="number" data-pstat-input="${stat.key}" value="${val}" min="${min}" ${locked ? 'disabled' : ''}>
+      <button data-pstat="${stat.key}" data-dir="1" aria-label="Aumenta" ${locked ? 'disabled' : ''}>+</button>
+    </div>
+    ${consumableBuff ? `<span class="chip buff-chip" title="Incremento attivo da consumabile">+${consumableBuff}</span>` : ''}
+    ${equipBuff ? `<span class="chip buff-chip-equip" title="Bonus da arma/scudo equipaggiato: momentaneo, dura finché il pezzo resta equipaggiato">+${equipBuff} equip.</span>` : ''}
+  </div>`;
+}
 function renderPrimaryStats(c) {
   const wrap = $('#primary-stats');
   const locked = c.primaryConfirmed;
@@ -734,26 +826,29 @@ function renderPrimaryStats(c) {
   const grown = Number(c.livello) > 1;
   wrap.innerHTML = PRIMARY_STATS.map(stat => {
     const isHpMp = stat.key === 'hp' || stat.key === 'mp';
-    const isPr = stat.key === 'pr';
-    // il P.R. è sempre "cresciuto" via AP fin dal Lv1 (nessuna fase a pool libero)
-    const val = isPr ? (c.prMaxTracked || 0)
-      : (isHpMp && grown) ? (stat.key === 'hp' ? c.hpMaxTracked : c.mpMaxTracked) || 0
-      : c.primary[stat.key];
-    const min = (isPr || (isHpMp && grown)) ? 0 : PRIMARY_MIN;
-    const buff = buffTotal(c, stat.key);
-    const fullLabel = isPr ? `${stat.full} (totale)` : (isHpMp && grown) ? `${stat.full} (totale)` : stat.full;
-    return `<div class="stat-row">
-      <div class="stat-label ${stat.axis}${buff ? ' buffed' : ''}"><span class="abbr">${stat.label}</span><span class="full">${fullLabel}</span></div>
-      <div class="stepper">
-        <button data-pstat="${stat.key}" data-dir="-1" aria-label="Diminuisci" ${locked ? 'disabled' : ''}>−</button>
-        <input type="number" data-pstat-input="${stat.key}" value="${val}" min="${min}" ${locked ? 'disabled' : ''}>
-        <button data-pstat="${stat.key}" data-dir="1" aria-label="Aumenta" ${locked ? 'disabled' : ''}>+</button>
-      </div>
-      ${buff ? `<span class="chip buff-chip" title="Incremento attivo da consumabile">+${buff}</span>` : ''}
-    </div>`;
+    const val = (isHpMp && grown) ? (stat.key === 'hp' ? c.hpMaxTracked : c.mpMaxTracked) || 0 : c.primary[stat.key];
+    const min = (isHpMp && grown) ? 0 : PRIMARY_MIN;
+    const fullLabel = (isHpMp && grown) ? `${stat.full} (totale)` : stat.full;
+    return statStepperRowHtml(c, stat, val, min, locked, fullLabel);
   }).join('');
   updatePrimaryRemaining(c);
   renderStatRollSelect();
+  // il P.R. (unica statistica secondaria) vive in una sezione a parte ma va
+  // aggiornato insieme alle primarie: stessi trigger (bonus, buff, livello,
+  // conferma) le tengono sincronizzate senza dover toccare ogni chiamata
+  renderSecondaryStats(c);
+}
+/* Statistica secondaria (solo P.R.): fissa da classe alla creazione (mai in
+   pool libero, a differenza delle primarie), dal Lv2 cresce con gli AP
+   secondo le stesse regole di crescita — vedi changePrimary, che gestisce
+   'pr' come "sempre cresciuta" indipendentemente da PRIMARY_STATS. Sezione
+   separata proprio perché il manuale la classifica come secondaria, non
+   primaria: non entra nel pool dei 40 punti né nella loro lista. */
+function renderSecondaryStats(c) {
+  const wrap = $('#secondary-stats');
+  if (!wrap) return;
+  const stat = SECONDARY_STATS[0];
+  wrap.innerHTML = statStepperRowHtml(c, stat, c.prMaxTracked || 0, 0, c.primaryConfirmed, stat.full);
 }
 /* Selettore del tool "Tiro statistica": elenca gli attributi primari
    tirabili (esclusi HP/MP, riserve di punti e non prove). Opzioni fisse,
@@ -762,7 +857,7 @@ function renderStatRollSelect() {
   const sel = $('#stat-roll-select');
   if (!sel || sel.options.length) return;
   sel.innerHTML = PRIMARY_STATS
-    .filter(s => s.key !== 'hp' && s.key !== 'mp' && s.key !== 'pr')
+    .filter(s => s.key !== 'hp' && s.key !== 'mp')
     .map(s => `<option value="${s.key}">${s.label} — ${s.full}</option>`).join('');
 }
 function primaryRemaining(c) {
@@ -821,17 +916,18 @@ function currentMpMult(c) {
 /* --------------------------------------------------------- oggetti consumabili */
 
 function statLabel(key) {
-  const s = PRIMARY_STATS.find(st => st.key === key);
+  const s = PRIMARY_STATS.find(st => st.key === key) || SECONDARY_STATS.find(st => st.key === key);
   return s ? s.label : key;
 }
 /* Somma dei bonus meccanici assegnati su arma/scudo/armatura per un dato
    bersaglio: kind 'primary'/'tertiary' confrontano key, kind 'trait'
    confronta listKey+name (un tratto può chiamarsi allo stesso modo in
    categorie diverse). Scansiona sia il fronte (weaponSlots) sia il retro
-   (slots): un pezzo equipaggiato vale sempre, non serve "attivarlo" come i
-   consumabili. */
+   (slots): l'armatura vale sempre (non ha un flag "equipaggiato", occupa
+   già una locazione fissa del corpo), armi e scudi solo se effettivamente
+   equipaggiati — altrimenti sono "in inventario" e i loro bonus sono sospesi. */
 function equipBonusTotal(c, kind, key, listKey) {
-  const allSlots = [...(c.weaponSlots || []), ...(c.slots || [])];
+  const allSlots = [...(c.weaponSlots || []).filter(s => s.equipaggiato !== false), ...(c.slots || [])];
   let total = 0;
   allSlots.forEach(s => (s.bonuses || []).forEach(b => {
     if (b.kind !== kind) return;
@@ -1016,6 +1112,7 @@ function initDiagram() {
   ).join('');
 }
 
+
 function diagramValue(c, key) {
   // gli incrementi da consumabile si sommano al valore base finché attivi
   if (key.startsWith('p:')) return c.primary[key.slice(2)] + buffTotal(c, key.slice(2));
@@ -1071,7 +1168,7 @@ function renderTertiaryStats(c) {
         <input type="number" data-tstat-input="${stat.key}" value="${val}" min="${floor}">
         <button data-tstat="${stat.key}" data-dir="1" aria-label="Aumenta">+</button>
       </div>
-      ${buff ? `<span class="chip buff-chip" title="Bonus da equipaggiamento">+${buff}</span>` : ''}
+      ${buff ? `<span class="chip buff-chip-equip" title="Bonus da arma/scudo equipaggiato: momentaneo, dura finché il pezzo resta equipaggiato">+${buff}</span>` : ''}
     </div>`;
   }).join('');
   updateTertiaryRemaining(c);
@@ -1106,6 +1203,13 @@ function renderQi(c) {
 function renderTraits(c) {
   const wrap = $('#trait-lists');
   const locked = c.traitsConfirmed;
+  // fuori da una campagna il campo resta libero come sempre: il "database"
+  // di tratti condivisi esiste solo per i personaggi dentro una storia
+  const campaignId = c.cloudCampaignId;
+  if (campaignId && !campaignTraitsCache[campaignId]) {
+    fetchCampaignKnownTraits(campaignId).then(() => { if (getActive() === c) renderTraits(c); });
+  }
+  const known = campaignId ? cachedCampaignKnownTraits(campaignId) : null;
   wrap.innerHTML = Object.keys(TRAIT_LISTS).map(listKey => {
     const shown = c.shownTraits[listKey] || [];
     const rows = TRAIT_LISTS[listKey]
@@ -1115,6 +1219,10 @@ function renderTraits(c) {
     const empty = !rows.length && !customRows.length
       ? `<div class="helper-text" style="padding:2px 2px 6px;">Nessun tratto ancora — aggiungine uno dal menù qui sotto.</div>` : '';
     const available = TRAIT_LISTS[listKey].filter(name => !shown.includes(name));
+    // tratti già scritti da qualcun altro in questa storia (né ufficiali né
+    // già presenti su questa scheda): pescabili senza doverli riscrivere
+    const alreadyOnSheet = new Set([...TRAIT_LISTS[listKey], ...(c.customTraits[listKey] || []).map(t => t.name)]);
+    const knownExtra = known ? known[listKey].filter(n => n && !alreadyOnSheet.has(n)) : [];
     return `<div class="section-title"><span class="dot neutral"></span>${TRAIT_LIST_LABELS[listKey]} <span class="chip" style="margin-left:auto;">${rows.length + customRows.length}</span></div>
       <div class="trait-group" data-list="${listKey}">
         ${empty}
@@ -1124,6 +1232,7 @@ function renderTraits(c) {
       <select class="trait-add-select" data-addtraitsel="${listKey}" ${locked ? 'disabled' : ''}>
         <option value="" selected disabled>+ Aggiungi tratto…</option>
         ${available.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}
+        ${knownExtra.length ? `<optgroup label="Già usati in questa storia">${knownExtra.map(n => `<option value="known::${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}</optgroup>` : ''}
         <option value="__custom__">Tratto personalizzato…</option>
       </select>`;
   }).join('');
@@ -1226,7 +1335,7 @@ function traitRowHtml(listKey, name, value, isCustom, idx, locked, narratore, eq
     ? `<input type="text" value="${escapeHtml(name)}" data-customname="${listKey}" data-idx="${idx}" ${rowLocked ? 'disabled' : ''} placeholder="Nome tratto">`
     : escapeHtml(name);
   const badge = narratore ? ` <span class="chip buff-chip" title="Scritto dal Narratore: non consuma i punti del giocatore, modificabile solo da lui">Narratore</span>` : '';
-  const equipBadge = bonus ? ` <span class="chip buff-chip" title="Bonus da equipaggiamento">+${bonus} equip.</span>` : '';
+  const equipBadge = bonus ? ` <span class="chip buff-chip-equip" title="Bonus da arma/scudo equipaggiato: momentaneo, dura finché il pezzo resta equipaggiato">+${bonus} equip.</span>` : '';
   return `<div class="trait-row" data-trait="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''} ${narratore ? 'data-narratore="1"' : ''}>
     <div class="t-name">${nameHtml}${badge}${equipBadge}</div>
     <span class="t-dice" title="${bonus ? `Base ${base} + equipaggiamento ${bonus}` : 'Valore base'}">+${effective}</span>
@@ -1305,7 +1414,10 @@ function creditLevelAP(c) {
    o tornare fino a questo punto. */
 function snapshotPrimaryFloor(c) {
   if (!c.primaryFloor) c.primaryFloor = {};
-  PRIMARY_STATS.forEach(stat => {
+  // le primarie e l'unica secondaria (P.R.) condividono lo stesso
+  // meccanismo di "pavimento": vanno scandite insieme, altrimenti il P.R.
+  // perderebbe la protezione contro un abbassamento sotto l'ultimo confermato
+  [...PRIMARY_STATS, ...SECONDARY_STATS].forEach(stat => {
     const isHpMp = stat.key === 'hp' || stat.key === 'mp';
     const isPr = stat.key === 'pr';
     const grown = (isHpMp && Number(c.livello) > 1) || isPr;
@@ -1364,7 +1476,7 @@ function changePrimary(c, key, newVal) {
       toast(`AP insufficienti: servono ${cost} AP (disponibili ${disponibili})`);
       return null;
     }
-    const stat = PRIMARY_STATS.find(s => s.key === key);
+    const stat = PRIMARY_STATS.find(s => s.key === key) || SECONDARY_STATS.find(s => s.key === key);
     c.apDisponibili = disponibili - cost;
     c.ledger.push({
       id: uid(),
@@ -1449,27 +1561,74 @@ function updateGrowthCost() {
 
 /* ------------------------------------------------------------- retro/eq */
 
+/* Statistiche primarie selezionabili per un bonus su questo pezzo: scudo e
+   arma sono limitati alle sole statistiche indicate per l'equipaggiamento
+   (DIF/D.MEN per gli scudi, FOR/DEX/F.MEN per le armi), l'armatura resta
+   generica su tutte le primarie. Il P.R. (statistica secondaria) NON è mai
+   un bersaglio valido per l'equipaggiamento: solo i consumabili possono
+   incrementarlo (vedi il target select in renderConsumabili). */
+function primaryBonusKeysFor(itemKind) {
+  if (itemKind === 'scudo') return SHIELD_PRIMARY_BONUS_KEYS;
+  if (itemKind === 'arma') return WEAPON_PRIMARY_BONUS_KEYS;
+  return PRIMARY_STATS.map(s => s.key);
+}
+/* Tratti selezionabili per un bonus su questo pezzo: elenco chiuso
+   (SHIELD_TRAIT_OPTIONS/WEAPON_TRAIT_OPTIONS) + "nuovo tratto
+   personalizzato" per le ipotesi non previste — solo per scudo/arma;
+   l'armatura resta a campo libero come prima (non aveva un elenco ufficiale). */
+function traitOptionsFor(itemKind) {
+  if (itemKind === 'scudo') return SHIELD_TRAIT_OPTIONS;
+  if (itemKind === 'arma') return WEAPON_TRAIT_OPTIONS;
+  return null;
+}
 /* Una riga di bonus meccanico su un pezzo di equipaggiamento: tipo (statistica
-   primaria/secondaria o tratto) + bersaglio + valore. Per i tratti il nome è
-   un campo libero (come i tratti personalizzati in scheda): se non combacia
-   con nessun tratto già presente, ne viene creato uno nuovo con base 0 non
-   appena il bonus viene aggiunto — è il bonus stesso a dargli un valore. */
-function equipBonusRowHtml(b, i, bi) {
+   primaria o tratto — niente terziarie: Stile/Fortuna/Carisma non sono tra
+   quelle su cui il manuale fa incidere scudi/armi) + bersaglio + valore. Per
+   i tratti di scudo/arma il nome è un elenco chiuso più "personalizzato";
+   per l'armatura resta un campo libero come già in uso, non essendoci un
+   elenco ufficiale per quel pezzo. */
+function equipBonusRowHtml(b, i, bi, itemKind) {
   const kind = b.kind || 'primary';
-  const primaryOpts = PRIMARY_STATS.map(s => `<option value="${s.key}" ${kind === 'primary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
+  const primaryKeys = primaryBonusKeysFor(itemKind);
+  const primaryOpts = PRIMARY_STATS.filter(s => primaryKeys.includes(s.key))
+    .map(s => `<option value="${s.key}" ${kind === 'primary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
   const tertiaryOpts = TERTIARY_STATS.map(s => `<option value="${s.key}" ${kind === 'tertiary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
   const listOpts = Object.keys(TRAIT_LISTS).map(lk => `<option value="${lk}" ${kind === 'trait' && b.listKey === lk ? 'selected' : ''}>${TRAIT_LIST_LABELS[lk]}</option>`).join('');
+  const traitOptions = traitOptionsFor(itemKind);
+  // tratti già scritti da un altro personaggio di questa storia, per un
+  // bonus di scudo/arma: pescabili come i nomi ufficiali, non serve
+  // riscriverli — fuori da una campagna knownExtra resta sempre vuoto
+  const activeCharForTraits = (itemKind === 'scudo' || itemKind === 'arma') ? getActive() : null;
+  const knownExtra = (traitOptions && activeCharForTraits && activeCharForTraits.cloudCampaignId)
+    ? cachedCampaignKnownTraits(activeCharForTraits.cloudCampaignId).capacitaCombattive.filter(n => n && !traitOptions.includes(n))
+    : [];
+  const isCustomTrait = !traitOptions || (!traitOptions.includes(b.name) && !knownExtra.includes(b.name));
+  // scudo/arma: la categoria è sempre "Capacità Combattive" (unica su cui il
+  // manuale li fa incidere), niente selettore libero come per l'armatura
+  const traitField = traitOptions
+    ? `<select data-bonustraitpreset="${i}::${bi}">
+        ${traitOptions.map(n => `<option value="${n}" ${!isCustomTrait && b.name === n ? 'selected' : ''}>${n}</option>`).join('')}
+        ${knownExtra.length ? `<optgroup label="Già usati in questa storia">${knownExtra.map(n => `<option value="${escapeHtml(n)}" ${!isCustomTrait && b.name === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}</optgroup>` : ''}
+        <option value="__custom__" ${isCustomTrait ? 'selected' : ''}>Nuovo tratto personalizzato…</option>
+      </select>
+      <input type="text" data-bonusname="${i}::${bi}" value="${escapeHtml(b.name || '')}" placeholder="Nome tratto" maxlength="40" class="${isCustomTrait ? '' : 'hidden'}">`
+    : `<select data-bonuslistkey="${i}::${bi}">${listOpts}</select>
+      <input type="text" data-bonusname="${i}::${bi}" value="${escapeHtml(b.name || '')}" placeholder="Nome tratto" maxlength="40">`;
+  // niente "statistica terziaria" (Stile/Fortuna/Carisma) su scudo/arma: non
+  // è tra le statistiche su cui il manuale li fa incidere — resta solo per
+  // l'armatura (comportamento generico preesistente, invariato)
+  const kindOpts = (itemKind === 'scudo' || itemKind === 'arma')
+    ? `<option value="primary" ${kind === 'primary' ? 'selected' : ''}>Statistica primaria</option>
+       <option value="trait" ${kind === 'trait' ? 'selected' : ''}>Tratto</option>`
+    : `<option value="primary" ${kind === 'primary' ? 'selected' : ''}>Statistica primaria</option>
+       <option value="tertiary" ${kind === 'tertiary' ? 'selected' : ''}>Statistica terziaria</option>
+       <option value="trait" ${kind === 'trait' ? 'selected' : ''}>Tratto</option>`;
   return `<div class="equip-bonus-row">
-    <select data-bonuskind="${i}::${bi}">
-      <option value="primary" ${kind === 'primary' ? 'selected' : ''}>Statistica primaria</option>
-      <option value="tertiary" ${kind === 'tertiary' ? 'selected' : ''}>Statistica secondaria</option>
-      <option value="trait" ${kind === 'trait' ? 'selected' : ''}>Tratto</option>
-    </select>
+    <select data-bonuskind="${i}::${bi}">${kindOpts}</select>
     <select data-bonuskey="${i}::${bi}" class="${kind === 'primary' ? '' : 'hidden'}">${primaryOpts}</select>
     <select data-bonuskeytert="${i}::${bi}" class="${kind === 'tertiary' ? '' : 'hidden'}">${tertiaryOpts}</select>
     <span class="equip-bonus-trait ${kind === 'trait' ? '' : 'hidden'}">
-      <select data-bonuslistkey="${i}::${bi}">${listOpts}</select>
-      <input type="text" data-bonusname="${i}::${bi}" value="${escapeHtml(b.name || '')}" placeholder="Nome tratto" maxlength="40">
+      ${traitField}
     </span>
     <input type="number" data-bonusvalore="${i}::${bi}" value="${Number(b.valore) || 1}" min="1" max="50" style="width:56px;">
     <button type="button" class="btn btn-icon btn-sm btn-ghost" data-delequipbonus="${i}::${bi}" title="Rimuovi bonus">✕</button>
@@ -1477,8 +1636,10 @@ function equipBonusRowHtml(b, i, bi) {
 }
 /* Card di equip condivisa da retro (solo armature) e fronte (scudo/armi):
    il tipo è fisso per contesto/indice, restano da scegliere solo taglia e
-   qualità — Atk/Dif/Durabilità diventano cursori nel range ufficiale */
-function equipCardHtml(s, i, namePlaceholder) {
+   qualità — Atk/Dif/Durabilità diventano cursori nel range ufficiale.
+   Solo scudi/armi (removable=true) hanno il toggle equipaggiato/inventario,
+   il pulsante di rimozione e, per le armi, classe e caratteristiche usate. */
+function equipCardHtml(s, i, namePlaceholder, removable) {
   const typeInfo = EQUIP_TYPES.find(t => t.key === s.kind);
   const sizes = typeInfo ? typeInfo.sizes : [];
   const range = equipRange(s.kind, s.size, s.quality);
@@ -1499,34 +1660,125 @@ function equipCardHtml(s, i, namePlaceholder) {
       <span class="sf-val">${r ? val : '—'}</span>
     </div>`;
   };
+  const equipped = s.equipaggiato !== false;
+  const equipToggle = removable ? `
+    <div class="slot-equip-toggle">
+      <button type="button" class="btn btn-sm ${equipped ? 'btn-primary' : 'btn-ghost'}" data-slotequip="${i}" title="${equipped ? 'Equipaggiato: tocca per spostare in Inventario' : 'In Inventario: tocca per equipaggiare'}">
+        ${equipped ? '✓ Equipaggiato' : '🎒 In Inventario'}
+      </button>
+      <button type="button" class="btn btn-icon btn-sm btn-ghost" data-slotremove="${i}" title="Rimuovi definitivamente">🗑</button>
+    </div>` : '';
+  const weaponExtras = (removable && s.kind === 'arma') ? `
+    ${pickerRow('Tipologia', WEAPON_CLASSES, s.weaponClass || 'bianca', 'slotweaponclass')}
+    <div class="slot-picker">
+      <span class="sp-label">Agisce con (per il calcolo di Attacca)</span>
+      <div class="sp-row weapon-stat-flags">
+        <label class="chk-inline"><input type="checkbox" data-slotusa="${i}::usaFor" ${s.usaFor ? 'checked' : ''}> FOR</label>
+        <label class="chk-inline"><input type="checkbox" data-slotusa="${i}::usaDex" ${s.usaDex ? 'checked' : ''}> DEX</label>
+        <label class="chk-inline"><input type="checkbox" data-slotusa="${i}::usaFmen" ${s.usaFmen ? 'checked' : ''}> F.MEN (Danno magico)</label>
+      </div>
+    </div>` : '';
   return `
-    <div class="slot-card" data-slotidx="${i}">
+    <div class="slot-card${removable && !equipped ? ' slot-card-inventory' : ''}" data-slotidx="${i}">
+      ${equipToggle}
       <input type="text" class="slot-name" value="${escapeHtml(s.name)}" data-slotname="${i}" placeholder="${namePlaceholder}">
       ${sizes.length ? pickerRow('Taglia', sizes, s.size, 'slotsize') : ''}
       ${pickerRow('Qualità', EQUIP_QUALITIES, s.quality, 'slotquality')}
+      ${weaponExtras}
       <div class="slot-fields">
         ${rangeField('Atk', 'atk')}
         ${rangeField('Dif', 'dif')}
         ${rangeField('Durabilità', 'dur')}
       </div>
+      ${removable ? `<div class="field" style="max-width:120px;">
+        <label>Peso (Kg) — conta nello Zaino se non equipaggiato</label>
+        <input type="number" min="0" step="0.5" value="${Number(s.peso) || 0}" data-slotfield="peso" data-idx="${i}">
+      </div>` : ''}
       <div class="field slot-bonus">
         <label>Note (testo libero)</label>
         <input type="text" value="${escapeHtml(s.bonus || '')}" data-slotfield="bonus" data-idx="${i}" placeholder="es. incisa con rune, appartenuta al nonno...">
       </div>
       <div class="slot-picker equip-bonuses">
-        <span class="sp-label">Bonus meccanici (aumentano davvero statistiche/tratti)</span>
-        ${(s.bonuses || []).map((b, bi) => equipBonusRowHtml(b, i, bi)).join('')}
+        <span class="sp-label">Bonus meccanici (aumentano davvero statistiche/tratti)${removable ? ' — attivi solo se equipaggiato' : ''}</span>
+        ${(s.bonuses || []).map((b, bi) => equipBonusRowHtml(b, i, bi, s.kind)).join('')}
         <button type="button" class="btn btn-ghost btn-sm" data-addequipbonus="${i}" style="align-self:flex-start;">+ Aggiungi bonus</button>
       </div>
     </div>`;
 }
 function renderSlots(c) {
-  $('#slot-grid').innerHTML = c.slots.map((s, i) => equipCardHtml(s, i, 'Locazione')).join('');
+  $('#slot-grid').innerHTML = c.slots.map((s, i) => equipCardHtml(s, i, 'Locazione', false)).join('');
 }
 function renderWeaponSlots(c) {
-  $('#weapon-grid').innerHTML = c.weaponSlots.map((s, i) =>
-    equipCardHtml(s, i, s.kind === 'scudo' ? 'Nome scudo' : 'Nome arma')).join('');
+  // stessa cache di tratti condivisi usata dalla scheda Tratti: una sola
+  // rilettura per campagna, non a ogni riga di bonus
+  if (c.cloudCampaignId && !campaignTraitsCache[c.cloudCampaignId]) {
+    fetchCampaignKnownTraits(c.cloudCampaignId).then(() => { if (getActive() === c) renderWeaponSlots(c); });
+  }
+  const cards = c.weaponSlots.map((s, i) =>
+    equipCardHtml(s, i, s.kind === 'scudo' ? 'Nome scudo' : 'Nome arma', true));
+  // equipaggiati prima, poi inventario: rispecchia lo spostamento richiesto
+  // quando un'arma/scudo viene disequipaggiato, senza perdere l'indice reale
+  // (data-slotidx resta quello vero in c.weaponSlots, gli event handler non
+  // dipendono dall'ordine visivo)
+  const order = c.weaponSlots
+    .map((s, i) => ({ i, equipped: s.equipaggiato !== false }))
+    .sort((a, b) => (a.equipped === b.equipped) ? (a.i - b.i) : (a.equipped ? -1 : 1))
+    .map(x => x.i);
+  $('#weapon-grid').innerHTML = order.map(i => cards[i]).join('');
+  renderBlockSection(c);
+  renderAttackWeaponList(c);
+  // il peso delle armi/scudi conta nello Zaino solo quando non equipaggiati:
+  // ogni cambio qui (equip/inventario, peso) deve tenere aggiornato il totale
+  renderZainoSummary(c);
 }
+
+/* ------------------------------------------------------- Bloccare/Attacca */
+
+function equippedShields(c) { return (c.weaponSlots || []).filter(s => s.kind === 'scudo' && s.equipaggiato !== false); }
+function equippedWeapons(c) { return (c.weaponSlots || []).filter(s => s.kind === 'arma' && s.equipaggiato !== false); }
+
+/* Tiro "puro" di una statistica primaria: il dado dipende dal suo valore
+   BASE (senza i bonus da equipaggiamento/consumabile, come da regola per
+   Bloccare e Attacca) e il risultato si somma a quello stesso valore base —
+   stessa convenzione già in uso per il Tiro statistica generico. */
+function rollPureStatTotal(c, key) {
+  const pure = Number(c.primary[key]) || 0;
+  const label = diceForValue(pure);
+  if (label === 'd12+d8') {
+    const a = rollDie(12), b = rollDie(8);
+    return { total: a + b + pure, detail: `d12+d8 ${a}+${b} +${pure}` };
+  }
+  const sides = Number(label.slice(1));
+  const r = rollDie(sides);
+  return { total: r + pure, detail: `${label} ${r} +${pure}` };
+}
+
+function renderBlockSection(c) {
+  const note = $('#block-no-shield-note');
+  const btn = $('#block-roll-btn');
+  if (!note || !btn) return;
+  const has = equippedShields(c).length > 0;
+  note.classList.toggle('hidden', has);
+  btn.disabled = !has;
+}
+
+function renderAttackWeaponList(c) {
+  const wrap = $('#attack-weapon-list');
+  const note = $('#attack-no-weapon-note');
+  if (!wrap || !note) return;
+  const weapons = equippedWeapons(c);
+  note.classList.toggle('hidden', weapons.length > 0);
+  wrap.innerHTML = weapons.map(w => {
+    const realIdx = c.weaponSlots.indexOf(w);
+    const used = [w.usaFor ? 'FOR' : null, w.usaDex ? 'DEX' : null, w.usaFmen ? 'F.MEN' : null].filter(Boolean).join(' + ') || '—';
+    const classLabel = (WEAPON_CLASSES.find(wc => wc.key === w.weaponClass) || WEAPON_CLASSES[0]).label;
+    return `<label class="chk-inline attack-weapon-row">
+      <input type="checkbox" data-attackweapon="${realIdx}">
+      <span>${escapeHtml(w.name || 'Arma')} — <span class="chip">${classLabel}</span> <span class="chip">Atk ${Number(w.atk) || 0}</span> <span class="chip">${used}</span></span>
+    </label>`;
+  }).join('');
+}
+
 function editTableRows(id, rows, dataAttr, fields, cellRenderers) {
   if (!rows.length) {
     $(id).innerHTML = `<tr><td colspan="${fields.length}" class="helper-text" style="padding:10px 8px;">Nessuna sbloccata a questo livello.</td></tr>`;
@@ -1688,12 +1940,53 @@ function populateBoostActivateSelect(c) {
     : '<option value="">Nessun boost appreso</option>';
   if (prevVal && sel.querySelector(`option[value="${cssEscapeAttr(prevVal)}"]`)) sel.value = prevVal;
 }
+/* Peso corporeo del personaggio: letto dal campo libero di background
+   (Aspetto > Peso). Se non contiene un numero, conta 0 (la Regola del Peso
+   resta comunque indicativa, a discrezione del Narratore). */
+function pesoCorporeoOf(c) {
+  const n = parseFloat(String((c.bg && c.bg.peso) || '').replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+/* Peso trasportabile nello Zaino (Regola del Peso, manuale): Forza effettiva
+   (bonus attivi inclusi) + peso corporeo, /2 — restituisce anche le due
+   componenti per poterle mostrare nella formula (vedi renderZainoSummary). */
+function zainoPesoComponents(c) {
+  const forza = (Number(c.primary.for) || 0) + buffTotal(c, 'for');
+  const peso = pesoCorporeoOf(c);
+  return { forza, peso, max: pesoTrasportabile(forza, peso) };
+}
+function zainoPesoMax(c) { return zainoPesoComponents(c).max; }
+/* Peso occupato: oggetti normali + armi/scudi NON equipaggiati. Ciò che è
+   indossato/impugnato non pesa sullo Zaino, solo ciò che sta riposto. */
+function zainoPesoUsato(c) {
+  const oggetti = (c.inventario || []).reduce((s, r) => s + (Number(r.peso) || 0), 0);
+  const armiScudi = (c.weaponSlots || []).filter(s => s.equipaggiato === false)
+    .reduce((s, sl) => s + (Number(sl.peso) || 0), 0);
+  return oggetti + armiScudi;
+}
+function renderZainoSummary(c) {
+  const el = $('#zaino-peso-summary');
+  if (!el) return;
+  const usato = zainoPesoUsato(c);
+  const { forza, peso, max } = zainoPesoComponents(c);
+  el.textContent = `${usato} / (${forza} Forza + ${peso} Peso) ÷ 2 = ${max} Kg`;
+  el.className = 'remaining' + (usato > max ? ' neg' : '');
+  const inZaino = (c.weaponSlots || []).filter(s => s.equipaggiato === false);
+  const listEl = $('#zaino-armi-list');
+  if (listEl) {
+    listEl.innerHTML = inZaino.length
+      ? inZaino.map(s => `<div class="row-between"><span>${escapeHtml(s.name || (s.kind === 'scudo' ? 'Scudo' : 'Arma'))} <span class="chip">${s.kind === 'scudo' ? 'Scudo' : 'Arma'}</span></span><span class="num">${Number(s.peso) || 0} Kg</span></div>`).join('')
+      : `<p class="helper-text" style="margin:0;">Nessuna arma o scudo in Inventario: sono tutti equipaggiati.</p>`;
+  }
+}
 function renderInventario(c) {
   $('#inventario-table').innerHTML = c.inventario.map((r, i) => `
     <tr>
       <td><input type="text" value="${escapeHtml(r.nome)}" data-inv="nome" data-idx="${i}" placeholder="Oggetto"></td>
+      <td><input type="number" min="0" step="0.5" value="${Number(r.peso) || 0}" data-inv="peso" data-idx="${i}"></td>
       <td><input type="text" value="${escapeHtml(r.note)}" data-inv="note" data-idx="${i}" placeholder="Note"></td>
-    </tr>`).join('') || `<tr><td colspan="2" class="helper-text">Nessun oggetto.</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="3" class="helper-text">Nessun oggetto.</td></tr>`;
+  renderZainoSummary(c);
 }
 
 /* ------------------------------------------------------- consumo oggetti */
@@ -1704,7 +1997,7 @@ function renderConsumabili(c) {
     const targetCell = isIncrement
       ? `<select data-cons="target" data-idx="${i}">
           <option value="">— scegli —</option>
-          ${PRIMARY_STATS.map(s => `<option value="${s.key}" ${r.target === s.key ? 'selected' : ''}>${s.label}</option>`).join('')}
+          ${[...PRIMARY_STATS, ...SECONDARY_STATS].map(s => `<option value="${s.key}" ${r.target === s.key ? 'selected' : ''}>${s.label}</option>`).join('')}
         </select>`
       : '<span class="helper-text" style="margin:0;">—</span>';
     return `<tr>
@@ -1781,21 +2074,49 @@ function renderNote(c) {
   $$('[data-bg]').forEach(el => { el.value = c.bg[el.dataset.bg] || ''; });
   $('#n-libere').value = c.note.libere;
   renderRelazioni(c);
+  renderBgLockUI(c);
+}
+/* Ogni sezione del Background è sola lettura finché non si preme
+   "Modifica" (nessuna conferma richiesta per sbloccarla) e torna bloccata
+   solo dopo conferma esplicita su "Conferma e blocca" — vedi il modale
+   #bg-lock-confirm. I campi restano sempre interamente leggibili: niente
+   scorrimento interno, l'altezza della textarea segue il contenuto. */
+function renderBgLockUI(c) {
+  if (!c.bgLocked) c.bgLocked = defaultBgLocked();
+  BG_SECTIONS.forEach(key => {
+    const locked = c.bgLocked[key] !== false;
+    const body = document.querySelector(`[data-bgbody="${key}"]`);
+    if (body) {
+      body.querySelectorAll('textarea, input[type="text"]').forEach(el => {
+        el.readOnly = locked;
+        if (el.tagName === 'TEXTAREA') autoResizeTextarea(el);
+      });
+    }
+    const editBtn = document.querySelector(`[data-bgedit="${key}"]`);
+    const lockBtn = document.querySelector(`[data-bglock="${key}"]`);
+    if (editBtn) editBtn.classList.toggle('hidden', !locked);
+    if (lockBtn) lockBtn.classList.toggle('hidden', locked);
+  });
 }
 /* Relazioni: N schede libere (familiari, amici, colleghi...), ciascuna con
    Nome, Relazione (che rapporto lega l'NPC al personaggio) e Descrizione. */
 function renderRelazioni(c) {
   const wrap = $('#relazioni-list');
+  const locked = !c.bgLocked || c.bgLocked.relazioni !== false;
+  const ro = locked ? 'readonly' : '';
   wrap.innerHTML = (c.relazioni || []).map((r, i) => `
     <div class="box relazione-card"><div class="box-bar"></div><div class="box-pad">
       <div class="field-row">
-        <div class="field"><label>Nome</label><input type="text" value="${escapeHtml(r.nome)}" data-relazione="nome" data-idx="${i}" placeholder="Nome dell'NPC"></div>
-        <div class="field"><label>Relazione</label><input type="text" value="${escapeHtml(r.relazione)}" data-relazione="relazione" data-idx="${i}" placeholder="Es. Fratello, Amico, Collega..."></div>
+        <div class="field"><label>Nome</label><input type="text" ${ro} value="${escapeHtml(r.nome)}" data-relazione="nome" data-idx="${i}" placeholder="Nome dell'NPC"></div>
+        <div class="field"><label>Relazione</label><input type="text" ${ro} value="${escapeHtml(r.relazione)}" data-relazione="relazione" data-idx="${i}" placeholder="Es. Fratello, Amico, Collega..."></div>
       </div>
-      <div class="field" style="margin-top:8px;"><label>Descrizione</label><textarea data-relazione="descrizione" data-idx="${i}" placeholder="Che rapporto lega il personaggio a questo NPC">${escapeHtml(r.descrizione)}</textarea></div>
-      <button class="btn btn-ghost btn-sm" data-del-relazione="${i}" style="align-self:flex-start;margin-top:8px;">✕ Rimuovi relazione</button>
+      <div class="field" style="margin-top:8px;"><label>Descrizione</label><textarea ${ro} data-relazione="descrizione" data-idx="${i}" placeholder="Che rapporto lega il personaggio a questo NPC">${escapeHtml(r.descrizione)}</textarea></div>
+      <button class="btn btn-ghost btn-sm" data-del-relazione="${i}" style="align-self:flex-start;margin-top:8px;" ${locked ? 'disabled' : ''}>✕ Rimuovi relazione</button>
     </div></div>`).join('')
     || `<p class="helper-text" style="margin:0;">Nessuna relazione ancora — aggiungine una qui sotto.</p>`;
+  wrap.querySelectorAll('textarea[data-relazione]').forEach(autoResizeTextarea);
+  const addBtn = $('#relazioni-add');
+  if (addBtn) addBtn.disabled = locked;
 }
 
 function renderPortrait(c) {
@@ -1925,8 +2246,13 @@ function renderSheet() {
   updateEntryLockUI(c);
   $('#f-bellezza-manuale').value = c.bellezzaManuale !== null ? c.bellezzaManuale : '';
   $('#bellezza-result').textContent = c.bellezzaTirata !== null ? c.bellezzaTirata : '—';
-  renderPrimaryStats(c);
+  // updateDerived calcola hpMaxTracked/mpMaxTracked/prMaxTracked (se ancora
+  // null, li inizializza dal moltiplicatore/build): va eseguito PRIMA di
+  // renderPrimaryStats, che li legge per mostrare i valori "cresciuti"
+  // (HP/MP dal Lv2, P.R. sempre) — altrimenti il primo render di una
+  // scheda nuova li mostrerebbe a 0 finché non scatta un secondo render.
   updateDerived(c);
+  renderPrimaryStats(c);
   resetRiposoPanel();
   renderDiagram(c);
   renderQi(c);
@@ -2548,8 +2874,10 @@ function wireStaticEvents() {
     touchActive();
   });
 
-  // ---- primarie: point buy (delegation) ----
-  $('#primary-stats').addEventListener('click', e => {
+  // ---- primarie + secondaria (P.R.): point buy (delegation, stessi
+  // handler su entrambi i contenitori — sono due box separate solo perché
+  // il P.R. non è una primaria, ma condivide identica meccanica di stepper) ----
+  function handlePstatClick(e) {
     const btn = e.target.closest('[data-pstat]');
     if (!btn) return;
     const c = getActive(); if (!c) return;
@@ -2563,12 +2891,13 @@ function wireStaticEvents() {
     if (next < floor) { toast(`Valore minimo raggiunto (${floor})`); return; }
     const applied = changePrimary(c, key, next);
     if (applied === null) return; // AP insufficienti (toast già mostrato da changePrimary)
-    $(`#primary-stats input[data-pstat-input="${key}"]`).value = applied;
+    $(`[data-pstat-input="${key}"]`).value = applied;
     updatePrimaryRemaining(c);
     updateDerived(c);
+    if (key === 'for') renderZainoSummary(c); // la FOR entra nella Regola del Peso
     touchActive();
-  });
-  $('#primary-stats').addEventListener('input', e => {
+  }
+  function handlePstatInput(e) {
     const input = e.target.closest('[data-pstat-input]');
     if (!input) return;
     const c = getActive(); if (!c) return;
@@ -2580,8 +2909,13 @@ function wireStaticEvents() {
     if (applied === null) { input.value = grown ? (Number(c[trackedKey]) || 0) : c.primary[key]; return; } // AP insufficienti
     updatePrimaryRemaining(c);
     updateDerived(c);
+    if (key === 'for') renderZainoSummary(c);
     touchActive();
-  });
+  }
+  $('#primary-stats').addEventListener('click', handlePstatClick);
+  $('#primary-stats').addEventListener('input', handlePstatInput);
+  $('#secondary-stats').addEventListener('click', handlePstatClick);
+  $('#secondary-stats').addEventListener('input', handlePstatInput);
   $('#btn-sync-derived').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
     if (!c.primaryConfirmed) {
@@ -2687,11 +3021,27 @@ function wireStaticEvents() {
     const list = sel.dataset.addtraitsel;
     if (sel.value === '__custom__') {
       c.customTraits[list].push({ name: '', value: 0 });
+    } else if (sel.value.startsWith('known::')) {
+      // già scritto da un altro personaggio di questa storia: si aggiunge
+      // subito con quel nome, non serve ridigitarlo
+      const name = sel.value.slice('known::'.length);
+      if (!c.customTraits[list].some(t => t.name === name)) c.customTraits[list].push({ name, value: 0 });
     } else if (!(c.shownTraits[list] || []).includes(sel.value)) {
       c.shownTraits[list].push(sel.value);
     }
     renderTraits(c);
     touchActive();
+  });
+  // condivide il nome di un tratto personalizzato con la campagna (se il
+  // personaggio ne è membro) solo a modifica finita (blur), non a ogni
+  // tasto — fuori da una campagna non fa nulla, il campo resta locale
+  $('#trait-lists').addEventListener('change', e => {
+    const nameInput = e.target.closest('[data-customname]');
+    if (!nameInput) return;
+    const c = getActive(); if (!c) return;
+    if (c.cloudCampaignId && nameInput.value.trim()) {
+      addCampaignKnownTrait(c.cloudCampaignId, nameInput.dataset.customname, nameInput.value.trim());
+    }
   });
   $('#trait-lists').addEventListener('input', e => {
     const c = getActive(); if (!c) return;
@@ -2850,6 +3200,84 @@ function wireStaticEvents() {
   wireEquipGrid('#slot-grid', c => c.slots, renderSlots);
   wireEquipGrid('#weapon-grid', c => c.weaponSlots, renderWeaponSlots);
 
+  $('#btn-add-weapon').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const n = c.weaponSlots.filter(s => s.kind === 'arma').length + 1;
+    const w = makeWeaponSlot('arma'); w.name = `Arma ${n}`;
+    c.weaponSlots.push(w);
+    renderWeaponSlots(c);
+    touchActive();
+  });
+  $('#btn-add-shield').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const n = c.weaponSlots.filter(s => s.kind === 'scudo').length + 1;
+    const s = makeWeaponSlot('scudo'); s.name = n > 1 ? `Scudo ${n}` : 'Scudo';
+    c.weaponSlots.push(s);
+    renderWeaponSlots(c);
+    touchActive();
+  });
+
+  // ---- Bloccare: Dif scudo + Dif personaggio (bonus inclusi) + tiro Dif puro ----
+  $('#block-roll-btn').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const shields = equippedShields(c);
+    if (!shields.length) { toast('Nessuno scudo equipaggiato'); return; }
+    const shieldDif = shields.reduce((s, sh) => s + (Number(sh.dif) || 0), 0);
+    const charDif = (Number(c.primary.dif) || 0) + buffTotal(c, 'dif');
+    const roll = rollPureStatTotal(c, 'dif');
+    const total = shieldDif + charDif + roll.total;
+    $('#block-roll-result').textContent = total;
+    $('#block-roll-detail').textContent = `Scudo Dif +${shieldDif} · Dif personaggio +${charDif} · tiro Dif puro ${roll.detail}`;
+  });
+
+  // ---- Attacca: al massimo 2 armi equipaggiate, stessa Tipologia; la
+  // seconda vale metà danno; Danno Fisico (FOR/DEX) e Danno Magico (F.MEN)
+  // restano due totali distinti ----
+  $('#attack-weapon-list').addEventListener('change', e => {
+    const box = e.target.closest('[data-attackweapon]');
+    if (!box) return;
+    const checked = $$('#attack-weapon-list [data-attackweapon]:checked');
+    if (checked.length > 2) {
+      box.checked = false;
+      toast('Puoi usare al massimo 2 armi nello stesso attacco');
+      return;
+    }
+    if (checked.length === 2) {
+      const c = getActive(); if (!c) return;
+      const [a, b] = checked.map(inp => c.weaponSlots[Number(inp.dataset.attackweapon)]);
+      if (a && b && a.weaponClass !== b.weaponClass) {
+        box.checked = false;
+        toast('Arma bianca e arma da tiro non si possono usare insieme');
+      }
+    }
+  });
+  $('#attack-roll-btn').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const checked = $$('#attack-weapon-list [data-attackweapon]:checked')
+      .map(inp => c.weaponSlots[Number(inp.dataset.attackweapon)]).filter(Boolean);
+    if (!checked.length) { toast('Scegli almeno un\'arma equipaggiata'); return; }
+    if (checked.length > 2) { toast('Puoi usare al massimo 2 armi nello stesso attacco'); return; }
+    if (checked.length === 2 && checked[0].weaponClass !== checked[1].weaponClass) {
+      toast('Arma bianca e arma da tiro non si possono usare insieme'); return;
+    }
+    const main = checked[0], second = checked[1];
+    const detail = [`Arma principale "${main.name || 'Arma'}" Atk +${Number(main.atk) || 0}`];
+    let physTotal = Number(main.atk) || 0;
+    if (second) {
+      const half = Math.floor((Number(second.atk) || 0) / 2);
+      physTotal += half;
+      detail.push(`Arma secondaria "${second.name || 'Arma'}" Atk ${Number(second.atk) || 0}/2 = +${half}`);
+    }
+    const usaFor = checked.some(w => w.usaFor), usaDex = checked.some(w => w.usaDex), usaFmen = checked.some(w => w.usaFmen);
+    if (usaFor) { const r = rollPureStatTotal(c, 'for'); physTotal += r.total; detail.push(`FOR puro: ${r.detail}`); }
+    if (usaDex) { const r = rollPureStatTotal(c, 'dex'); physTotal += r.total; detail.push(`DEX puro: ${r.detail}`); }
+    let magicTotal = 0;
+    if (usaFmen) { const r = rollPureStatTotal(c, 'fmen'); magicTotal += r.total; detail.push(`F.MEN puro (Danno magico): ${r.detail}`); }
+    $('#attack-phys-result').textContent = physTotal;
+    $('#attack-magic-result').textContent = usaFmen ? magicTotal : '—';
+    $('#attack-roll-detail').innerHTML = detail.join('<br>');
+  });
+
   // ---- scelta Eclettico ai Lv 8/16 (2 Tec / 2 Ab / 1+1) ----
   $('#tecab-choice-box').addEventListener('change', e => {
     const sel = e.target.closest('[data-tecabchoice]');
@@ -2928,7 +3356,7 @@ function wireStaticEvents() {
   // ---- inventario ----
   $('#inv-add').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
-    c.inventario.push({ nome: '', note: '' });
+    c.inventario.push({ nome: '', note: '', peso: 0 });
     renderInventario(c);
     touchActive();
   });
@@ -2937,7 +3365,8 @@ function wireStaticEvents() {
     if (!input) return;
     const c = getActive(); if (!c) return;
     const idx = Number(input.dataset.idx), field = input.dataset.inv;
-    c.inventario[idx][field] = input.value;
+    c.inventario[idx][field] = field === 'peso' ? (Number(input.value) || 0) : input.value;
+    if (field === 'peso') renderZainoSummary(c);
     touchActive();
   });
 
@@ -2954,6 +3383,7 @@ function wireStaticEvents() {
     const c = getActive(); if (!c) return;
     const idx = Number(input.dataset.idx), field = input.dataset.relazione;
     c.relazioni[idx][field] = input.value;
+    if (input.tagName === 'TEXTAREA') autoResizeTextarea(input);
     touchActive();
   });
   $('#relazioni-list').addEventListener('click', e => {
@@ -3091,6 +3521,8 @@ function wireStaticEvents() {
     if (!el) return;
     const c = getActive(); if (!c) return;
     c.bg[el.dataset.bg] = el.value;
+    if (el.dataset.bg === 'peso') renderZainoSummary(c); // entra nella Regola del Peso dello Zaino
+    if (el.tagName === 'TEXTAREA') autoResizeTextarea(el);
     touchActive();
   });
   $('#n-libere').addEventListener('input', () => {
@@ -3099,6 +3531,52 @@ function wireStaticEvents() {
     touchActive();
   });
 
+  // ---- Background: un contenitore alla volta (scelto dal menu #bg-nav-select), modifica, blocca ----
+  let pendingBgLockSection = null;
+  $('#bg-nav-select').addEventListener('change', e => {
+    const key = e.target.value;
+    document.querySelectorAll('[data-bgsection]').forEach(section => {
+      const active = section.dataset.bgsection === key;
+      section.classList.toggle('hidden', !active);
+      // era display:none finché non selezionato: scrollHeight non era
+      // misurabile, va ricalcolato solo ora che il contenitore si mostra
+      if (active) section.querySelectorAll('textarea').forEach(autoResizeTextarea);
+    });
+  });
+  $('[data-panel="note"]').addEventListener('click', e => {
+    const editBtn = e.target.closest('[data-bgedit]');
+    const lockBtn = e.target.closest('[data-bglock]');
+    if (editBtn) {
+      // sbloccare per modificare non richiede conferma, solo il ribloccare
+      const c = getActive(); if (!c) return;
+      if (!c.bgLocked) c.bgLocked = defaultBgLocked();
+      c.bgLocked[editBtn.dataset.bgedit] = false;
+      renderBgLockUI(c);
+      renderRelazioni(c);
+      touchActive();
+      return;
+    }
+    if (lockBtn) {
+      pendingBgLockSection = lockBtn.dataset.bglock;
+      $('#bg-lock-confirm').classList.remove('hidden');
+      return;
+    }
+  });
+  $('#bg-lock-confirm-yes').addEventListener('click', () => {
+    const c = getActive();
+    $('#bg-lock-confirm').classList.add('hidden');
+    if (!c || !pendingBgLockSection) { pendingBgLockSection = null; return; }
+    if (!c.bgLocked) c.bgLocked = defaultBgLocked();
+    c.bgLocked[pendingBgLockSection] = true;
+    pendingBgLockSection = null;
+    renderBgLockUI(c);
+    renderRelazioni(c);
+    touchActive();
+  });
+  $('#bg-lock-confirm-no').addEventListener('click', () => {
+    $('#bg-lock-confirm').classList.add('hidden');
+    pendingBgLockSection = null;
+  });
   // ---- barre in gioco: danno HP, costo incantesimo MP e attivazione Boost, sommati in Uso ----
   $('#hp-dmg-apply').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
@@ -3204,6 +3682,8 @@ function refreshAfterEquipBonusChange(c) {
   renderTraits(c);
   renderDiagram(c);
   updatePlayBars(c);
+  renderBlockSection(c);
+  renderAttackWeaponList(c);
 }
 function wireEquipGrid(sel, getSlots, doRender) {
   $(sel).addEventListener('input', e => {
@@ -3222,6 +3702,9 @@ function wireEquipGrid(sel, getSlots, doRender) {
       slots[idx][field] = field === 'bonus' ? fieldInput.value : (Number(fieldInput.value) || 0);
       const out = fieldInput.parentElement.querySelector('.sf-val');
       if (out) out.textContent = slots[idx][field];
+      // il peso di un'arma/scudo non equipaggiato conta nello Zaino: tenere
+      // aggiornato il totale a ogni modifica, non solo al re-render della card
+      if (field === 'peso') renderZainoSummary(c);
       touchActive();
     } else if (bonusName) {
       // solo il nome, senza rinfrescare a ogni tasto: altrimenti si perde il
@@ -3237,23 +3720,44 @@ function wireEquipGrid(sel, getSlots, doRender) {
     }
   });
   $(sel).addEventListener('change', e => {
+    const slotUsa = e.target.closest('[data-slotusa]');
+    if (slotUsa) {
+      const c = getActive(); if (!c) return;
+      const slots = getSlots(c);
+      const [idx, field] = slotUsa.dataset.slotusa.split('::');
+      slots[Number(idx)][field] = slotUsa.checked;
+      renderAttackWeaponList(c);
+      touchActive();
+      return;
+    }
     const bonusName = e.target.closest('[data-bonusname]');
     const bonusKind = e.target.closest('[data-bonuskind]');
     const bonusKey = e.target.closest('[data-bonuskey]');
     const bonusKeyTert = e.target.closest('[data-bonuskeytert]');
     const bonusListKey = e.target.closest('[data-bonuslistkey]');
-    if (!bonusName && !bonusKind && !bonusKey && !bonusKeyTert && !bonusListKey) return;
+    const bonusTraitPreset = e.target.closest('[data-bonustraitpreset]');
+    if (!bonusName && !bonusKind && !bonusKey && !bonusKeyTert && !bonusListKey && !bonusTraitPreset) return;
     const c = getActive(); if (!c) return;
     const slots = getSlots(c);
     if (bonusKind) {
       const [idx, bi] = parseBonusCtx(bonusKind.dataset.bonuskind);
       const b = slots[idx].bonuses[bi];
+      const itemKind = slots[idx].kind;
       b.kind = bonusKind.value;
-      // riallinea il dato al primo valore mostrato dal selettore appena
-      // comparso, altrimenti resterebbe vuoto finché l'utente non lo tocca
-      if (b.kind === 'primary' && !b.key) b.key = PRIMARY_STATS[0].key;
+      // riallinea il dato al primo valore consentito per QUESTO pezzo,
+      // altrimenti resterebbe vuoto (o puntato a una statistica non
+      // ammessa per scudo/arma) finché l'utente non lo tocca
+      const allowedPrimary = primaryBonusKeysFor(itemKind);
+      if (b.kind === 'primary' && !allowedPrimary.includes(b.key)) b.key = allowedPrimary[0];
       if (b.kind === 'tertiary' && !TERTIARY_STATS.some(s => s.key === b.key)) b.key = TERTIARY_STATS[0].key;
-      if (b.kind === 'trait' && !b.listKey) b.listKey = Object.keys(TRAIT_LISTS)[0];
+      if (b.kind === 'trait') {
+        const traitOptions = traitOptionsFor(itemKind);
+        if (traitOptions) {
+          // scudo/arma: categoria sempre "Capacità Combattive", non scelta libera
+          b.listKey = 'capacitaCombattive';
+          if (!traitOptions.includes(b.name)) b.name = traitOptions[0];
+        } else if (!b.listKey) b.listKey = Object.keys(TRAIT_LISTS)[0];
+      }
       doRender(c);
     } else if (bonusKey) {
       const [idx, bi] = parseBonusCtx(bonusKey.dataset.bonuskey);
@@ -3264,9 +3768,35 @@ function wireEquipGrid(sel, getSlots, doRender) {
     } else if (bonusListKey) {
       const [idx, bi] = parseBonusCtx(bonusListKey.dataset.bonuslistkey);
       slots[idx].bonuses[bi].listKey = bonusListKey.value;
+    } else if (bonusTraitPreset) {
+      // elenco chiuso (scudo/arma): una voce suggerita -> nome+categoria
+      // impostati in automatico; "personalizzato" -> rivela categoria e
+      // nome liberi, senza toccare quanto già digitato
+      const [idx, bi] = parseBonusCtx(bonusTraitPreset.dataset.bonustraitpreset);
+      const b = slots[idx].bonuses[bi];
+      if (bonusTraitPreset.value !== '__custom__') {
+        b.name = bonusTraitPreset.value;
+        b.listKey = 'capacitaCombattive';
+      } else {
+        // svuota il nome: altrimenti, se combaciava ancora con un
+        // suggerimento, il render lo riconoscerebbe come preset e non come
+        // "personalizzato", ripristinando la tendina alla voce precedente.
+        // Questo select esiste solo per scudo/arma: la categoria resta
+        // sempre "Capacità Combattive", niente scelta libera come l'armatura.
+        b.name = '';
+        b.listKey = 'capacitaCombattive';
+      }
+      doRender(c);
     } else if (bonusName) {
       const [idx, bi] = parseBonusCtx(bonusName.dataset.bonusname);
       slots[idx].bonuses[bi].name = bonusName.value.trim();
+      // nome nuovo scritto a mano su scudo/arma: condividilo con la
+      // campagna (se il personaggio ne è membro), così altri personaggi
+      // della stessa storia lo trovano già pronto da pescare
+      const editedSlot = slots[idx];
+      if (c.cloudCampaignId && (editedSlot.kind === 'scudo' || editedSlot.kind === 'arma') && slots[idx].bonuses[bi].name) {
+        addCampaignKnownTrait(c.cloudCampaignId, 'capacitaCombattive', slots[idx].bonuses[bi].name);
+      }
     }
     // qualunque campo sia cambiato (tipo, categoria o nome), se la riga punta
     // ormai a un tratto con un nome valido va creato se ancora non c'è —
@@ -3280,13 +3810,15 @@ function wireEquipGrid(sel, getSlots, doRender) {
   $(sel).addEventListener('click', e => {
     const addBtn = e.target.closest('[data-addequipbonus]');
     const delBtn = e.target.closest('[data-delequipbonus]');
-    const btn = e.target.closest('[data-slotsize],[data-slotquality]');
+    const equipBtn = e.target.closest('[data-slotequip]');
+    const removeBtn = e.target.closest('[data-slotremove]');
+    const btn = e.target.closest('[data-slotsize],[data-slotquality],[data-slotweaponclass]');
     const c = getActive(); if (!c) return;
     const slots = getSlots(c);
     if (addBtn) {
       const idx = Number(addBtn.dataset.addequipbonus);
       if (!Array.isArray(slots[idx].bonuses)) slots[idx].bonuses = [];
-      slots[idx].bonuses.push(makeEquipBonusRow());
+      slots[idx].bonuses.push(makeEquipBonusRow(slots[idx].kind));
       doRender(c);
       touchActive();
       return;
@@ -3299,9 +3831,34 @@ function wireEquipGrid(sel, getSlots, doRender) {
       touchActive();
       return;
     }
+    if (equipBtn) {
+      const idx = Number(equipBtn.dataset.slotequip);
+      slots[idx].equipaggiato = slots[idx].equipaggiato === false ? true : false;
+      doRender(c);
+      refreshAfterEquipBonusChange(c);
+      touchActive();
+      return;
+    }
+    if (removeBtn) {
+      const idx = Number(removeBtn.dataset.slotremove);
+      slots.splice(idx, 1);
+      doRender(c);
+      refreshAfterEquipBonusChange(c);
+      touchActive();
+      return;
+    }
     if (!btn) return;
     const card = btn.closest('[data-slotidx]');
     const slot = slots[Number(card.dataset.slotidx)];
+    if (btn.hasAttribute('data-slotweaponclass')) {
+      // classe dell'arma: sempre una delle due, mai vuota (serve per la
+      // regola "bianca e da tiro non si combinano" in Attacca)
+      slot.weaponClass = btn.dataset.slotweaponclass;
+      doRender(c);
+      renderAttackWeaponList(c);
+      touchActive();
+      return;
+    }
     const val = btn.dataset.slotsize || btn.dataset.slotquality;
     if (btn.hasAttribute('data-slotsize')) {
       slot.size = slot.size === val ? '' : val;

@@ -79,21 +79,32 @@ function prossimoSblocco(lv) {
   return TECAB_CLASS_LEVELS.concat(TECAB_ALL_LEVELS).sort((a, b) => a - b).find(l => l > lv) || null;
 }
 
-// 9 caratteristiche primarie — pool 40 punti, minimo 2 ciascuna
+// 9 caratteristiche primarie — pool 40 punti, minimo 1 ciascuna (il manuale
+// è esplicito: "sono 9". Il P.R. NON è tra queste: è l'unica statistica
+// secondaria — vedi SECONDARY_STATS — fissa da classe alla creazione e mai
+// parte del pool dei 40 punti). "FRZ" invece di "FOR" per non confondersi
+// con Fortuna (statistica terziaria, tutt'altra cosa).
 const PRIMARY_STATS = [
-  { key: 'hp',   label: 'HP',    full: 'Punti Vita',           axis: 'neutral' },
-  { key: 'mp',   label: 'MP',    full: 'Punti Magia',          axis: 'neutral' },
-  { key: 'pr',   label: 'P.R.',  full: 'Punti Recupero',       axis: 'neutral' },
-  { key: 'for',  label: 'FOR',   full: 'Forza',                axis: 'physical' },
-  { key: 'mira', label: 'MIRA',  full: 'Mira',                 axis: 'physical' },
-  { key: 'vel',  label: 'VEL',   full: 'Velocità',             axis: 'physical' },
-  { key: 'fmen', label: 'F.MEN', full: 'Forza Magica/Mentale', axis: 'magic' },
-  { key: 'dex',  label: 'DEX',   full: 'Destrezza',            axis: 'physical' },
-  { key: 'dif',  label: 'DIF',   full: 'Difesa',               axis: 'physical' },
-  { key: 'dmen', label: 'D.MEN', full: 'Difesa Magica/Mentale',axis: 'magic' }
+  { key: 'hp',   label: 'HP',    full: 'Punti Vita',       axis: 'neutral' },
+  { key: 'mp',   label: 'MP',    full: 'Punti Magia',      axis: 'neutral' },
+  { key: 'for',  label: 'FRZ',   full: 'Forza',            axis: 'physical' },
+  { key: 'mira', label: 'MIRA',  full: 'Mira',             axis: 'physical' },
+  { key: 'vel',  label: 'VEL',   full: 'Velocità',         axis: 'physical' },
+  { key: 'fmen', label: 'F.MEN', full: 'Forza Magica',     axis: 'magic' },
+  { key: 'dex',  label: 'DEX',   full: 'Destrezza',        axis: 'physical' },
+  { key: 'dif',  label: 'DIF',   full: 'Difesa',           axis: 'physical' },
+  { key: 'dmen', label: 'D.MEN', full: 'Difesa Magica',    axis: 'magic' }
 ];
 const PRIMARY_POOL = 40;
-const PRIMARY_MIN = 2;
+const PRIMARY_MIN = 1;
+// L'unica statistica secondaria (manuale, "Distribuzione delle statistiche
+// secondarie: Q.I. e P.R."): fissa da classe (BUILDS[...].prIniziali) alla
+// creazione, dal Lv2 cresce con gli AP secondo le stesse regole delle
+// primarie (primaryApCostForPoint) — ma non è una di esse e non entra nel
+// pool dei 40 punti.
+const SECONDARY_STATS = [
+  { key: 'pr', label: 'P.R.', full: 'Punti Recupero', axis: 'neutral' }
+];
 
 // Statistiche terziarie — pool 5 punti, minimo -1 ciascuna
 const TERTIARY_STATS = [
@@ -189,6 +200,30 @@ function equipRange(type, size, quality) {
   const q = s && s[quality];
   return q || null;
 }
+
+// Regola del Peso (manuale, sezione Equipaggiamento): il peso trasportabile
+// (Kg) è (FOR pura + peso corporeo) / 2 — es. FOR 8 + peso 50 Kg = 29 Kg.
+// Non riguarda l'equipaggiamento indossato/impugnato, solo ciò che sta nello
+// Zaino (oggetti normali + armi/scudi non equipaggiati).
+function pesoTrasportabile(forPura, pesoCorporeo) {
+  return Math.floor(((Number(forPura) || 0) + (Number(pesoCorporeo) || 0)) / 2);
+}
+
+// Armi: due tipologie mutuamente esclusive nello stesso attacco (manuale,
+// sezione Equipaggiamento) — un'arma bianca e una da tiro non si combinano.
+const WEAPON_CLASSES = [
+  { key: 'bianca', label: 'Arma bianca' },
+  { key: 'tiro',   label: 'Arma da tiro' }
+];
+// Elenchi chiusi dei tratti su cui uno scudo o un'arma possono dare bonus
+// (oltre a un tratto nuovo, scelta "personalizzato" sempre disponibile).
+const SHIELD_TRAIT_OPTIONS = ['Bloccare', 'Deflettere', 'Spirito', 'Robustezza'];
+const WEAPON_TRAIT_OPTIONS = ['Bloccare', 'Deflettere', 'Perforare', 'Rompere', 'Tagliare'];
+// Statistiche primarie su cui uno scudo o un'arma possono dare bonus: solo
+// queste, non l'intera lista PRIMARY_STATS (FOR/DEX/F.MEN per le armi,
+// DIF/D.MEN per gli scudi — le uniche indicate per l'equipaggiamento).
+const SHIELD_PRIMARY_BONUS_KEYS = ['dif', 'dmen'];
+const WEAPON_PRIMARY_BONUS_KEYS = ['for', 'dex', 'fmen'];
 
 // Q.I. — fasce di apprendimento
 function qiLimite(qi) {

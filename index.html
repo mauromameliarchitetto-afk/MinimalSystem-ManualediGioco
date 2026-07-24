@@ -24,9 +24,6 @@
 
   <!-- ============ COPERTINA ============ -->
   <section id="view-cover" class="view">
-    <img class="cover-img" src="img/cover.jpg" alt="">
-    <div class="cover-scrim"></div>
-
     <button class="cover-menu-btn" id="btn-cover-menu" aria-label="Apri indice" aria-expanded="false" aria-controls="cover-menu">
       <span class="menu-lines"><span></span><span></span><span></span></span>
     </button>
@@ -40,6 +37,14 @@
       <button class="cm-item" data-menu-nav="charlist">I tuoi personaggi</button>
       <button class="cm-item" data-menu-nav="newchar">Crea un personaggio</button>
     </nav>
+
+    <!-- Titolo e logo a dimensione fissa (non scalano mai con l'altezza
+         della finestra): se lo spazio non basta la sezione scorre, non li
+         rimpicciolisce — stessa logica già in uso per motto e bottoni sotto. -->
+    <div class="cover-header">
+      <img class="cover-title" src="img/title.png" alt="Minimal System — Basic Rules">
+      <img class="cover-logo" src="img/logo.png" alt="">
+    </div>
 
     <div class="cover-content">
       <div class="update-banner hidden" id="update-banner">
@@ -156,71 +161,117 @@
 
       <!-- ---- BACKGROUND ---- -->
       <div class="tab-panel" data-panel="note">
-        <p class="helper-text">Il testo grigio in ogni campo è un consiglio di compilazione: sparisce appena scrivi qualcosa di tuo.</p>
+        <p class="helper-text">Il testo grigio in ogni campo è un consiglio di compilazione: sparisce appena scrivi qualcosa di tuo. Ogni argomento è un contenitore a sé: scegli quale aprire dal menu qui sotto, invece di scorrere un'unica pagina lunghissima. I campi si leggono per intero così come sono — per modificarli tocca "Modifica", poi "Conferma e blocca" quando hai finito (evita ritocchi involontari).</p>
 
-        <div class="section-title"><span class="dot neutral"></span>Dati generali</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field-row">
-            <div class="field"><label>Data di nascita</label><input type="text" data-bg="nascitaData" placeholder="Quando è nato/a"></div>
-            <div class="field"><label>Luogo di nascita</label><input type="text" data-bg="nascitaLuogo" placeholder="Dove è nato/a e com'è quel luogo"></div>
+        <div class="field"><label>Contenitore da aprire</label>
+          <select id="bg-nav-select">
+            <option value="datiAspetto">Dati generali e Aspetto</option>
+            <option value="vita">Vita</option>
+            <option value="atteggiamento">Atteggiamento</option>
+            <option value="passato">Passato</option>
+            <option value="relazioni">Relazioni</option>
+          </select>
+        </div>
+
+        <div class="bg-section" data-bgsection="datiAspetto">
+          <div class="bg-section-head">
+            <span class="dot neutral"></span><span class="bg-section-title">Dati generali e Aspetto</span>
+            <button type="button" class="btn btn-ghost btn-sm bg-edit-btn" data-bgedit="datiAspetto">✎ Modifica</button>
+            <button type="button" class="btn btn-primary btn-sm bg-lock-btn hidden" data-bglock="datiAspetto">🔒 Conferma e blocca</button>
           </div>
-          <div class="field"><label>Origini</label><input type="text" data-bg="origini" placeholder="Radici familiari, culturali o etniche"></div>
-          <div class="field"><label>Descrizione in una frase</label><input type="text" data-bg="frase" placeholder="Una frase che lo/la riassume, es. «Meglio sporcarsi le mani che restare a guardare!»"></div>
-        </div></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Aspetto</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field-row">
-            <div class="field"><label>Altezza</label><input type="text" data-bg="altezza" placeholder="es. 1,70"></div>
-            <div class="field"><label>Peso</label><input type="text" data-bg="peso" placeholder="es. 68 kg"></div>
+          <div class="bg-section-body" data-bgbody="datiAspetto">
+            <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+              <div class="field-row">
+                <div class="field"><label>Data di nascita</label><textarea rows="1" data-bg="nascitaData" placeholder="Quando è nato/a"></textarea></div>
+                <div class="field"><label>Luogo di nascita</label><textarea rows="1" data-bg="nascitaLuogo" placeholder="Dove è nato/a e com'è quel luogo"></textarea></div>
+              </div>
+              <div class="field"><label>Origini</label><textarea rows="1" data-bg="origini" placeholder="Radici familiari, culturali o etniche"></textarea></div>
+              <div class="field"><label>Descrizione in una frase</label><textarea rows="1" data-bg="frase" placeholder="Una frase che lo/la riassume, es. «Meglio sporcarsi le mani che restare a guardare!»"></textarea></div>
+              <div class="field-row">
+                <div class="field"><label>Altezza</label><textarea rows="1" data-bg="altezza" placeholder="es. 1,70"></textarea></div>
+                <div class="field"><label>Peso</label><textarea rows="1" data-bg="peso" placeholder="es. 68 kg"></textarea></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label>Colore della pelle</label><textarea rows="1" data-bg="pelle" placeholder="es. carnagione olivastra"></textarea></div>
+                <div class="field"><label>Acconciatura</label><textarea rows="1" data-bg="acconciatura" placeholder="Taglio, colore, come porta i capelli"></textarea></div>
+              </div>
+              <div class="field"><label>Colore degli occhi</label><textarea data-bg="occhi" placeholder="Colore o particolarità degli occhi (anche impianti e innesti)"></textarea></div>
+              <div class="field"><label>Segni particolari</label><textarea data-bg="segni" placeholder="Cicatrici, tatuaggi, innesti, marchi..."></textarea></div>
+              <div class="field"><label>Tipo di corporatura</label><textarea data-bg="corporatura" placeholder="Fisico e costituzione, es. muscoloso e asciutto per l'addestramento"></textarea></div>
+              <div class="field"><label>Postura</label><textarea data-bg="postura" placeholder="Come si tiene e si muove: cosa comunica il suo corpo"></textarea></div>
+              <div class="field"><label>Vestiario</label><textarea data-bg="vestiario" placeholder="Come si veste di solito: colori, capi e dettagli ricorrenti"></textarea></div>
+              <div class="field"><label>Qualcosa che porta sempre con sé</label><textarea data-bg="oggetto" placeholder="Un oggetto da cui non si separa mai, e perché conta per lui/lei"></textarea></div>
+            </div></div>
           </div>
-          <div class="field-row">
-            <div class="field"><label>Colore della pelle</label><input type="text" data-bg="pelle" placeholder="es. carnagione olivastra"></div>
-            <div class="field"><label>Acconciatura</label><input type="text" data-bg="acconciatura" placeholder="Taglio, colore, come porta i capelli"></div>
+        </div>
+
+        <div class="bg-section hidden" data-bgsection="vita">
+          <div class="bg-section-head">
+            <span class="dot neutral"></span><span class="bg-section-title">Vita</span>
+            <button type="button" class="btn btn-ghost btn-sm bg-edit-btn" data-bgedit="vita">✎ Modifica</button>
+            <button type="button" class="btn btn-primary btn-sm bg-lock-btn hidden" data-bglock="vita">🔒 Conferma e blocca</button>
           </div>
-          <div class="field"><label>Colore degli occhi</label><textarea data-bg="occhi" placeholder="Colore o particolarità degli occhi (anche impianti e innesti)"></textarea></div>
-          <div class="field"><label>Segni particolari</label><textarea data-bg="segni" placeholder="Cicatrici, tatuaggi, innesti, marchi..."></textarea></div>
-          <div class="field"><label>Tipo di corporatura</label><textarea data-bg="corporatura" placeholder="Fisico e costituzione, es. muscoloso e asciutto per l'addestramento"></textarea></div>
-          <div class="field"><label>Postura</label><textarea data-bg="postura" placeholder="Come si tiene e si muove: cosa comunica il suo corpo"></textarea></div>
-          <div class="field"><label>Vestiario</label><textarea data-bg="vestiario" placeholder="Come si veste di solito: colori, capi e dettagli ricorrenti"></textarea></div>
-          <div class="field"><label>Qualcosa che porta sempre con sé</label><textarea data-bg="oggetto" placeholder="Un oggetto da cui non si separa mai, e perché conta per lui/lei"></textarea></div>
-        </div></div>
+          <div class="bg-section-body" data-bgbody="vita">
+            <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+              <div class="field"><label>Incompetenze</label><textarea data-bg="incompetenze" placeholder="Cosa non sa fare: lacune e limiti"></textarea></div>
+              <div class="field"><label>Debolezze</label><textarea data-bg="debolezze" placeholder="Punti deboli fisici o mentali, dipendenze e il loro prezzo"></textarea></div>
+              <div class="field"><label>Hobby</label><textarea data-bg="hobby" placeholder="Passatempi e attività fuori dall'avventura"></textarea></div>
+              <div class="field"><label>Abitudini</label><textarea data-bg="abitudini" placeholder="Routine e piccoli rituali quotidiani"></textarea></div>
+            </div></div>
+          </div>
+        </div>
 
-        <div class="section-title"><span class="dot neutral"></span>Vita</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field"><label>Incompetenze</label><textarea data-bg="incompetenze" placeholder="Cosa non sa fare: lacune e limiti"></textarea></div>
-          <div class="field"><label>Debolezze</label><textarea data-bg="debolezze" placeholder="Punti deboli fisici o mentali, dipendenze e il loro prezzo"></textarea></div>
-          <div class="field"><label>Hobby</label><textarea data-bg="hobby" placeholder="Passatempi e attività fuori dall'avventura"></textarea></div>
-          <div class="field"><label>Abitudini</label><textarea data-bg="abitudini" placeholder="Routine e piccoli rituali quotidiani"></textarea></div>
-        </div></div>
+        <div class="bg-section hidden" data-bgsection="atteggiamento">
+          <div class="bg-section-head">
+            <span class="dot neutral"></span><span class="bg-section-title">Atteggiamento</span>
+            <button type="button" class="btn btn-ghost btn-sm bg-edit-btn" data-bgedit="atteggiamento">✎ Modifica</button>
+            <button type="button" class="btn btn-primary btn-sm bg-lock-btn hidden" data-bglock="atteggiamento">🔒 Conferma e blocca</button>
+          </div>
+          <div class="bg-section-body" data-bgbody="atteggiamento">
+            <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+              <div class="field"><label>Personalità</label><textarea data-bg="personalita" placeholder="Com'è di carattere e come si comporta con gli altri"></textarea></div>
+              <div class="field"><label>Morale</label><textarea data-bg="morale" placeholder="La sua bussola morale: cosa è giusto per lui/lei, che codice segue"></textarea></div>
+              <div class="field"><label>Autocontrollo</label><textarea data-bg="autocontrollo" placeholder="Come reagisce sotto pressione e nel pericolo"></textarea></div>
+              <div class="field"><label>Motivazione</label><textarea data-bg="motivazione" placeholder="Cosa lo/la spinge ad agire"></textarea></div>
+              <div class="field"><label>Scoraggiamento</label><textarea data-bg="scoraggiamento" placeholder="Cosa lo/la abbatte e come reagisce allo sconforto"></textarea></div>
+              <div class="field"><label>Livello di sicurezza</label><textarea data-bg="sicurezza" placeholder="Quanta fiducia ha in sé: quella che mostra e quella vera"></textarea></div>
+              <div class="field"><label>Filosofia</label><textarea data-bg="filosofia" placeholder="La sua visione del mondo in poche righe"></textarea></div>
+              <div class="field"><label>Paura più grande / Fobia</label><textarea data-bg="paura" placeholder="Cosa teme più di ogni altra cosa"></textarea></div>
+              <div class="field"><label>Obiettivo a breve termine</label><textarea data-bg="obiettivoBreve" placeholder="Cosa vuole ottenere adesso"></textarea></div>
+              <div class="field"><label>Obiettivo a lungo termine</label><textarea data-bg="obiettivoLungo" placeholder="Il traguardo della sua vita"></textarea></div>
+            </div></div>
+          </div>
+        </div>
 
-        <div class="section-title"><span class="dot neutral"></span>Atteggiamento</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field"><label>Personalità</label><textarea data-bg="personalita" placeholder="Com'è di carattere e come si comporta con gli altri"></textarea></div>
-          <div class="field"><label>Morale</label><textarea data-bg="morale" placeholder="La sua bussola morale: cosa è giusto per lui/lei, che codice segue"></textarea></div>
-          <div class="field"><label>Autocontrollo</label><textarea data-bg="autocontrollo" placeholder="Come reagisce sotto pressione e nel pericolo"></textarea></div>
-          <div class="field"><label>Motivazione</label><textarea data-bg="motivazione" placeholder="Cosa lo/la spinge ad agire"></textarea></div>
-          <div class="field"><label>Scoraggiamento</label><textarea data-bg="scoraggiamento" placeholder="Cosa lo/la abbatte e come reagisce allo sconforto"></textarea></div>
-          <div class="field"><label>Livello di sicurezza</label><textarea data-bg="sicurezza" placeholder="Quanta fiducia ha in sé: quella che mostra e quella vera"></textarea></div>
-          <div class="field"><label>Filosofia</label><textarea data-bg="filosofia" placeholder="La sua visione del mondo in poche righe"></textarea></div>
-          <div class="field"><label>Paura più grande / Fobia</label><textarea data-bg="paura" placeholder="Cosa teme più di ogni altra cosa"></textarea></div>
-          <div class="field"><label>Obiettivo a breve termine</label><textarea data-bg="obiettivoBreve" placeholder="Cosa vuole ottenere adesso"></textarea></div>
-          <div class="field"><label>Obiettivo a lungo termine</label><textarea data-bg="obiettivoLungo" placeholder="Il traguardo della sua vita"></textarea></div>
-        </div></div>
+        <div class="bg-section hidden" data-bgsection="passato">
+          <div class="bg-section-head">
+            <span class="dot neutral"></span><span class="bg-section-title">Passato</span>
+            <button type="button" class="btn btn-ghost btn-sm bg-edit-btn" data-bgedit="passato">✎ Modifica</button>
+            <button type="button" class="btn btn-primary btn-sm bg-lock-btn hidden" data-bglock="passato">🔒 Conferma e blocca</button>
+          </div>
+          <div class="bg-section-body" data-bgbody="passato">
+            <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
+              <div class="field"><label>Infanzia</label><textarea data-bg="infanzia" placeholder="Dove e come è cresciuto/a: famiglia, ambiente, primi valori"></textarea></div>
+              <div class="field"><label>Evento passato importante</label><textarea data-bg="eventoImportante" placeholder="Uno o più eventi che l'hanno segnato/a profondamente"></textarea></div>
+              <div class="field"><label>Segreto</label><textarea data-bg="segreto" placeholder="Cosa nasconde a tutti, e perché"></textarea></div>
+              <div class="field"><label>Peggior momento</label><textarea data-bg="peggiorMomento" placeholder="Il giorno più difficile della sua vita"></textarea></div>
+              <div class="field"><label>Miglior momento</label><textarea data-bg="migliorMomento" placeholder="Il ricordo più felice"></textarea></div>
+            </div></div>
+          </div>
+        </div>
 
-        <div class="section-title"><span class="dot neutral"></span>Passato</div>
-        <div class="box"><div class="box-bar"></div><div class="box-pad" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="field"><label>Infanzia</label><textarea data-bg="infanzia" placeholder="Dove e come è cresciuto/a: famiglia, ambiente, primi valori"></textarea></div>
-          <div class="field"><label>Evento passato importante</label><textarea data-bg="eventoImportante" placeholder="Uno o più eventi che l'hanno segnato/a profondamente"></textarea></div>
-          <div class="field"><label>Segreto</label><textarea data-bg="segreto" placeholder="Cosa nasconde a tutti, e perché"></textarea></div>
-          <div class="field"><label>Peggior momento</label><textarea data-bg="peggiorMomento" placeholder="Il giorno più difficile della sua vita"></textarea></div>
-          <div class="field"><label>Miglior momento</label><textarea data-bg="migliorMomento" placeholder="Il ricordo più felice"></textarea></div>
-        </div></div>
-
-        <div class="section-title"><span class="dot neutral"></span>Relazioni</div>
-        <p class="helper-text">Familiari, amici, colleghi o chiunque abbia un legame col personaggio: aggiungi una scheda per ogni NPC.</p>
-        <div id="relazioni-list" style="display:flex;flex-direction:column;gap:10px;"></div>
-        <button class="btn btn-ghost btn-sm" id="relazioni-add" style="align-self:flex-start;">+ Aggiungi relazione</button>
+        <div class="bg-section hidden" data-bgsection="relazioni">
+          <div class="bg-section-head">
+            <span class="dot neutral"></span><span class="bg-section-title">Relazioni</span>
+            <button type="button" class="btn btn-ghost btn-sm bg-edit-btn" data-bgedit="relazioni">✎ Modifica</button>
+            <button type="button" class="btn btn-primary btn-sm bg-lock-btn hidden" data-bglock="relazioni">🔒 Conferma e blocca</button>
+          </div>
+          <div class="bg-section-body" data-bgbody="relazioni">
+            <p class="helper-text">Familiari, amici, colleghi o chiunque abbia un legame col personaggio: aggiungi una scheda per ogni NPC.</p>
+            <div id="relazioni-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+            <button class="btn btn-ghost btn-sm" id="relazioni-add" style="align-self:flex-start;">+ Aggiungi relazione</button>
+          </div>
+        </div>
 
         <div class="section-title"><span class="dot neutral"></span>Note libere</div>
         <div class="field"><textarea id="n-libere" placeholder="Qualsiasi altra annotazione di gioco..."></textarea></div>
@@ -368,8 +419,38 @@
         </div>
 
         <div class="section-title"><span class="dot neutral"></span>Scudo e armi</div>
-        <p class="helper-text">Scegli Taglia e Qualità per lo scudo e per ciascuna arma — Atk, Dif e Durabilità si impostano di conseguenza nel range ufficiale. L'armatura si gestisce nel Retro Scheda. Nel campo Bonus annota effetti come "+2 a Tagliare", "+1 a Rompere", "+1 a Perforare", "+1 a Guardia", "+2 a Danno magico" o "+1d6 a Forza/Destrezza/Mira" (dadi: D4, D6, D8, D10, D20, D100).</p>
+        <p class="helper-text">Scegli Taglia e Qualità per ogni scudo/arma — Atk, Dif e Durabilità si impostano di conseguenza nel range ufficiale. Il pulsante in alto a ogni pezzo lo equipaggia o lo sposta in Inventario: solo i pezzi equipaggiati contano per Bloccare, Attacca e i bonus meccanici. Le armi hanno anche una Tipologia (bianca/da tiro: non si combinano nello stesso attacco) e le caratteristiche con cui agiscono. L'armatura si gestisce nel Retro Scheda.</p>
         <div class="slot-grid" id="weapon-grid"></div>
+        <div class="field-row" style="margin-top:4px;">
+          <button class="btn btn-ghost btn-sm" id="btn-add-weapon" style="align-self:flex-start;">+ Aggiungi arma</button>
+          <button class="btn btn-ghost btn-sm" id="btn-add-shield" style="align-self:flex-start;">+ Aggiungi scudo</button>
+        </div>
+
+        <div class="section-title"><span class="dot physical"></span>Bloccare</div>
+        <p class="helper-text">Tiro di Bloccare con lo/gli scudo/i equipaggiato/i: Dif scudo + Dif del personaggio (bonus attivi inclusi) + tiro puro di Dif (dado in base al valore base, senza bonus).</p>
+        <div class="box"><div class="box-bar physical"></div><div class="box-pad">
+          <p class="helper-text hidden" id="block-no-shield-note" style="margin:0 0 8px;">Nessuno scudo equipaggiato.</p>
+          <div class="roll-row">
+            <button class="btn btn-primary" id="block-roll-btn">Tira Bloccare</button>
+            <div class="roll-result" id="block-roll-result">—</div>
+          </div>
+          <div class="roll-detail" id="block-roll-detail"></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot physical"></span>Attacca</div>
+        <p class="helper-text">Scegli quali armi equipaggiate entrano nell'attacco (massimo due, stessa Tipologia — bianca o da tiro non insieme): con due armi la seconda vale metà danno. Il Danno Fisico somma FOR e/o DEX puri (senza bonus di scheda) se l'arma li usa; il Danno Magico (F.MEN, a parte) è calcolato separatamente.</p>
+        <div class="box"><div class="box-bar physical"></div><div class="box-pad">
+          <div class="attack-weapon-list" id="attack-weapon-list"></div>
+          <p class="helper-text hidden" id="attack-no-weapon-note" style="margin:0;">Nessuna arma equipaggiata.</p>
+          <div class="roll-row" style="margin-top:10px;">
+            <button class="btn btn-primary" id="attack-roll-btn">Attacca</button>
+          </div>
+          <div class="attack-results" style="margin-top:10px;">
+            <div class="attack-result-row"><span>Danno Fisico</span><span class="roll-result" id="attack-phys-result">—</span></div>
+            <div class="attack-result-row"><span style="color:var(--magico-forte);">Danno Magico</span><span class="roll-result" id="attack-magic-result" style="color:var(--magico-forte);">—</span></div>
+          </div>
+          <div class="roll-detail" id="attack-roll-detail"></div>
+        </div></div>
 
         <div class="section-title"><span class="dot neutral"></span>Tiro tratto</div>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
@@ -447,18 +528,29 @@
         </table></div>
         <div class="box-lore" id="boost-top-note" style="margin-top:8px;">Oltre il livello 5 (Lv Top): -10% sui costi di attivazione di tutti i livelli appresi.</div>
 
-        <div class="section-title"><span class="dot neutral"></span>Inventario</div>
+        <div class="section-title"><span class="dot neutral"></span>Zaino</div>
+        <p class="helper-text">Regola del Peso (manuale): peso trasportabile = (Forza + peso corporeo) / 2, in Kg — il peso corporeo si legge dal campo "Peso" in Background &gt; Aspetto. Conta solo ciò che sta riposto nello Zaino: oggetti normali e armi/scudi NON equipaggiati (l'equipaggiamento indossato/impugnato non pesa qui).</p>
+        <div class="box"><div class="box-bar"></div><div class="box-pad">
+          <div class="pointbuy-header">
+            <span class="label">Peso occupato</span>
+            <span class="remaining" id="zaino-peso-summary">0 / (0 Forza + 0 Peso) ÷ 2 = 0 Kg</span>
+          </div>
+        </div></div>
         <div class="table-scroll"><table class="data-table edit-table">
-          <thead><tr><th>Oggetto</th><th>Note</th></tr></thead>
+          <thead><tr><th>Oggetto</th><th>Peso (Kg)</th><th>Note</th></tr></thead>
           <tbody id="inventario-table"></tbody>
         </table></div>
         <button class="btn btn-ghost btn-sm" id="inv-add" style="align-self:flex-start;">+ Aggiungi oggetto</button>
+
+        <div class="section-title" style="margin-top:14px;"><span class="dot neutral"></span>Armi e scudi in Inventario</div>
+        <p class="helper-text">Elenco di sola lettura: per equipaggiare/disequipaggiare un'arma o uno scudo (e impostarne il peso) vai in Fronte Scheda &gt; Scudo e armi.</p>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" id="zaino-armi-list"></div></div>
       </div>
 
       <!-- ---- STATISTICHE (Primarie + Terziarie) ---- -->
       <div class="tab-panel" data-panel="statistiche">
         <div class="section-title"><span class="dot neutral"></span>Caratteristiche primarie · 40 punti</div>
-        <p class="helper-text">Minimo 2 per caratteristica. HP e MP qui sono i valori <em>base</em>: il totale reale si ottiene moltiplicandoli per i moltiplicatori della build (sotto). Non si può superare il totale di punti disponibili. Dopo la conferma della classe, aumentare un attributo spende automaticamente gli AP guadagnati con i level-up (costi di crescita ufficiali); ridurlo li rimborsa. Si possono confermare (e bloccare fino al prossimo level-up, per evitare di rimescolarle a piacere) solo con "Punti rimanenti" esattamente a zero.</p>
+        <p class="helper-text">Minimo 1 per caratteristica. HP e MP qui sono i valori <em>base</em>: il totale reale si ottiene moltiplicandoli per i moltiplicatori della build (sotto). Non si può superare il totale di punti disponibili. Dopo la conferma della classe, aumentare un attributo spende automaticamente gli AP guadagnati con i level-up (costi di crescita ufficiali); ridurlo li rimborsa. Si possono confermare (e bloccare fino al prossimo level-up, per evitare di rimescolarle a piacere) solo con "Punti rimanenti" esattamente a zero.</p>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
           <div class="pointbuy-header">
             <span class="label">Punti rimanenti</span>
@@ -468,6 +560,10 @@
           <div id="primary-stats"></div>
           <div id="primary-lock-status" style="margin-top:10px;"></div>
         </div></div>
+
+        <div class="section-title"><span class="dot neutral"></span>Statistica secondaria</div>
+        <p class="helper-text">P.R. (Punti Recupero): non è una primaria, non fa parte del pool di 40 punti sopra — è fisso in base alla classe alla creazione (vedi "Valori derivati" sotto) e dal Lv2 cresce spendendo AP con le stesse regole di crescita degli attributi primari.</p>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" id="secondary-stats"></div></div>
 
         <div class="section-title"><span class="dot neutral"></span>Statistiche terziarie · 5 punti</div>
         <p class="helper-text">Minimo -1 per statistica. Prova: 1d20 + bonus/malus. Il contatore +/- che le fa salire di livello con l'uso è in "Fronte Scheda".</p>
@@ -541,7 +637,9 @@
                 <option value="dif">Difesa</option>
                 <option value="dmen">Difesa Magica/Mentale</option>
               </optgroup>
-              <option value="pr">P.R. (Punti Recupero)</option>
+              <optgroup label="Statistica secondaria">
+                <option value="pr">P.R. (Punti Recupero)</option>
+              </optgroup>
               <optgroup label="Statistiche terziarie">
                 <option value="stile">Stile</option>
                 <option value="carisma">Carisma</option>
@@ -780,6 +878,17 @@
     <div class="cc-actions">
       <button class="btn btn-primary" id="traits-confirm-yes">Sì</button>
       <button class="btn btn-ghost" id="traits-confirm-no">No</button>
+    </div>
+  </div>
+</div>
+
+<div id="bg-lock-confirm" class="hidden confirm-modal">
+  <div class="cc-box">
+    <div class="cc-title">Blocca sezione</div>
+    <p id="bg-lock-confirm-text">Vuoi confermare e bloccare questa sezione? I campi torneranno di sola lettura: per modificarli di nuovo dovrai toccare "Modifica".</p>
+    <div class="cc-actions">
+      <button class="btn btn-primary" id="bg-lock-confirm-yes">Sì</button>
+      <button class="btn btn-ghost" id="bg-lock-confirm-no">No</button>
     </div>
   </div>
 </div>
