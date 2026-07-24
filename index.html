@@ -499,6 +499,10 @@
           <div id="primary-lock-status" style="margin-top:10px;"></div>
         </div></div>
 
+        <div class="section-title"><span class="dot neutral"></span>Statistica secondaria</div>
+        <p class="helper-text">P.R. (Punti Recupero): non è una primaria, non fa parte del pool di 40 punti sopra — è fisso in base alla classe alla creazione (vedi "Valori derivati" sotto) e dal Lv2 cresce spendendo AP con le stesse regole di crescita degli attributi primari.</p>
+        <div class="box"><div class="box-bar"></div><div class="box-pad" id="secondary-stats"></div></div>
+
         <div class="section-title"><span class="dot neutral"></span>Statistiche terziarie · 5 punti</div>
         <p class="helper-text">Minimo -1 per statistica. Prova: 1d20 + bonus/malus. Il contatore +/- che le fa salire di livello con l'uso è in "Fronte Scheda".</p>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
@@ -571,7 +575,9 @@
                 <option value="dif">Difesa</option>
                 <option value="dmen">Difesa Magica/Mentale</option>
               </optgroup>
-              <option value="pr">P.R. (Punti Recupero)</option>
+              <optgroup label="Statistica secondaria">
+                <option value="pr">P.R. (Punti Recupero)</option>
+              </optgroup>
               <optgroup label="Statistiche terziarie">
                 <option value="stile">Stile</option>
                 <option value="carisma">Carisma</option>

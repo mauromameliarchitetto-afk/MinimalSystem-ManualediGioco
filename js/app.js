@@ -508,6 +508,12 @@ function ensureShape(c) {
   // da quando il giocatore lo conferma esplicitamente per la prima volta,
   // Object.keys(d) sotto imposta già primaryConfirmed:false di default
   Object.keys(d).forEach(k => { if (c[k] === undefined) c[k] = d[k]; });
+  // il P.R. non è (mai stato, di fatto) una statistica primaria: il vero
+  // valore vive solo in prMaxTracked/prCur, quindi il residuo c.primary.pr
+  // dei personaggi salvati prima di questa correzione viene ripulito (non
+  // veniva più letto da nessun calcolo, restava solo a intaccare per errore
+  // il pool dei 40 punti delle primarie vere e proprie)
+  if (c.primary) delete c.primary.pr;
   if (!hadBuildConfirmed) c.buildConfirmed = true;
   // personaggi con statistiche gia' confermate prima dell'introduzione del
   // "pavimento" per livello: i valori attuali sono gia' quelli confermati
@@ -764,6 +770,23 @@ function renderBuildGrid(c) {
 
 /* ------------------------------------------------------------ primarie */
 
+/* Riga con stepper condivisa da statistiche primarie e dalla (unica)
+   secondaria: stessa card, stesso comportamento di bonus (consumabile in
+   ambra, equip in verde) — cambia solo quali chiavi/dati arrivano da fuori. */
+function statStepperRowHtml(c, stat, val, min, locked, fullLabel) {
+  const equipBuff = equipBonusTotal(c, 'primary', stat.key);
+  const consumableBuff = buffTotal(c, stat.key) - equipBuff;
+  return `<div class="stat-row">
+    <div class="stat-label ${stat.axis}${(consumableBuff || equipBuff) ? ' buffed' : ''}"><span class="abbr">${stat.label}</span><span class="full">${fullLabel}</span></div>
+    <div class="stepper">
+      <button data-pstat="${stat.key}" data-dir="-1" aria-label="Diminuisci" ${locked ? 'disabled' : ''}>−</button>
+      <input type="number" data-pstat-input="${stat.key}" value="${val}" min="${min}" ${locked ? 'disabled' : ''}>
+      <button data-pstat="${stat.key}" data-dir="1" aria-label="Aumenta" ${locked ? 'disabled' : ''}>+</button>
+    </div>
+    ${consumableBuff ? `<span class="chip buff-chip" title="Incremento attivo da consumabile">+${consumableBuff}</span>` : ''}
+    ${equipBuff ? `<span class="chip buff-chip-equip" title="Bonus da arma/scudo equipaggiato: momentaneo, dura finché il pezzo resta equipaggiato">+${equipBuff} equip.</span>` : ''}
+  </div>`;
+}
 function renderPrimaryStats(c) {
   const wrap = $('#primary-stats');
   const locked = c.primaryConfirmed;
@@ -773,28 +796,29 @@ function renderPrimaryStats(c) {
   const grown = Number(c.livello) > 1;
   wrap.innerHTML = PRIMARY_STATS.map(stat => {
     const isHpMp = stat.key === 'hp' || stat.key === 'mp';
-    const isPr = stat.key === 'pr';
-    // il P.R. è sempre "cresciuto" via AP fin dal Lv1 (nessuna fase a pool libero)
-    const val = isPr ? (c.prMaxTracked || 0)
-      : (isHpMp && grown) ? (stat.key === 'hp' ? c.hpMaxTracked : c.mpMaxTracked) || 0
-      : c.primary[stat.key];
-    const min = (isPr || (isHpMp && grown)) ? 0 : PRIMARY_MIN;
-    const equipBuff = equipBonusTotal(c, 'primary', stat.key);
-    const consumableBuff = buffTotal(c, stat.key) - equipBuff;
-    const fullLabel = isPr ? `${stat.full} (totale)` : (isHpMp && grown) ? `${stat.full} (totale)` : stat.full;
-    return `<div class="stat-row">
-      <div class="stat-label ${stat.axis}${(consumableBuff || equipBuff) ? ' buffed' : ''}"><span class="abbr">${stat.label}</span><span class="full">${fullLabel}</span></div>
-      <div class="stepper">
-        <button data-pstat="${stat.key}" data-dir="-1" aria-label="Diminuisci" ${locked ? 'disabled' : ''}>−</button>
-        <input type="number" data-pstat-input="${stat.key}" value="${val}" min="${min}" ${locked ? 'disabled' : ''}>
-        <button data-pstat="${stat.key}" data-dir="1" aria-label="Aumenta" ${locked ? 'disabled' : ''}>+</button>
-      </div>
-      ${consumableBuff ? `<span class="chip buff-chip" title="Incremento attivo da consumabile">+${consumableBuff}</span>` : ''}
-      ${equipBuff ? `<span class="chip buff-chip-equip" title="Bonus da arma/scudo equipaggiato: momentaneo, dura finché il pezzo resta equipaggiato">+${equipBuff} equip.</span>` : ''}
-    </div>`;
+    const val = (isHpMp && grown) ? (stat.key === 'hp' ? c.hpMaxTracked : c.mpMaxTracked) || 0 : c.primary[stat.key];
+    const min = (isHpMp && grown) ? 0 : PRIMARY_MIN;
+    const fullLabel = (isHpMp && grown) ? `${stat.full} (totale)` : stat.full;
+    return statStepperRowHtml(c, stat, val, min, locked, fullLabel);
   }).join('');
   updatePrimaryRemaining(c);
   renderStatRollSelect();
+  // il P.R. (unica statistica secondaria) vive in una sezione a parte ma va
+  // aggiornato insieme alle primarie: stessi trigger (bonus, buff, livello,
+  // conferma) le tengono sincronizzate senza dover toccare ogni chiamata
+  renderSecondaryStats(c);
+}
+/* Statistica secondaria (solo P.R.): fissa da classe alla creazione (mai in
+   pool libero, a differenza delle primarie), dal Lv2 cresce con gli AP
+   secondo le stesse regole di crescita — vedi changePrimary, che gestisce
+   'pr' come "sempre cresciuta" indipendentemente da PRIMARY_STATS. Sezione
+   separata proprio perché il manuale la classifica come secondaria, non
+   primaria: non entra nel pool dei 40 punti né nella loro lista. */
+function renderSecondaryStats(c) {
+  const wrap = $('#secondary-stats');
+  if (!wrap) return;
+  const stat = SECONDARY_STATS[0];
+  wrap.innerHTML = statStepperRowHtml(c, stat, c.prMaxTracked || 0, 0, c.primaryConfirmed, `${stat.full} (totale)`);
 }
 /* Selettore del tool "Tiro statistica": elenca gli attributi primari
    tirabili (esclusi HP/MP, riserve di punti e non prove). Opzioni fisse,
@@ -803,7 +827,7 @@ function renderStatRollSelect() {
   const sel = $('#stat-roll-select');
   if (!sel || sel.options.length) return;
   sel.innerHTML = PRIMARY_STATS
-    .filter(s => s.key !== 'hp' && s.key !== 'mp' && s.key !== 'pr')
+    .filter(s => s.key !== 'hp' && s.key !== 'mp')
     .map(s => `<option value="${s.key}">${s.label} — ${s.full}</option>`).join('');
 }
 function primaryRemaining(c) {
@@ -862,7 +886,7 @@ function currentMpMult(c) {
 /* --------------------------------------------------------- oggetti consumabili */
 
 function statLabel(key) {
-  const s = PRIMARY_STATS.find(st => st.key === key);
+  const s = PRIMARY_STATS.find(st => st.key === key) || SECONDARY_STATS.find(st => st.key === key);
   return s ? s.label : key;
 }
 /* Somma dei bonus meccanici assegnati su arma/scudo/armatura per un dato
@@ -1348,7 +1372,10 @@ function creditLevelAP(c) {
    o tornare fino a questo punto. */
 function snapshotPrimaryFloor(c) {
   if (!c.primaryFloor) c.primaryFloor = {};
-  PRIMARY_STATS.forEach(stat => {
+  // le primarie e l'unica secondaria (P.R.) condividono lo stesso
+  // meccanismo di "pavimento": vanno scandite insieme, altrimenti il P.R.
+  // perderebbe la protezione contro un abbassamento sotto l'ultimo confermato
+  [...PRIMARY_STATS, ...SECONDARY_STATS].forEach(stat => {
     const isHpMp = stat.key === 'hp' || stat.key === 'mp';
     const isPr = stat.key === 'pr';
     const grown = (isHpMp && Number(c.livello) > 1) || isPr;
@@ -1407,7 +1434,7 @@ function changePrimary(c, key, newVal) {
       toast(`AP insufficienti: servono ${cost} AP (disponibili ${disponibili})`);
       return null;
     }
-    const stat = PRIMARY_STATS.find(s => s.key === key);
+    const stat = PRIMARY_STATS.find(s => s.key === key) || SECONDARY_STATS.find(s => s.key === key);
     c.apDisponibili = disponibili - cost;
     c.ledger.push({
       id: uid(),
@@ -1492,14 +1519,15 @@ function updateGrowthCost() {
 
 /* ------------------------------------------------------------- retro/eq */
 
-/* Statistiche primarie selezionabili per un bonus su questo pezzo: scudo e
-   arma sono limitati alle sole statistiche indicate per l'equipaggiamento
-   (DIF/D.MEN per gli scudi, FOR/DEX/F.MEN per le armi) — non l'intera
-   PRIMARY_STATS, che resta generica solo per l'armatura. */
+/* Statistiche primarie (+ l'unica secondaria, P.R.) selezionabili per un
+   bonus su questo pezzo: scudo e arma sono limitati alle sole statistiche
+   indicate per l'equipaggiamento (DIF/D.MEN per gli scudi, FOR/DEX/F.MEN
+   per le armi) — l'armatura resta generica su tutte, P.R. incluso, come
+   già in uso prima di separarlo dalla lista delle primarie. */
 function primaryBonusKeysFor(itemKind) {
   if (itemKind === 'scudo') return SHIELD_PRIMARY_BONUS_KEYS;
   if (itemKind === 'arma') return WEAPON_PRIMARY_BONUS_KEYS;
-  return PRIMARY_STATS.map(s => s.key);
+  return [...PRIMARY_STATS, ...SECONDARY_STATS].map(s => s.key);
 }
 /* Tratti selezionabili per un bonus su questo pezzo: elenco chiuso
    (SHIELD_TRAIT_OPTIONS/WEAPON_TRAIT_OPTIONS) + "nuovo tratto
@@ -1519,7 +1547,7 @@ function traitOptionsFor(itemKind) {
 function equipBonusRowHtml(b, i, bi, itemKind) {
   const kind = b.kind || 'primary';
   const primaryKeys = primaryBonusKeysFor(itemKind);
-  const primaryOpts = PRIMARY_STATS.filter(s => primaryKeys.includes(s.key))
+  const primaryOpts = [...PRIMARY_STATS, ...SECONDARY_STATS].filter(s => primaryKeys.includes(s.key))
     .map(s => `<option value="${s.key}" ${kind === 'primary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
   const tertiaryOpts = TERTIARY_STATS.map(s => `<option value="${s.key}" ${kind === 'tertiary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
   const listOpts = Object.keys(TRAIT_LISTS).map(lk => `<option value="${lk}" ${kind === 'trait' && b.listKey === lk ? 'selected' : ''}>${TRAIT_LIST_LABELS[lk]}</option>`).join('');
@@ -1864,7 +1892,7 @@ function renderConsumabili(c) {
     const targetCell = isIncrement
       ? `<select data-cons="target" data-idx="${i}">
           <option value="">— scegli —</option>
-          ${PRIMARY_STATS.map(s => `<option value="${s.key}" ${r.target === s.key ? 'selected' : ''}>${s.label}</option>`).join('')}
+          ${[...PRIMARY_STATS, ...SECONDARY_STATS].map(s => `<option value="${s.key}" ${r.target === s.key ? 'selected' : ''}>${s.label}</option>`).join('')}
         </select>`
       : '<span class="helper-text" style="margin:0;">—</span>';
     return `<tr>
@@ -2085,8 +2113,13 @@ function renderSheet() {
   updateEntryLockUI(c);
   $('#f-bellezza-manuale').value = c.bellezzaManuale !== null ? c.bellezzaManuale : '';
   $('#bellezza-result').textContent = c.bellezzaTirata !== null ? c.bellezzaTirata : '—';
-  renderPrimaryStats(c);
+  // updateDerived calcola hpMaxTracked/mpMaxTracked/prMaxTracked (se ancora
+  // null, li inizializza dal moltiplicatore/build): va eseguito PRIMA di
+  // renderPrimaryStats, che li legge per mostrare i valori "cresciuti"
+  // (HP/MP dal Lv2, P.R. sempre) — altrimenti il primo render di una
+  // scheda nuova li mostrerebbe a 0 finché non scatta un secondo render.
   updateDerived(c);
+  renderPrimaryStats(c);
   resetRiposoPanel();
   renderDiagram(c);
   renderQi(c);
@@ -2708,8 +2741,10 @@ function wireStaticEvents() {
     touchActive();
   });
 
-  // ---- primarie: point buy (delegation) ----
-  $('#primary-stats').addEventListener('click', e => {
+  // ---- primarie + secondaria (P.R.): point buy (delegation, stessi
+  // handler su entrambi i contenitori — sono due box separate solo perché
+  // il P.R. non è una primaria, ma condivide identica meccanica di stepper) ----
+  function handlePstatClick(e) {
     const btn = e.target.closest('[data-pstat]');
     if (!btn) return;
     const c = getActive(); if (!c) return;
@@ -2723,12 +2758,12 @@ function wireStaticEvents() {
     if (next < floor) { toast(`Valore minimo raggiunto (${floor})`); return; }
     const applied = changePrimary(c, key, next);
     if (applied === null) return; // AP insufficienti (toast già mostrato da changePrimary)
-    $(`#primary-stats input[data-pstat-input="${key}"]`).value = applied;
+    $(`[data-pstat-input="${key}"]`).value = applied;
     updatePrimaryRemaining(c);
     updateDerived(c);
     touchActive();
-  });
-  $('#primary-stats').addEventListener('input', e => {
+  }
+  function handlePstatInput(e) {
     const input = e.target.closest('[data-pstat-input]');
     if (!input) return;
     const c = getActive(); if (!c) return;
@@ -2741,7 +2776,11 @@ function wireStaticEvents() {
     updatePrimaryRemaining(c);
     updateDerived(c);
     touchActive();
-  });
+  }
+  $('#primary-stats').addEventListener('click', handlePstatClick);
+  $('#primary-stats').addEventListener('input', handlePstatInput);
+  $('#secondary-stats').addEventListener('click', handlePstatClick);
+  $('#secondary-stats').addEventListener('input', handlePstatInput);
   $('#btn-sync-derived').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
     if (!c.primaryConfirmed) {

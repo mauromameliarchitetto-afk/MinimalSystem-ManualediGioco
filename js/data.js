@@ -79,11 +79,13 @@ function prossimoSblocco(lv) {
   return TECAB_CLASS_LEVELS.concat(TECAB_ALL_LEVELS).sort((a, b) => a - b).find(l => l > lv) || null;
 }
 
-// 9 caratteristiche primarie — pool 40 punti, minimo 2 ciascuna
+// 9 caratteristiche primarie — pool 40 punti, minimo 2 ciascuna (il manuale
+// è esplicito: "sono 9". Il P.R. NON è tra queste: è l'unica statistica
+// secondaria — vedi SECONDARY_STATS — fissa da classe alla creazione e mai
+// parte del pool dei 40 punti).
 const PRIMARY_STATS = [
   { key: 'hp',   label: 'HP',    full: 'Punti Vita',           axis: 'neutral' },
   { key: 'mp',   label: 'MP',    full: 'Punti Magia',          axis: 'neutral' },
-  { key: 'pr',   label: 'P.R.',  full: 'Punti Recupero',       axis: 'neutral' },
   { key: 'for',  label: 'FOR',   full: 'Forza',                axis: 'physical' },
   { key: 'mira', label: 'MIRA',  full: 'Mira',                 axis: 'physical' },
   { key: 'vel',  label: 'VEL',   full: 'Velocità',             axis: 'physical' },
@@ -94,6 +96,14 @@ const PRIMARY_STATS = [
 ];
 const PRIMARY_POOL = 40;
 const PRIMARY_MIN = 2;
+// L'unica statistica secondaria (manuale, "Distribuzione delle statistiche
+// secondarie: Q.I. e P.R."): fissa da classe (BUILDS[...].prIniziali) alla
+// creazione, dal Lv2 cresce con gli AP secondo le stesse regole delle
+// primarie (primaryApCostForPoint) — ma non è una di esse e non entra nel
+// pool dei 40 punti.
+const SECONDARY_STATS = [
+  { key: 'pr', label: 'P.R.', full: 'Punti Recupero', axis: 'neutral' }
+];
 
 // Statistiche terziarie — pool 5 punti, minimo -1 ciascuna
 const TERTIARY_STATS = [
