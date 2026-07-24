@@ -378,6 +378,30 @@ async function rejectJoinRequestCloud(requestId) {
   const { error } = await withTimeout(sb.rpc('reject_join_request', { p_request_id: requestId }), 'Rifiuto richiesta');
   if (error) throw error;
 }
+
+/* Tratti proposti dai giocatori per il database condiviso della campagna,
+   ancora in attesa di approvazione (vedi campaign_known_traits, migrazione
+   dedicata): il Narratore li vede qui e decide se diventano pescabili da
+   tutti o no (refusi/doppioni si rifiutano senza inquinare l'elenco). */
+async function listPendingKnownTraits(campaignId) {
+  const { data: rows, error } = await withTimeout(
+    sb.from('campaign_known_traits').select('id, list_key, name, created_by, created_at')
+      .eq('campaign_id', campaignId).eq('status', 'pending').order('created_at'),
+    'Tratti proposti in attesa'
+  );
+  if (error) throw error;
+  if (!rows.length) return [];
+  const names = await fetchDisplayNames(rows.map(r => r.created_by));
+  return rows.map(r => ({ ...r, playerName: names[r.created_by] || 'Avventuriero' }));
+}
+async function approveKnownTraitCloud(traitId) {
+  const { error } = await withTimeout(sb.rpc('approve_known_trait', { p_trait_id: traitId }), 'Approvazione tratto');
+  if (error) throw error;
+}
+async function rejectKnownTraitCloud(traitId) {
+  const { error } = await withTimeout(sb.rpc('reject_known_trait', { p_trait_id: traitId }), 'Rifiuto tratto');
+  if (error) throw error;
+}
 /* Scheda completa di un personaggio della propria campagna, aperta da
    Account → dettaglio campagna: riusa il visualizzatore in sola lettura già
    esistente (renderCharView) più un pannello di azioni riservate al
@@ -670,6 +694,16 @@ function joinRequestRowHtml(r) {
   </div>`;
 }
 
+function knownTraitRowHtml(t) {
+  return `<div class="row-between" style="padding:4px 0;">
+    <span>${escapeHtml(t.name)} <span class="helper-text" style="margin:0;">${TRAIT_LIST_LABELS[t.list_key] || t.list_key} · proposto da ${t.playerName}</span></span>
+    <span>
+      <button class="btn btn-sm btn-primary" data-approvetrait="${t.id}">Approva</button>
+      <button class="btn btn-sm btn-ghost" data-rejecttrait="${t.id}">Rifiuta</button>
+    </span>
+  </div>`;
+}
+
 /* Concessioni del Narratore sui tratti: privilegio suo esclusivo, per questo
    compare qui (Account → Narratore → dettaglio campagna) e non nella scheda
    del giocatore, che non deve poterle vedere né tanto meno attivare da sé. */
@@ -709,7 +743,11 @@ let lastCampaignCharactersById = {};
 
 async function campaignDetailHtml(campaignId) {
   try {
-    const [pending, chars, settings, logs] = await Promise.all([listPendingJoinRequests(campaignId), listCampaignCharacters(campaignId), getCampaignSettingsInfo(campaignId), listSessionLogs(campaignId)]);
+    const [pending, chars, settings, logs, pendingTraits] = await Promise.all([
+      listPendingJoinRequests(campaignId), listCampaignCharacters(campaignId),
+      getCampaignSettingsInfo(campaignId), listSessionLogs(campaignId),
+      listPendingKnownTraits(campaignId).catch(() => [])
+    ]);
     chars.forEach(ch => { lastCampaignCharactersById[ch.id] = ch; });
     const pendingHtml = pending.length
       ? pending.map(joinRequestRowHtml).join('')
@@ -717,6 +755,9 @@ async function campaignDetailHtml(campaignId) {
     const charsHtml = chars.length
       ? chars.map(campaignCharacterRowHtml).join('')
       : '<p class="helper-text" style="margin:0;">Nessun personaggio ancora in questa storia.</p>';
+    const pendingTraitsHtml = pendingTraits.length
+      ? pendingTraits.map(knownTraitRowHtml).join('')
+      : '<p class="helper-text" style="margin:0;">Nessun tratto proposto in attesa.</p>';
     return `
       ${campaignVisibilityHtml(campaignId, settings.listed)}
       ${campaignPremiseHtml(campaignId, settings)}
@@ -724,6 +765,9 @@ async function campaignDetailHtml(campaignId) {
       ${campaignSessionLogsHtml(campaignId, logs)}
       <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Richieste in attesa</div>
       ${pendingHtml}
+      <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Tratti proposti dai giocatori</div>
+      <p class="helper-text">Un tratto personalizzato scritto da un giocatore (scheda Tratti o bonus di scudo/arma) resta qui finché non lo approvi: solo dopo diventa pescabile da tutti i personaggi di questa storia.</p>
+      ${pendingTraitsHtml}
       <div class="section-title" style="margin-top:10px;"><span class="dot neutral"></span>Personaggi in gioco</div>
       ${charsHtml}
       <button class="btn btn-ghost btn-sm" data-trashcampaign="${campaignId}" style="align-self:flex-start;margin-top:10px;color:var(--fisico-forte);">🗑 Elimina campagna</button>
@@ -1179,6 +1223,16 @@ function wireCloudAccountEvents() {
     }
     if (e.target.dataset.reject) {
       try { await rejectJoinRequestCloud(e.target.dataset.reject); toast('Richiesta rifiutata'); e.target.closest('.cm-campaign-detail').innerHTML = await campaignDetailHtml(e.target.closest('.cm-campaign-detail').dataset.detailfor); }
+      catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.approvetrait) {
+      try { await approveKnownTraitCloud(e.target.dataset.approvetrait); toast('Tratto approvato'); e.target.closest('.cm-campaign-detail').innerHTML = await campaignDetailHtml(e.target.closest('.cm-campaign-detail').dataset.detailfor); }
+      catch (err) { toast('Errore: ' + err.message); }
+      return;
+    }
+    if (e.target.dataset.rejecttrait) {
+      try { await rejectKnownTraitCloud(e.target.dataset.rejecttrait); toast('Tratto rifiutato'); e.target.closest('.cm-campaign-detail').innerHTML = await campaignDetailHtml(e.target.closest('.cm-campaign-detail').dataset.detailfor); }
       catch (err) { toast('Errore: ' + err.message); }
       return;
     }

@@ -109,12 +109,14 @@ async function requestJoinCampaign(c, campaignId, campaignName) {
 /* ------------------------------------------- database tratti di campagna */
 
 /* Un tratto personalizzato (dalla scheda Tratti o da un bonus di scudo/
-   arma) aggiunto da un personaggio dentro una campagna diventa pescabile
-   dagli altri personaggi della STESSA storia — elenco aperto, nessuna
-   approvazione. Fuori da una campagna (c.cloudCampaignId assente) queste
-   funzioni non vengono mai chiamate: il campo resta testo libero come
-   sempre. Cache in memoria per campagna: non è un dato che cambia spesso,
-   non serve rileggerlo a ogni render. */
+   arma) aggiunto da un personaggio dentro una campagna viene PROPOSTO al
+   database condiviso della storia, ma non è pescabile dagli altri finché
+   il Narratore non lo approva da Account -> dettaglio campagna (evita
+   doppioni da refusi: vedi approve_known_trait/reject_known_trait).
+   Fuori da una campagna (c.cloudCampaignId assente) queste funzioni non
+   vengono mai chiamate: il campo resta testo libero come sempre. Cache in
+   memoria per campagna: non è un dato che cambia spesso, non serve
+   rileggerlo a ogni render. */
 const campaignTraitsCache = {};
 
 function emptyCampaignTraits() {
@@ -122,12 +124,13 @@ function emptyCampaignTraits() {
 }
 
 /* Rilettura best-effort: se la rete non risponde si tiene la cache già
-   presente (anche vuota) invece di bloccare la scheda. */
+   presente (anche vuota) invece di bloccare la scheda. Solo i tratti già
+   approvati dal Narratore risultano pescabili qui. */
 async function fetchCampaignKnownTraits(campaignId) {
   if (!campaignId) return null;
   try {
     const { data, error } = await withTimeout(
-      sb.from('campaign_known_traits').select('list_key, name').eq('campaign_id', campaignId),
+      sb.from('campaign_known_traits').select('list_key, name').eq('campaign_id', campaignId).eq('status', 'approved'),
       'Tratti condivisi della storia'
     );
     if (error) throw error;
@@ -147,9 +150,12 @@ function cachedCampaignKnownTraits(campaignId) {
   return campaignTraitsCache[campaignId] || emptyCampaignTraits();
 }
 
-/* Condivide un nome di tratto appena scritto con la campagna: "best
-   effort", un errore di rete non deve impedire di usare il tratto in
-   locale (resta comunque valido sulla scheda del giocatore). */
+/* Propone un nome di tratto appena scritto alla campagna (resta "in
+   attesa" finché il Narratore non lo approva): "best effort", un errore
+   di rete non deve impedire di usare il tratto in locale (resta comunque
+   valido sulla scheda del giocatore che l'ha scritto). Non viene aggiunto
+   alla cache locale qui: non è ancora pescabile dagli altri finché non è
+   approvato, la cache si aggiorna solo alla prossima fetchCampaignKnownTraits. */
 async function addCampaignKnownTrait(campaignId, listKey, name) {
   if (!campaignId || !listKey || !name) return;
   const session = await currentCloudSession();
@@ -160,11 +166,9 @@ async function addCampaignKnownTrait(campaignId, listKey, name) {
         { campaign_id: campaignId, list_key: listKey, name, created_by: session.user.id },
         { onConflict: 'campaign_id,list_key,name', ignoreDuplicates: true }
       ),
-      'Condivisione tratto'
+      'Proposta tratto'
     );
-    const cache = campaignTraitsCache[campaignId] || (campaignTraitsCache[campaignId] = emptyCampaignTraits());
-    if (cache[listKey] && !cache[listKey].includes(name)) cache[listKey].push(name);
-  } catch (e) { /* condivisione facoltativa: il tratto resta comunque valido in locale */ }
+  } catch (e) { /* proposta facoltativa: il tratto resta comunque valido in locale */ }
 }
 
 /* Controlla lo stato reale della scheda cloud: la richiesta e' stata
