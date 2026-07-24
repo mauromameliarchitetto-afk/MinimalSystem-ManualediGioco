@@ -1200,6 +1200,13 @@ function renderQi(c) {
 function renderTraits(c) {
   const wrap = $('#trait-lists');
   const locked = c.traitsConfirmed;
+  // fuori da una campagna il campo resta libero come sempre: il "database"
+  // di tratti condivisi esiste solo per i personaggi dentro una storia
+  const campaignId = c.cloudCampaignId;
+  if (campaignId && !campaignTraitsCache[campaignId]) {
+    fetchCampaignKnownTraits(campaignId).then(() => { if (getActive() === c) renderTraits(c); });
+  }
+  const known = campaignId ? cachedCampaignKnownTraits(campaignId) : null;
   wrap.innerHTML = Object.keys(TRAIT_LISTS).map(listKey => {
     const shown = c.shownTraits[listKey] || [];
     const rows = TRAIT_LISTS[listKey]
@@ -1209,6 +1216,10 @@ function renderTraits(c) {
     const empty = !rows.length && !customRows.length
       ? `<div class="helper-text" style="padding:2px 2px 6px;">Nessun tratto ancora — aggiungine uno dal menù qui sotto.</div>` : '';
     const available = TRAIT_LISTS[listKey].filter(name => !shown.includes(name));
+    // tratti già scritti da qualcun altro in questa storia (né ufficiali né
+    // già presenti su questa scheda): pescabili senza doverli riscrivere
+    const alreadyOnSheet = new Set([...TRAIT_LISTS[listKey], ...(c.customTraits[listKey] || []).map(t => t.name)]);
+    const knownExtra = known ? known[listKey].filter(n => n && !alreadyOnSheet.has(n)) : [];
     return `<div class="section-title"><span class="dot neutral"></span>${TRAIT_LIST_LABELS[listKey]} <span class="chip" style="margin-left:auto;">${rows.length + customRows.length}</span></div>
       <div class="trait-group" data-list="${listKey}">
         ${empty}
@@ -1218,6 +1229,7 @@ function renderTraits(c) {
       <select class="trait-add-select" data-addtraitsel="${listKey}" ${locked ? 'disabled' : ''}>
         <option value="" selected disabled>+ Aggiungi tratto…</option>
         ${available.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}
+        ${knownExtra.length ? `<optgroup label="Già usati in questa storia">${knownExtra.map(n => `<option value="known::${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}</optgroup>` : ''}
         <option value="__custom__">Tratto personalizzato…</option>
       </select>`;
   }).join('');
@@ -1580,10 +1592,18 @@ function equipBonusRowHtml(b, i, bi, itemKind) {
   const tertiaryOpts = TERTIARY_STATS.map(s => `<option value="${s.key}" ${kind === 'tertiary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
   const listOpts = Object.keys(TRAIT_LISTS).map(lk => `<option value="${lk}" ${kind === 'trait' && b.listKey === lk ? 'selected' : ''}>${TRAIT_LIST_LABELS[lk]}</option>`).join('');
   const traitOptions = traitOptionsFor(itemKind);
-  const isCustomTrait = !traitOptions || !traitOptions.includes(b.name);
+  // tratti già scritti da un altro personaggio di questa storia, per un
+  // bonus di scudo/arma: pescabili come i nomi ufficiali, non serve
+  // riscriverli — fuori da una campagna knownExtra resta sempre vuoto
+  const activeCharForTraits = (itemKind === 'scudo' || itemKind === 'arma') ? getActive() : null;
+  const knownExtra = (traitOptions && activeCharForTraits && activeCharForTraits.cloudCampaignId)
+    ? cachedCampaignKnownTraits(activeCharForTraits.cloudCampaignId).capacitaCombattive.filter(n => n && !traitOptions.includes(n))
+    : [];
+  const isCustomTrait = !traitOptions || (!traitOptions.includes(b.name) && !knownExtra.includes(b.name));
   const traitField = traitOptions
     ? `<select data-bonustraitpreset="${i}::${bi}">
         ${traitOptions.map(n => `<option value="${n}" ${!isCustomTrait && b.name === n ? 'selected' : ''}>${n}</option>`).join('')}
+        ${knownExtra.length ? `<optgroup label="Già usati in questa storia">${knownExtra.map(n => `<option value="${escapeHtml(n)}" ${!isCustomTrait && b.name === n ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}</optgroup>` : ''}
         <option value="__custom__" ${isCustomTrait ? 'selected' : ''}>Nuovo tratto personalizzato…</option>
       </select>
       <select data-bonuslistkey="${i}::${bi}" class="${isCustomTrait ? '' : 'hidden'}">${listOpts}</select>
@@ -1685,6 +1705,11 @@ function renderSlots(c) {
   $('#slot-grid').innerHTML = c.slots.map((s, i) => equipCardHtml(s, i, 'Locazione', false)).join('');
 }
 function renderWeaponSlots(c) {
+  // stessa cache di tratti condivisi usata dalla scheda Tratti: una sola
+  // rilettura per campagna, non a ogni riga di bonus
+  if (c.cloudCampaignId && !campaignTraitsCache[c.cloudCampaignId]) {
+    fetchCampaignKnownTraits(c.cloudCampaignId).then(() => { if (getActive() === c) renderWeaponSlots(c); });
+  }
   const cards = c.weaponSlots.map((s, i) =>
     equipCardHtml(s, i, s.kind === 'scudo' ? 'Nome scudo' : 'Nome arma', true));
   // equipaggiati prima, poi inventario: rispecchia lo spostamento richiesto
@@ -2992,11 +3017,27 @@ function wireStaticEvents() {
     const list = sel.dataset.addtraitsel;
     if (sel.value === '__custom__') {
       c.customTraits[list].push({ name: '', value: 0 });
+    } else if (sel.value.startsWith('known::')) {
+      // già scritto da un altro personaggio di questa storia: si aggiunge
+      // subito con quel nome, non serve ridigitarlo
+      const name = sel.value.slice('known::'.length);
+      if (!c.customTraits[list].some(t => t.name === name)) c.customTraits[list].push({ name, value: 0 });
     } else if (!(c.shownTraits[list] || []).includes(sel.value)) {
       c.shownTraits[list].push(sel.value);
     }
     renderTraits(c);
     touchActive();
+  });
+  // condivide il nome di un tratto personalizzato con la campagna (se il
+  // personaggio ne è membro) solo a modifica finita (blur), non a ogni
+  // tasto — fuori da una campagna non fa nulla, il campo resta locale
+  $('#trait-lists').addEventListener('change', e => {
+    const nameInput = e.target.closest('[data-customname]');
+    if (!nameInput) return;
+    const c = getActive(); if (!c) return;
+    if (c.cloudCampaignId && nameInput.value.trim()) {
+      addCampaignKnownTrait(c.cloudCampaignId, nameInput.dataset.customname, nameInput.value.trim());
+    }
   });
   $('#trait-lists').addEventListener('input', e => {
     const c = getActive(); if (!c) return;
@@ -3745,6 +3786,13 @@ function wireEquipGrid(sel, getSlots, doRender) {
     } else if (bonusName) {
       const [idx, bi] = parseBonusCtx(bonusName.dataset.bonusname);
       slots[idx].bonuses[bi].name = bonusName.value.trim();
+      // nome nuovo scritto a mano su scudo/arma: condividilo con la
+      // campagna (se il personaggio ne è membro), così altri personaggi
+      // della stessa storia lo trovano già pronto da pescare
+      const editedSlot = slots[idx];
+      if (c.cloudCampaignId && (editedSlot.kind === 'scudo' || editedSlot.kind === 'arma') && slots[idx].bonuses[bi].name) {
+        addCampaignKnownTrait(c.cloudCampaignId, 'capacitaCombattive', slots[idx].bonuses[bi].name);
+      }
     }
     // qualunque campo sia cambiato (tipo, categoria o nome), se la riga punta
     // ormai a un tratto con un nome valido va creato se ancora non c'è —
