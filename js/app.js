@@ -660,6 +660,14 @@ function showTab(tab) {
   $$('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   $$('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === tab));
   $('.sheet-body').scrollTop = 0;
+  // Il tab-panel "note" era display:none finché non diventa quello attivo:
+  // renderNote() aveva già scritto i valori e calcolato l'auto-altezza dei
+  // campi mentre erano ancora invisibili, quindi scrollHeight non era
+  // misurabile e restava troppo basso (testo tagliato a metà riga). Va
+  // ricalcolato ora che il contenitore aperto è davvero visibile.
+  if (tab === 'note') {
+    document.querySelectorAll('[data-bgsection]:not(.hidden) textarea').forEach(autoResizeTextarea);
+  }
 }
 
 /* Sincronizza in background col cloud all'apertura di una scheda gia'
