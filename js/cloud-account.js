@@ -744,6 +744,68 @@ function trashBoxHtml(session, trashed) {
   `).join('');
 }
 
+/* ------------------------------------------- entrata in gioco (Narratore) */
+
+/* "Entrata in gioco" = richiesta di ingresso in una campagna: il Narratore
+   deve saperlo subito, non scoprirlo aprendo a mano Account -> "Richieste in
+   attesa". Un canale realtime sugli INSERT di campaign_join_requests (RLS
+   "richieste: richiedente o narratore" già in vigore anche qui: arrivano
+   solo le richieste delle proprie campagne) apre un pop-up con Conferma/
+   Rifiuta nell'istante in cui il giocatore la manda, indipendentemente dalla
+   schermata su cui si trova il Narratore in quel momento. */
+let narratoreRealtimeChannel = null;
+let joinRequestQueue = [];
+let joinRequestPopupBusy = false;
+
+async function startNarratoreRealtimeWatch() {
+  if (narratoreRealtimeChannel) return; // già attivo
+  const session = await currentCloudSession();
+  if (!session || isGuestUser(session)) return;
+  narratoreRealtimeChannel = sb.channel('narratore-join-requests')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'campaign_join_requests' },
+      payload => handleNewJoinRequestRealtime(payload.new))
+    .subscribe();
+}
+function stopNarratoreRealtimeWatch() {
+  if (!narratoreRealtimeChannel) return;
+  sb.removeChannel(narratoreRealtimeChannel);
+  narratoreRealtimeChannel = null;
+}
+async function handleNewJoinRequestRealtime(row) {
+  if (!row || row.status !== 'pending') return;
+  try {
+    const [charRes, campRes, names] = await Promise.all([
+      sb.from('characters').select('name').eq('id', row.character_id).single(),
+      sb.from('campaigns').select('name').eq('id', row.campaign_id).single(),
+      fetchDisplayNames([row.requested_by])
+    ]);
+    joinRequestQueue.push({
+      id: row.id,
+      characterName: (charRes.data && charRes.data.name) || 'un personaggio',
+      campaignName: (campRes.data && campRes.data.name) || 'una tua storia',
+      playerName: names[row.requested_by] || 'Un avventuriero'
+    });
+    showNextJoinRequestPopup();
+  } catch (e) { /* niente pop-up stavolta: la richiesta resta comunque visibile in Account -> Richieste in attesa */ }
+}
+function showNextJoinRequestPopup() {
+  const popup = $('#join-request-popup');
+  if (!popup || joinRequestPopupBusy || !joinRequestQueue.length) return;
+  const req = joinRequestQueue[0];
+  joinRequestPopupBusy = true;
+  $('#join-request-popup-text').textContent =
+    `${req.playerName} chiede di far entrare «${req.characterName}» in «${req.campaignName}».`;
+  popup.dataset.requestId = req.id;
+  popup.classList.remove('hidden');
+}
+function closeJoinRequestPopup() {
+  joinRequestQueue.shift();
+  joinRequestPopupBusy = false;
+  const popup = $('#join-request-popup');
+  if (popup) popup.classList.add('hidden');
+  showNextJoinRequestPopup();
+}
+
 /* Identità dell'account (accesso/registrazione se non connesso, o stato +
    nickname + uscita se già connesso): vive in copertina, non più in
    Account, così è la prima cosa che si vede aprendo l'app — la sezione
@@ -764,6 +826,7 @@ async function renderHomeIdentityBox() {
     try { profile = await getMyProfile(session.user.id); } catch (e) { /* nickname non essenziale: il campo resta vuoto */ }
   }
   box.innerHTML = accountStatusHtml(session, caps, profile);
+  startNarratoreRealtimeWatch();
 }
 
 async function renderAccountArea() {
@@ -1011,10 +1074,35 @@ function wireCloudAccountEvents() {
       return;
     }
     if (e.target.id === 'acc-signout') {
+      stopNarratoreRealtimeWatch();
       await signOutCloud();
       toast('Disconnesso');
       renderAccountArea();
       renderHomeIdentityBox();
+      return;
+    }
+  });
+
+  // ---- pop-up realtime "nuova richiesta di ingresso" (Narratore) ----
+  $('#join-request-popup').addEventListener('click', async e => {
+    const popup = $('#join-request-popup');
+    const id = popup.dataset.requestId;
+    if (e.target.id === 'join-request-confirm') {
+      try {
+        await approveJoinRequestCloud(id);
+        toast('Richiesta accettata');
+        if (!$('#view-account').classList.contains('hidden')) renderAccountArea();
+      } catch (err) { toast('Errore: ' + err.message); }
+      closeJoinRequestPopup();
+      return;
+    }
+    if (e.target.id === 'join-request-reject') {
+      try {
+        await rejectJoinRequestCloud(id);
+        toast('Richiesta rifiutata');
+        if (!$('#view-account').classList.contains('hidden')) renderAccountArea();
+      } catch (err) { toast('Errore: ' + err.message); }
+      closeJoinRequestPopup();
       return;
     }
   });

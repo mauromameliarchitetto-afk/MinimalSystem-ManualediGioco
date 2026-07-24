@@ -194,15 +194,23 @@ function touchActive() {
 /* Retro scheda: solo locazioni di armatura (le armi sono sul fronte) */
 function defaultSlots() {
   return ['Capo', 'Busto', 'Braccio Sx', 'Braccio Dx', 'Gamba Sx', 'Gamba Dx']
-    .map(name => ({ name, kind: 'armatura', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 }));
+    .map(name => ({ name, kind: 'armatura', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, bonuses: [] }));
 }
 /* Fronte scheda: 1 scudo + 1 arma, equipaggiabili insieme */
 function defaultWeaponSlots() {
   return [
-    { name: 'Scudo', kind: 'scudo', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 },
-    { name: 'Arma 1', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0 }
+    { name: 'Scudo', kind: 'scudo', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, bonuses: [] },
+    { name: 'Arma 1', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, bonuses: [] }
   ];
 }
+/* Una riga di "bonus meccanico" su un pezzo di equipaggiamento (arma, scudo
+   o armatura): a differenza del vecchio campo Bonus (testo libero, mai letto
+   dal codice), questa aumenta davvero una statistica o un tratto in scheda.
+   kind: 'primary' (key = chiave PRIMARY_STATS) | 'tertiary' (key = chiave
+   TERTIARY_STATS) | 'trait' (listKey + name: se il tratto non è ancora in
+   scheda viene aggiunto in automatico, partendo da base 0 — il bonus da solo
+   ne determina il valore). */
+function makeEquipBonusRow() { return { id: uid(), kind: 'primary', key: 'for', listKey: '', name: '', valore: 1 }; }
 /* Se taglia/qualità sono entrambe scelte, riporta atk/dif/dur nel range
    ufficiale corrispondente (usato quando cambia una delle due scelte) */
 function clampSlotToRange(slot) {
@@ -544,8 +552,12 @@ function ensureShape(c) {
     s.kind = 'armatura';
     if (s.size && !armorSizes.includes(s.size)) { s.size = ''; s.quality = ''; s.atk = 0; s.dif = 0; s.dur = 0; }
     if (s.quality === undefined) s.quality = '';
+    if (!Array.isArray(s.bonuses)) s.bonuses = [];
   });
-  (c.weaponSlots || []).forEach(s => { if (s.quality === undefined) s.quality = ''; });
+  (c.weaponSlots || []).forEach(s => {
+    if (s.quality === undefined) s.quality = '';
+    if (!Array.isArray(s.bonuses)) s.bonuses = [];
+  });
   // rimosse le locazioni Arma 2/Arma 3: restano solo Scudo e Arma 1, equipaggiabili insieme
   if (c.weaponSlots) c.weaponSlots = c.weaponSlots.filter(s => s.name !== 'Arma 2' && s.name !== 'Arma 3');
   return c;
@@ -587,7 +599,7 @@ function syncActiveCharacterInBackground() {
   if (!c || !c.cloudCharacterId || typeof syncCharacterFromCloud !== 'function') return;
   syncCharacterFromCloud(c).then(changed => {
     if (changed && typeof renderCloudStoryBox === 'function') renderCloudStoryBox(c);
-    if (changed) { updateStoriaLegacyVisibility(c); updateLevelLockUI(c); updateSessionLockUI(c); }
+    if (changed) { updateStoriaLegacyVisibility(c); updateLevelLockUI(c); updateSessionLockUI(c); updateEntryLockUI(c); }
   }).catch(() => {});
 }
 
@@ -812,11 +824,30 @@ function statLabel(key) {
   const s = PRIMARY_STATS.find(st => st.key === key);
   return s ? s.label : key;
 }
+/* Somma dei bonus meccanici assegnati su arma/scudo/armatura per un dato
+   bersaglio: kind 'primary'/'tertiary' confrontano key, kind 'trait'
+   confronta listKey+name (un tratto può chiamarsi allo stesso modo in
+   categorie diverse). Scansiona sia il fronte (weaponSlots) sia il retro
+   (slots): un pezzo equipaggiato vale sempre, non serve "attivarlo" come i
+   consumabili. */
+function equipBonusTotal(c, kind, key, listKey) {
+  const allSlots = [...(c.weaponSlots || []), ...(c.slots || [])];
+  let total = 0;
+  allSlots.forEach(s => (s.bonuses || []).forEach(b => {
+    if (b.kind !== kind) return;
+    if (kind === 'trait') { if (b.listKey === listKey && b.name === key) total += Number(b.valore) || 0; }
+    else if (b.key === key) total += Number(b.valore) || 0;
+  }));
+  return total;
+}
 /* Somma degli incrementi attivi su una caratteristica (0 se nessuno): gli
-   incrementi non toccano il valore base salvato, restano un bonus reversibile
-   finché non viene sospeso */
+   incrementi da consumabile non toccano il valore base salvato, restano un
+   bonus reversibile finché non viene sospeso; i bonus da equipaggiamento si
+   sommano allo stesso modo, ma restano finché il pezzo ha quella riga di
+   bonus (non serve "sospenderli" a mano). */
 function buffTotal(c, key) {
-  return (c.statBuffs || []).filter(b => b.target === key).reduce((s, b) => s + (Number(b.valore) || 0), 0);
+  const consumable = (c.statBuffs || []).filter(b => b.target === key).reduce((s, b) => s + (Number(b.valore) || 0), 0);
+  return consumable + equipBonusTotal(c, 'primary', key);
 }
 function effectiveHpMax(c) { return (c.hpMaxTracked || 0) + buffTotal(c, 'hp'); }
 function effectiveMpMax(c) { return (c.mpMaxTracked || 0) + buffTotal(c, 'mp'); }
@@ -1028,13 +1059,19 @@ function renderTertiaryStats(c) {
   wrap.innerHTML = TERTIARY_STATS.map(stat => {
     const val = c.tertiary[stat.key];
     const floor = tertiaryFloorFor(c, stat.key);
+    // il valore base resta impostabile a mano nel campo; il bonus da
+    // equipaggiamento compare solo come chip a fianco (come per le
+    // primarie), non nel diagramma: quel campo ha un solo input, non c'è
+    // spazio per separare base ed effettivo senza confondere la modifica
+    const buff = equipBonusTotal(c, 'tertiary', stat.key);
     return `<div class="stat-row">
-      <div class="stat-label neutral"><span class="abbr">${stat.label}</span></div>
+      <div class="stat-label neutral${buff ? ' buffed' : ''}"><span class="abbr">${stat.label}</span></div>
       <div class="stepper">
         <button data-tstat="${stat.key}" data-dir="-1" aria-label="Diminuisci">−</button>
         <input type="number" data-tstat-input="${stat.key}" value="${val}" min="${floor}">
         <button data-tstat="${stat.key}" data-dir="1" aria-label="Aumenta">+</button>
       </div>
+      ${buff ? `<span class="chip buff-chip" title="Bonus da equipaggiamento">+${buff}</span>` : ''}
     </div>`;
   }).join('');
   updateTertiaryRemaining(c);
@@ -1073,8 +1110,8 @@ function renderTraits(c) {
     const shown = c.shownTraits[listKey] || [];
     const rows = TRAIT_LISTS[listKey]
       .filter(name => shown.includes(name))
-      .map(name => traitRowHtml(listKey, name, c.traits[listKey][name] || 0, false, undefined, locked));
-    const customRows = (c.customTraits[listKey] || []).map((t, i) => traitRowHtml(listKey, t.name, t.value, true, i, locked, t.narratore));
+      .map(name => traitRowHtml(listKey, name, c.traits[listKey][name] || 0, false, undefined, locked, false, equipBonusTotal(c, 'trait', name, listKey)));
+    const customRows = (c.customTraits[listKey] || []).map((t, i) => traitRowHtml(listKey, t.name, t.value, true, i, locked, t.narratore, equipBonusTotal(c, 'trait', t.name, listKey)));
     const empty = !rows.length && !customRows.length
       ? `<div class="helper-text" style="padding:2px 2px 6px;">Nessun tratto ancora — aggiungine uno dal menù qui sotto.</div>` : '';
     const available = TRAIT_LISTS[listKey].filter(name => !shown.includes(name));
@@ -1164,8 +1201,8 @@ function renderTraitRollSelect(c) {
   const prevVal = sel.value;
   const groups = Object.keys(TRAIT_LISTS).map(listKey => {
     const shown = c.shownTraits[listKey] || [];
-    const rows = shown.map(name => ({ name, value: Number(c.traits[listKey][name]) || 0 }));
-    (c.customTraits[listKey] || []).forEach(t => { if (t.name) rows.push({ name: t.name, value: Number(t.value) || 0 }); });
+    const rows = shown.map(name => ({ name, value: (Number(c.traits[listKey][name]) || 0) + equipBonusTotal(c, 'trait', name, listKey) }));
+    (c.customTraits[listKey] || []).forEach(t => { if (t.name) rows.push({ name: t.name, value: (Number(t.value) || 0) + equipBonusTotal(c, 'trait', t.name, listKey) }); });
     if (!rows.length) return '';
     const opts = rows.map(r => `<option value="${listKey}::${escapeHtml(r.name)}">${escapeHtml(r.name)} (+${r.value})</option>`).join('');
     return `<optgroup label="${TRAIT_LIST_LABELS[listKey]}">${opts}</optgroup>`;
@@ -1177,8 +1214,10 @@ function cssEscapeAttr(v) {
   return v.replace(/["\\]/g, '\\$&');
 }
 
-function traitRowHtml(listKey, name, value, isCustom, idx, locked, narratore) {
-  const bonus = Number(value) || 0;
+function traitRowHtml(listKey, name, value, isCustom, idx, locked, narratore, equipBonus) {
+  const base = Number(value) || 0;
+  const bonus = Number(equipBonus) || 0;
+  const effective = base + bonus;
   // un tratto scritto dal Narratore non è mai modificabile o rimovibile dal
   // giocatore, a prescindere dal blocco tratti: è un dono che gestisce solo
   // lui, dal suo Account
@@ -1187,10 +1226,11 @@ function traitRowHtml(listKey, name, value, isCustom, idx, locked, narratore) {
     ? `<input type="text" value="${escapeHtml(name)}" data-customname="${listKey}" data-idx="${idx}" ${rowLocked ? 'disabled' : ''} placeholder="Nome tratto">`
     : escapeHtml(name);
   const badge = narratore ? ` <span class="chip buff-chip" title="Scritto dal Narratore: non consuma i punti del giocatore, modificabile solo da lui">Narratore</span>` : '';
+  const equipBadge = bonus ? ` <span class="chip buff-chip" title="Bonus da equipaggiamento">+${bonus} equip.</span>` : '';
   return `<div class="trait-row" data-trait="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''} ${narratore ? 'data-narratore="1"' : ''}>
-    <div class="t-name">${nameHtml}${badge}</div>
-    <span class="t-dice">+${bonus}</span>
-    <input type="number" value="${value}" min="0" max="50" data-traitvalue="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''} ${rowLocked ? 'disabled' : ''}>
+    <div class="t-name">${nameHtml}${badge}${equipBadge}</div>
+    <span class="t-dice" title="${bonus ? `Base ${base} + equipaggiamento ${bonus}` : 'Valore base'}">+${effective}</span>
+    <input type="number" value="${base}" min="0" max="50" data-traitvalue="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''} ${rowLocked ? 'disabled' : ''}>
     <button class="btn btn-icon btn-sm btn-ghost btn-roll" data-traitroll="${escapeHtml(name)}" data-list="${listKey}" title="Tira 1d20+valore">🎲</button>
     ${isCustom
       ? `<button class="btn btn-icon btn-sm btn-ghost btn-del" data-delcustom="${listKey}" data-idx="${idx}" title="Rimuovi" ${rowLocked ? 'disabled' : ''}>✕</button>`
@@ -1409,6 +1449,32 @@ function updateGrowthCost() {
 
 /* ------------------------------------------------------------- retro/eq */
 
+/* Una riga di bonus meccanico su un pezzo di equipaggiamento: tipo (statistica
+   primaria/secondaria o tratto) + bersaglio + valore. Per i tratti il nome è
+   un campo libero (come i tratti personalizzati in scheda): se non combacia
+   con nessun tratto già presente, ne viene creato uno nuovo con base 0 non
+   appena il bonus viene aggiunto — è il bonus stesso a dargli un valore. */
+function equipBonusRowHtml(b, i, bi) {
+  const kind = b.kind || 'primary';
+  const primaryOpts = PRIMARY_STATS.map(s => `<option value="${s.key}" ${kind === 'primary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
+  const tertiaryOpts = TERTIARY_STATS.map(s => `<option value="${s.key}" ${kind === 'tertiary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
+  const listOpts = Object.keys(TRAIT_LISTS).map(lk => `<option value="${lk}" ${kind === 'trait' && b.listKey === lk ? 'selected' : ''}>${TRAIT_LIST_LABELS[lk]}</option>`).join('');
+  return `<div class="equip-bonus-row">
+    <select data-bonuskind="${i}::${bi}">
+      <option value="primary" ${kind === 'primary' ? 'selected' : ''}>Statistica primaria</option>
+      <option value="tertiary" ${kind === 'tertiary' ? 'selected' : ''}>Statistica secondaria</option>
+      <option value="trait" ${kind === 'trait' ? 'selected' : ''}>Tratto</option>
+    </select>
+    <select data-bonuskey="${i}::${bi}" class="${kind === 'primary' ? '' : 'hidden'}">${primaryOpts}</select>
+    <select data-bonuskeytert="${i}::${bi}" class="${kind === 'tertiary' ? '' : 'hidden'}">${tertiaryOpts}</select>
+    <span class="equip-bonus-trait ${kind === 'trait' ? '' : 'hidden'}">
+      <select data-bonuslistkey="${i}::${bi}">${listOpts}</select>
+      <input type="text" data-bonusname="${i}::${bi}" value="${escapeHtml(b.name || '')}" placeholder="Nome tratto" maxlength="40">
+    </span>
+    <input type="number" data-bonusvalore="${i}::${bi}" value="${Number(b.valore) || 1}" min="1" max="50" style="width:56px;">
+    <button type="button" class="btn btn-icon btn-sm btn-ghost" data-delequipbonus="${i}::${bi}" title="Rimuovi bonus">✕</button>
+  </div>`;
+}
 /* Card di equip condivisa da retro (solo armature) e fronte (scudo/armi):
    il tipo è fisso per contesto/indice, restano da scegliere solo taglia e
    qualità — Atk/Dif/Durabilità diventano cursori nel range ufficiale */
@@ -1444,8 +1510,13 @@ function equipCardHtml(s, i, namePlaceholder) {
         ${rangeField('Durabilità', 'dur')}
       </div>
       <div class="field slot-bonus">
-        <label>Bonus</label>
-        <input type="text" value="${escapeHtml(s.bonus || '')}" data-slotfield="bonus" data-idx="${i}" placeholder="es. +2 a Tagliare · +1d6 a Forza">
+        <label>Note (testo libero)</label>
+        <input type="text" value="${escapeHtml(s.bonus || '')}" data-slotfield="bonus" data-idx="${i}" placeholder="es. incisa con rune, appartenuta al nonno...">
+      </div>
+      <div class="slot-picker equip-bonuses">
+        <span class="sp-label">Bonus meccanici (aumentano davvero statistiche/tratti)</span>
+        ${(s.bonuses || []).map((b, bi) => equipBonusRowHtml(b, i, bi)).join('')}
+        <button type="button" class="btn btn-ghost btn-sm" data-addequipbonus="${i}" style="align-self:flex-start;">+ Aggiungi bonus</button>
       </div>
     </div>`;
 }
@@ -1812,6 +1883,28 @@ function updateSessionLockUI(c) {
   renderAbilita(c);
 }
 
+/* Entrata in gioco: finché una richiesta di ingresso in campagna resta in
+   attesa (cloudJoinRequestId senza cloudCampaignId), il personaggio non è
+   ancora ufficialmente nella storia — non deve poter spendere P.P. (Boost),
+   subire/segnare danni HP o consumare MP, altrimenti si presenterebbe già
+   "in gioco" prima ancora che il Narratore lo accetti. Una volta accettato
+   (cloudCampaignId valorizzato) torna tutto libero; fuori da qualunque
+   campagna (gioco locale) non è mai bloccato. */
+function isEntryLocked(c) { return !c.cloudCampaignId && !!c.cloudJoinRequestId; }
+function updateEntryLockUI(c) {
+  const locked = isEntryLocked(c);
+  const boostBtn = $('#boost-activate-btn');
+  if (boostBtn) boostBtn.disabled = locked;
+  const boostSel = $('#boost-activate-select');
+  if (boostSel) boostSel.disabled = locked;
+  const note = $('#entry-lock-note');
+  if (note) note.classList.toggle('hidden', !locked);
+  ['hprim', 'hpuso', 'mprim', 'mpuso'].forEach(key => {
+    const dg = document.querySelector(`#stat-diagram [data-dg="${key}"]`);
+    if (dg) dg.classList.toggle('dg-ro', locked);
+  });
+}
+
 /* ----------------------------------------------------------- full render */
 
 function renderSheet() {
@@ -1829,6 +1922,7 @@ function renderSheet() {
   updateStoriaLegacyVisibility(c);
   updateLevelLockUI(c);
   updateSessionLockUI(c);
+  updateEntryLockUI(c);
   $('#f-bellezza-manuale').value = c.bellezzaManuale !== null ? c.bellezzaManuale : '';
   $('#bellezza-result').textContent = c.bellezzaTirata !== null ? c.bellezzaTirata : '—';
   renderPrimaryStats(c);
@@ -2429,19 +2523,23 @@ function wireStaticEvents() {
       renderQi(c);
       renderTecniche(c);
       renderAbilita(c);
-    } else if (key === 'hprim') {
-      c.hpCur = clamp(isNaN(raw) ? 0 : raw, 0, c.hpMaxTracked || 0);
-      updatePlayBars(c);
-    } else if (key === 'mprim') {
-      c.mpCur = clamp(isNaN(raw) ? 0 : raw, 0, c.mpMaxTracked || 0);
-      updatePlayBars(c);
-    } else if (key === 'hpuso') {
-      const max = c.hpMaxTracked || 0;
-      c.hpCur = clamp(max - (isNaN(raw) ? 0 : raw), 0, max);
-      updatePlayBars(c);
-    } else if (key === 'mpuso') {
-      const max = c.mpMaxTracked || 0;
-      c.mpCur = clamp(max - (isNaN(raw) ? 0 : raw), 0, max);
+    } else if (key === 'hprim' || key === 'mprim' || key === 'hpuso' || key === 'mpuso') {
+      if (isEntryLocked(c)) {
+        inp.value = diagramValue(c, key);
+        toast('Il Narratore non ha ancora accettato la richiesta di ingresso: attendi la conferma per segnare danni o uso');
+        return;
+      }
+      if (key === 'hprim') {
+        c.hpCur = clamp(isNaN(raw) ? 0 : raw, 0, c.hpMaxTracked || 0);
+      } else if (key === 'mprim') {
+        c.mpCur = clamp(isNaN(raw) ? 0 : raw, 0, c.mpMaxTracked || 0);
+      } else if (key === 'hpuso') {
+        const max = c.hpMaxTracked || 0;
+        c.hpCur = clamp(max - (isNaN(raw) ? 0 : raw), 0, max);
+      } else {
+        const max = c.mpMaxTracked || 0;
+        c.mpCur = clamp(max - (isNaN(raw) ? 0 : raw), 0, max);
+      }
       updatePlayBars(c);
     } else if (key === 'prcur') {
       c.prCur = clamp(isNaN(raw) ? 0 : raw, 0, c.prMaxTracked || 0);
@@ -3021,6 +3119,7 @@ function wireStaticEvents() {
   });
   $('#boost-activate-btn').addEventListener('click', () => {
     const c = getActive(); if (!c) return;
+    if (isEntryLocked(c)) { toast('Il Narratore non ha ancora accettato la richiesta di ingresso: attendi la conferma per usare i P.P.'); return; }
     const lv = Number($('#boost-activate-select').value);
     if (!lv) return;
     const b = BOOST_LEVELS.find(x => x.lv === lv);
@@ -3080,12 +3179,40 @@ function wireStaticEvents() {
 
 }
 
+/* "i::bi" -> [indice slot, indice riga bonus dentro quello slot] */
+function parseBonusCtx(v) {
+  const sep = v.indexOf('::');
+  return [Number(v.slice(0, sep)), Number(v.slice(sep + 2))];
+}
+/* Se un bonus da equipaggiamento punta a un tratto non ancora in scheda, lo
+   aggiunge con base 0 (ufficiale -> shownTraits, altrimenti nuovo
+   customTraits): senza, il bonus non avrebbe nessuna riga su cui sommarsi. */
+function ensureTraitExists(c, listKey, name) {
+  if (!name || !listKey || !TRAIT_LISTS[listKey]) return;
+  if (TRAIT_LISTS[listKey].includes(name)) {
+    if (!(c.shownTraits[listKey] || []).includes(name)) c.shownTraits[listKey].push(name);
+  } else if (!(c.customTraits[listKey] || []).some(t => t.name === name)) {
+    c.customTraits[listKey].push({ name, value: 0 });
+  }
+}
+/* Un bonus da equipaggiamento tocca statistiche primarie/secondarie e
+   tratti: dopo ogni modifica vanno rinfrescate tutte le viste che ne
+   mostrano il valore effettivo. */
+function refreshAfterEquipBonusChange(c) {
+  renderPrimaryStats(c);
+  renderTertiaryStats(c);
+  renderTraits(c);
+  renderDiagram(c);
+  updatePlayBars(c);
+}
 function wireEquipGrid(sel, getSlots, doRender) {
   $(sel).addEventListener('input', e => {
     const c = getActive(); if (!c) return;
     const slots = getSlots(c);
     const nameInput = e.target.closest('[data-slotname]');
     const fieldInput = e.target.closest('[data-slotfield]');
+    const bonusName = e.target.closest('[data-bonusname]');
+    const bonusValore = e.target.closest('[data-bonusvalore]');
     if (nameInput) {
       slots[Number(nameInput.dataset.slotname)].name = nameInput.value;
       touchActive();
@@ -3096,14 +3223,85 @@ function wireEquipGrid(sel, getSlots, doRender) {
       const out = fieldInput.parentElement.querySelector('.sf-val');
       if (out) out.textContent = slots[idx][field];
       touchActive();
+    } else if (bonusName) {
+      // solo il nome, senza rinfrescare a ogni tasto: altrimenti si perde il
+      // focus del campo a metà digitazione (vedi 'change' più sotto)
+      const [idx, bi] = parseBonusCtx(bonusName.dataset.bonusname);
+      slots[idx].bonuses[bi].name = bonusName.value;
+      touchActive();
+    } else if (bonusValore) {
+      const [idx, bi] = parseBonusCtx(bonusValore.dataset.bonusvalore);
+      slots[idx].bonuses[bi].valore = Math.max(1, Math.floor(Number(bonusValore.value)) || 1);
+      refreshAfterEquipBonusChange(c);
+      touchActive();
     }
   });
-  $(sel).addEventListener('click', e => {
-    const btn = e.target.closest('[data-slotsize],[data-slotquality]');
-    if (!btn) return;
+  $(sel).addEventListener('change', e => {
+    const bonusName = e.target.closest('[data-bonusname]');
+    const bonusKind = e.target.closest('[data-bonuskind]');
+    const bonusKey = e.target.closest('[data-bonuskey]');
+    const bonusKeyTert = e.target.closest('[data-bonuskeytert]');
+    const bonusListKey = e.target.closest('[data-bonuslistkey]');
+    if (!bonusName && !bonusKind && !bonusKey && !bonusKeyTert && !bonusListKey) return;
     const c = getActive(); if (!c) return;
+    const slots = getSlots(c);
+    if (bonusKind) {
+      const [idx, bi] = parseBonusCtx(bonusKind.dataset.bonuskind);
+      const b = slots[idx].bonuses[bi];
+      b.kind = bonusKind.value;
+      // riallinea il dato al primo valore mostrato dal selettore appena
+      // comparso, altrimenti resterebbe vuoto finché l'utente non lo tocca
+      if (b.kind === 'primary' && !b.key) b.key = PRIMARY_STATS[0].key;
+      if (b.kind === 'tertiary' && !TERTIARY_STATS.some(s => s.key === b.key)) b.key = TERTIARY_STATS[0].key;
+      if (b.kind === 'trait' && !b.listKey) b.listKey = Object.keys(TRAIT_LISTS)[0];
+      doRender(c);
+    } else if (bonusKey) {
+      const [idx, bi] = parseBonusCtx(bonusKey.dataset.bonuskey);
+      slots[idx].bonuses[bi].key = bonusKey.value;
+    } else if (bonusKeyTert) {
+      const [idx, bi] = parseBonusCtx(bonusKeyTert.dataset.bonuskeytert);
+      slots[idx].bonuses[bi].key = bonusKeyTert.value;
+    } else if (bonusListKey) {
+      const [idx, bi] = parseBonusCtx(bonusListKey.dataset.bonuslistkey);
+      slots[idx].bonuses[bi].listKey = bonusListKey.value;
+    } else if (bonusName) {
+      const [idx, bi] = parseBonusCtx(bonusName.dataset.bonusname);
+      slots[idx].bonuses[bi].name = bonusName.value.trim();
+    }
+    // qualunque campo sia cambiato (tipo, categoria o nome), se la riga punta
+    // ormai a un tratto con un nome valido va creato se ancora non c'è —
+    // non solo quando si tocca proprio il campo nome
+    slots.forEach(s => (s.bonuses || []).forEach(b => {
+      if (b.kind === 'trait') ensureTraitExists(c, b.listKey, b.name);
+    }));
+    refreshAfterEquipBonusChange(c);
+    touchActive();
+  });
+  $(sel).addEventListener('click', e => {
+    const addBtn = e.target.closest('[data-addequipbonus]');
+    const delBtn = e.target.closest('[data-delequipbonus]');
+    const btn = e.target.closest('[data-slotsize],[data-slotquality]');
+    const c = getActive(); if (!c) return;
+    const slots = getSlots(c);
+    if (addBtn) {
+      const idx = Number(addBtn.dataset.addequipbonus);
+      if (!Array.isArray(slots[idx].bonuses)) slots[idx].bonuses = [];
+      slots[idx].bonuses.push(makeEquipBonusRow());
+      doRender(c);
+      touchActive();
+      return;
+    }
+    if (delBtn) {
+      const [idx, bi] = parseBonusCtx(delBtn.dataset.delequipbonus);
+      slots[idx].bonuses.splice(bi, 1);
+      doRender(c);
+      refreshAfterEquipBonusChange(c);
+      touchActive();
+      return;
+    }
+    if (!btn) return;
     const card = btn.closest('[data-slotidx]');
-    const slot = getSlots(c)[Number(card.dataset.slotidx)];
+    const slot = slots[Number(card.dataset.slotidx)];
     const val = btn.dataset.slotsize || btn.dataset.slotquality;
     if (btn.hasAttribute('data-slotsize')) {
       slot.size = slot.size === val ? '' : val;
@@ -3144,8 +3342,8 @@ function setField(key, value) {
 }
 function getTraitValue(c, list, name) {
   const custom = (c.customTraits[list] || []).find(t => t.name === name);
-  if (custom) return custom.value;
-  return c.traits[list][name] || 0;
+  const base = custom ? (Number(custom.value) || 0) : (Number(c.traits[list][name]) || 0);
+  return base + equipBonusTotal(c, 'trait', name, list);
 }
 
 /* ------------------------------------------------------------ char CRUD */

@@ -313,6 +313,7 @@
               <button class="btn btn-sm btn-ghost" id="boost-activate-btn">Attiva</button>
             </div>
           </div>
+          <p class="helper-text hidden" id="entry-lock-note" style="margin:2px 0 0;color:var(--fisico-forte);">In attesa che il Narratore accetti la tua richiesta di ingresso: P.P., danni HP e uso MP si potranno segnare solo dopo la conferma.</p>
         </div></div>
 
         <div class="section-title"><span class="dot neutral"></span>Riposo</div>
@@ -779,6 +780,18 @@
     <div class="cc-actions">
       <button class="btn btn-primary" id="traits-confirm-yes">Sì</button>
       <button class="btn btn-ghost" id="traits-confirm-no">No</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pop-up realtime: nuova richiesta di ingresso in una campagna (Narratore) -->
+<div id="join-request-popup" class="hidden confirm-modal">
+  <div class="cc-box">
+    <div class="cc-title">Nuova richiesta di ingresso</div>
+    <p id="join-request-popup-text">—</p>
+    <div class="cc-actions">
+      <button class="btn btn-primary" id="join-request-confirm">Conferma</button>
+      <button class="btn btn-ghost" id="join-request-reject">Rifiuta</button>
     </div>
   </div>
 </div>
