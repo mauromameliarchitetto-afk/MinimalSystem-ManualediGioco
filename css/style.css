@@ -794,6 +794,41 @@ body.pdf-lock-scroll{overflow:hidden;}
 .field-row{display:flex;gap:10px;flex-wrap:wrap;}
 .field-row .field{flex:1 1 120px;min-width:0;}
 
+/* ---------- Background: sezioni a tendina + sola lettura/modifica ---------- */
+.bg-section{
+  background:var(--antracite-2);
+  border:1px solid var(--bordo-scuro);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.bg-section-head{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:12px 12px;
+}
+.bg-section-toggle{
+  flex:1 1 auto;min-width:0;
+  display:flex;align-items:center;gap:8px;
+  background:none;border:none;padding:0;cursor:pointer;text-align:left;
+}
+.bg-section-toggle .bg-section-title{
+  font-family:var(--font-title);font-weight:600;font-size:12.5px;
+  text-transform:uppercase;letter-spacing:.1em;
+  color:var(--testo-secondario-dark-2);
+}
+.bg-chevron{margin-left:auto;font-size:11px;color:var(--testo-secondario-dark);transition:transform .15s ease;}
+.bg-section-toggle[aria-expanded="true"] .bg-chevron{transform:rotate(180deg);}
+.bg-section-body{padding:0 12px 14px;}
+/* campo di sola lettura: niente bordo/sfondo a rilievo, testo comunque
+   interamente leggibile (auto-altezza via JS, mai troncato o a scorrimento) */
+.field textarea[data-bg][readonly],.field input[data-bg][readonly]{
+  background:transparent;border-color:transparent;padding-left:0;padding-right:0;
+  color:var(--testo-primario-dark);cursor:default;
+}
+.field textarea[data-bg]{resize:none;overflow:hidden;}
+/* campi "corti" (data di nascita, altezza...): niente min-height da 70px,
+   l'altezza reale la decide comunque l'auto-resize via JS */
+.field textarea[data-bg][rows="1"]{min-height:0;}
+
 /* ---------- Tratti ---------- */
 .trait-group{display:flex;flex-direction:column;gap:6px;}
 .trait-row{

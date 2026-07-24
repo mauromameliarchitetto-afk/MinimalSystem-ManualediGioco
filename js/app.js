@@ -478,6 +478,7 @@ function newCharacter(nome) {
     portrait: null,
     relazioni: [],
     bg: defaultBg(),
+    bgLocked: defaultBgLocked(),
     note: { aspetto: '', morale: '', background: '', libere: '' }
   };
 }
@@ -494,6 +495,23 @@ function defaultBg() {
   const o = {};
   keys.forEach(k => { o[k] = ''; });
   return o;
+}
+/* Le 5 sezioni a tendina del Background: ciascuna si apre/chiude a parte e
+   ha un proprio blocco sola-lettura/modifica indipendente dalle altre. */
+const BG_SECTIONS = ['datiAspetto', 'vita', 'atteggiamento', 'passato', 'relazioni'];
+/* Sola lettura di default: il testo va sempre modificato "su richiesta"
+   (bottone Modifica), poi confermato per tornare bloccato — anche per i
+   personaggi già esistenti, che partono tutti bloccati alla migrazione. */
+function defaultBgLocked() {
+  const o = {};
+  BG_SECTIONS.forEach(k => { o[k] = true; });
+  return o;
+}
+/* Altezza del campo adattata al contenuto: nessun testo del Background va
+   letto scorrendo dentro una textarea piccola, deve comparire per intero. */
+function autoResizeTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
 }
 
 /* Colma eventuali campi mancanti se il personaggio arriva da una versione precedente dell'app */
@@ -2027,21 +2045,49 @@ function renderNote(c) {
   $$('[data-bg]').forEach(el => { el.value = c.bg[el.dataset.bg] || ''; });
   $('#n-libere').value = c.note.libere;
   renderRelazioni(c);
+  renderBgLockUI(c);
+}
+/* Ogni sezione del Background è sola lettura finché non si preme
+   "Modifica" (nessuna conferma richiesta per sbloccarla) e torna bloccata
+   solo dopo conferma esplicita su "Conferma e blocca" — vedi il modale
+   #bg-lock-confirm. I campi restano sempre interamente leggibili: niente
+   scorrimento interno, l'altezza della textarea segue il contenuto. */
+function renderBgLockUI(c) {
+  if (!c.bgLocked) c.bgLocked = defaultBgLocked();
+  BG_SECTIONS.forEach(key => {
+    const locked = c.bgLocked[key] !== false;
+    const body = document.querySelector(`[data-bgbody="${key}"]`);
+    if (body) {
+      body.querySelectorAll('textarea, input[type="text"]').forEach(el => {
+        el.readOnly = locked;
+        if (el.tagName === 'TEXTAREA') autoResizeTextarea(el);
+      });
+    }
+    const editBtn = document.querySelector(`[data-bgedit="${key}"]`);
+    const lockBtn = document.querySelector(`[data-bglock="${key}"]`);
+    if (editBtn) editBtn.classList.toggle('hidden', !locked);
+    if (lockBtn) lockBtn.classList.toggle('hidden', locked);
+  });
 }
 /* Relazioni: N schede libere (familiari, amici, colleghi...), ciascuna con
    Nome, Relazione (che rapporto lega l'NPC al personaggio) e Descrizione. */
 function renderRelazioni(c) {
   const wrap = $('#relazioni-list');
+  const locked = !c.bgLocked || c.bgLocked.relazioni !== false;
+  const ro = locked ? 'readonly' : '';
   wrap.innerHTML = (c.relazioni || []).map((r, i) => `
     <div class="box relazione-card"><div class="box-bar"></div><div class="box-pad">
       <div class="field-row">
-        <div class="field"><label>Nome</label><input type="text" value="${escapeHtml(r.nome)}" data-relazione="nome" data-idx="${i}" placeholder="Nome dell'NPC"></div>
-        <div class="field"><label>Relazione</label><input type="text" value="${escapeHtml(r.relazione)}" data-relazione="relazione" data-idx="${i}" placeholder="Es. Fratello, Amico, Collega..."></div>
+        <div class="field"><label>Nome</label><input type="text" ${ro} value="${escapeHtml(r.nome)}" data-relazione="nome" data-idx="${i}" placeholder="Nome dell'NPC"></div>
+        <div class="field"><label>Relazione</label><input type="text" ${ro} value="${escapeHtml(r.relazione)}" data-relazione="relazione" data-idx="${i}" placeholder="Es. Fratello, Amico, Collega..."></div>
       </div>
-      <div class="field" style="margin-top:8px;"><label>Descrizione</label><textarea data-relazione="descrizione" data-idx="${i}" placeholder="Che rapporto lega il personaggio a questo NPC">${escapeHtml(r.descrizione)}</textarea></div>
-      <button class="btn btn-ghost btn-sm" data-del-relazione="${i}" style="align-self:flex-start;margin-top:8px;">✕ Rimuovi relazione</button>
+      <div class="field" style="margin-top:8px;"><label>Descrizione</label><textarea ${ro} data-relazione="descrizione" data-idx="${i}" placeholder="Che rapporto lega il personaggio a questo NPC">${escapeHtml(r.descrizione)}</textarea></div>
+      <button class="btn btn-ghost btn-sm" data-del-relazione="${i}" style="align-self:flex-start;margin-top:8px;" ${locked ? 'disabled' : ''}>✕ Rimuovi relazione</button>
     </div></div>`).join('')
     || `<p class="helper-text" style="margin:0;">Nessuna relazione ancora — aggiungine una qui sotto.</p>`;
+  wrap.querySelectorAll('textarea[data-relazione]').forEach(autoResizeTextarea);
+  const addBtn = $('#relazioni-add');
+  if (addBtn) addBtn.disabled = locked;
 }
 
 function renderPortrait(c) {
@@ -3292,6 +3338,7 @@ function wireStaticEvents() {
     const c = getActive(); if (!c) return;
     const idx = Number(input.dataset.idx), field = input.dataset.relazione;
     c.relazioni[idx][field] = input.value;
+    if (input.tagName === 'TEXTAREA') autoResizeTextarea(input);
     touchActive();
   });
   $('#relazioni-list').addEventListener('click', e => {
@@ -3430,12 +3477,64 @@ function wireStaticEvents() {
     const c = getActive(); if (!c) return;
     c.bg[el.dataset.bg] = el.value;
     if (el.dataset.bg === 'peso') renderZainoSummary(c); // entra nella Regola del Peso dello Zaino
+    if (el.tagName === 'TEXTAREA') autoResizeTextarea(el);
     touchActive();
   });
   $('#n-libere').addEventListener('input', () => {
     const c = getActive(); if (!c) return;
     c.note.libere = $('#n-libere').value;
     touchActive();
+  });
+
+  // ---- Background: sezioni a tendina (apri/chiudi, modifica, blocca) ----
+  let pendingBgLockSection = null;
+  $('[data-panel="note"]').addEventListener('click', e => {
+    const toggle = e.target.closest('[data-bgtoggle]');
+    const editBtn = e.target.closest('[data-bgedit]');
+    const lockBtn = e.target.closest('[data-bglock]');
+    if (toggle) {
+      const key = toggle.dataset.bgtoggle;
+      const body = document.querySelector(`[data-bgbody="${key}"]`);
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!expanded));
+      if (body) {
+        body.classList.toggle('hidden', expanded);
+        // mentre la sezione è chiusa (display:none) scrollHeight non è
+        // misurabile: l'altezza va ricalcolata solo ora che si è aperta
+        if (expanded === false) body.querySelectorAll('textarea').forEach(autoResizeTextarea);
+      }
+      return;
+    }
+    if (editBtn) {
+      // sbloccare per modificare non richiede conferma, solo il ribloccare
+      const c = getActive(); if (!c) return;
+      if (!c.bgLocked) c.bgLocked = defaultBgLocked();
+      c.bgLocked[editBtn.dataset.bgedit] = false;
+      renderBgLockUI(c);
+      renderRelazioni(c);
+      touchActive();
+      return;
+    }
+    if (lockBtn) {
+      pendingBgLockSection = lockBtn.dataset.bglock;
+      $('#bg-lock-confirm').classList.remove('hidden');
+      return;
+    }
+  });
+  $('#bg-lock-confirm-yes').addEventListener('click', () => {
+    const c = getActive();
+    $('#bg-lock-confirm').classList.add('hidden');
+    if (!c || !pendingBgLockSection) { pendingBgLockSection = null; return; }
+    if (!c.bgLocked) c.bgLocked = defaultBgLocked();
+    c.bgLocked[pendingBgLockSection] = true;
+    pendingBgLockSection = null;
+    renderBgLockUI(c);
+    renderRelazioni(c);
+    touchActive();
+  });
+  $('#bg-lock-confirm-no').addEventListener('click', () => {
+    $('#bg-lock-confirm').classList.add('hidden');
+    pendingBgLockSection = null;
   });
 
   // ---- barre in gioco: danno HP, costo incantesimo MP e attivazione Boost, sommati in Uso ----
