@@ -79,23 +79,24 @@ function prossimoSblocco(lv) {
   return TECAB_CLASS_LEVELS.concat(TECAB_ALL_LEVELS).sort((a, b) => a - b).find(l => l > lv) || null;
 }
 
-// 9 caratteristiche primarie — pool 40 punti, minimo 2 ciascuna (il manuale
+// 9 caratteristiche primarie — pool 40 punti, minimo 1 ciascuna (il manuale
 // è esplicito: "sono 9". Il P.R. NON è tra queste: è l'unica statistica
 // secondaria — vedi SECONDARY_STATS — fissa da classe alla creazione e mai
-// parte del pool dei 40 punti).
+// parte del pool dei 40 punti). "FRZ" invece di "FOR" per non confondersi
+// con Fortuna (statistica terziaria, tutt'altra cosa).
 const PRIMARY_STATS = [
-  { key: 'hp',   label: 'HP',    full: 'Punti Vita',           axis: 'neutral' },
-  { key: 'mp',   label: 'MP',    full: 'Punti Magia',          axis: 'neutral' },
-  { key: 'for',  label: 'FOR',   full: 'Forza',                axis: 'physical' },
-  { key: 'mira', label: 'MIRA',  full: 'Mira',                 axis: 'physical' },
-  { key: 'vel',  label: 'VEL',   full: 'Velocità',             axis: 'physical' },
-  { key: 'fmen', label: 'F.MEN', full: 'Forza Magica/Mentale', axis: 'magic' },
-  { key: 'dex',  label: 'DEX',   full: 'Destrezza',            axis: 'physical' },
-  { key: 'dif',  label: 'DIF',   full: 'Difesa',               axis: 'physical' },
-  { key: 'dmen', label: 'D.MEN', full: 'Difesa Magica/Mentale',axis: 'magic' }
+  { key: 'hp',   label: 'HP',    full: 'Punti Vita',       axis: 'neutral' },
+  { key: 'mp',   label: 'MP',    full: 'Punti Magia',      axis: 'neutral' },
+  { key: 'for',  label: 'FRZ',   full: 'Forza',            axis: 'physical' },
+  { key: 'mira', label: 'MIRA',  full: 'Mira',             axis: 'physical' },
+  { key: 'vel',  label: 'VEL',   full: 'Velocità',         axis: 'physical' },
+  { key: 'fmen', label: 'F.MEN', full: 'Forza Magica',     axis: 'magic' },
+  { key: 'dex',  label: 'DEX',   full: 'Destrezza',        axis: 'physical' },
+  { key: 'dif',  label: 'DIF',   full: 'Difesa',           axis: 'physical' },
+  { key: 'dmen', label: 'D.MEN', full: 'Difesa Magica',    axis: 'magic' }
 ];
 const PRIMARY_POOL = 40;
-const PRIMARY_MIN = 2;
+const PRIMARY_MIN = 1;
 // L'unica statistica secondaria (manuale, "Distribuzione delle statistiche
 // secondarie: Q.I. e P.R."): fissa da classe (BUILDS[...].prIniziali) alla
 // creazione, dal Lv2 cresce con gli AP secondo le stesse regole delle

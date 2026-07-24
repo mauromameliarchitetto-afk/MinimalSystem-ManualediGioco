@@ -676,9 +676,13 @@ body.pdf-lock-scroll{overflow:hidden;}
   border-bottom:1px solid rgba(255,255,255,0.05);
 }
 .stat-row:last-child{border-bottom:none;}
-.stat-row .stat-label{width:72px;flex:none;}
+.stat-row .stat-label{width:104px;flex:none;}
 .stat-row .stat-label .abbr{font-family:var(--font-title);font-weight:700;font-size:13px;}
-.stat-row .stat-label .full{display:block;font-size:9.5px;color:var(--testo-secondario-dark);text-transform:uppercase;letter-spacing:.03em;}
+.stat-row .stat-label .full{
+  display:block;font-size:9px;color:var(--testo-secondario-dark);
+  text-transform:uppercase;letter-spacing:.02em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
 .stat-label.physical .abbr{color:var(--fisico-forte);}
 .stat-label.magic .abbr{color:var(--magico-forte);}
 .stat-label.neutral .abbr{color:var(--bianco-artico);}

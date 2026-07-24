@@ -827,7 +827,7 @@ function renderSecondaryStats(c) {
   const wrap = $('#secondary-stats');
   if (!wrap) return;
   const stat = SECONDARY_STATS[0];
-  wrap.innerHTML = statStepperRowHtml(c, stat, c.prMaxTracked || 0, 0, c.primaryConfirmed, `${stat.full} (totale)`);
+  wrap.innerHTML = statStepperRowHtml(c, stat, c.prMaxTracked || 0, 0, c.primaryConfirmed, stat.full);
 }
 /* Selettore del tool "Tiro statistica": elenca gli attributi primari
    tirabili (esclusi HP/MP, riserve di punti e non prove). Opzioni fisse,
