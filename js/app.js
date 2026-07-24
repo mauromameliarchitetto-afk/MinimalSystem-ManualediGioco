@@ -2322,6 +2322,7 @@ function wireStaticEvents() {
   $('#btn-char-menu').addEventListener('click', charMenu);
   wireCloudAccountEvents();
   wireCloudCharacterEvents();
+  wireRulesEvents();
 
   // ---- banner aggiornamento ----
   $('#update-banner-btn').addEventListener('click', () => {
@@ -4201,26 +4202,6 @@ function checkForUpdate() {
       $('#update-banner').classList.remove('hidden');
     })
     .catch(() => { /* offline o API non raggiungibile: nessun avviso */ });
-}
-
-/* ------------------------------------------------------------- Le regole */
-
-let rulesRendered = false;
-function renderRules() {
-  if (rulesRendered) return;
-  rulesRendered = true;
-  $('#rules-body').innerHTML =
-    `<p class="helper-text">Il Manuale di Gioco in forma testuale. Tocca un capitolo per aprirlo.</p>` +
-    RULES_SECTIONS.map((s, i) => `
-      <div class="rule-section" data-rule="${i}">
-        <button class="rule-title">${escapeHtml(s.t)} <span class="arrow">›</span></button>
-        <div class="rule-body">${escapeHtml(s.b)}</div>
-      </div>`).join('');
-  $('#rules-body').addEventListener('click', e => {
-    const t = e.target.closest('.rule-title');
-    if (!t) return;
-    t.closest('.rule-section').classList.toggle('open');
-  });
 }
 
 /* ------------------------------------------------------ premesse di gioco */

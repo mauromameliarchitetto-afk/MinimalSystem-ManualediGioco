@@ -460,8 +460,10 @@ input,select,textarea{font-family:var(--font-body);}
 .swap-row{display:flex;align-items:center;gap:10px;margin-top:4px;}
 .swap-row .btn-sm{flex:none;}
 
-/* ---------- Le regole ---------- */
-.rule-section{margin-bottom:10px;}
+/* ---------- Le regole: indice per capitoli + pagina di capitolo ---------- */
+/* Voce dell'indice (un "raccoglitore"/capitolo): stesso stile scuro dei
+   bottoni di navigazione già in uso altrove nell'app, la freccia indica che
+   si entra in una pagina, non che si espande sul posto. */
 .rule-title{
   width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
   background:var(--antracite-2);border:1px solid var(--bordo-scuro);border-radius:var(--radius);
@@ -470,22 +472,18 @@ input,select,textarea{font-family:var(--font-body);}
   text-transform:uppercase;letter-spacing:.06em;
   padding:13px 14px;cursor:pointer;text-align:left;
 }
-.rule-title .arrow{color:var(--testo-secondario-dark);transition:transform .15s ease;}
-.rule-section.open .rule-title .arrow{transform:rotate(90deg);}
-.rule-body{
-  display:none;
-  background:rgba(255,255,255,0.02);
-  border:1px solid var(--bordo-scuro);border-top:none;
-  border-radius:0 0 var(--radius) var(--radius);
-  padding:12px 14px;
+.rules-index-item{margin-bottom:10px;}
+.rule-title .arrow{color:var(--testo-secondario-dark);}
+/* Corpo testuale di una sezione dentro la pagina di un capitolo: stesso
+   .box usato in tutta l'app, sempre leggibile per intero (niente accordion
+   da espandere: sei già entrato nel capitolo apposta per leggerlo). */
+.rule-text{
   font-size:13px;line-height:1.65;color:var(--testo-secondario-dark-2);
   white-space:pre-wrap;
   overflow-wrap:break-word;
   text-align:justify;text-align-last:left;
   hyphens:auto;word-spacing:normal;
 }
-.rule-section.open .rule-body{display:block;}
-.rule-section.open .rule-title{border-radius:var(--radius) var(--radius) 0 0;}
 
 /* ---------- Premesse di gioco ---------- */
 .prem-row{
