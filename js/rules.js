@@ -90,6 +90,9 @@ const RULES_CHAPTERS = [
    sotto-sezioni. Le immagini arrivano un gruppo alla volta via upload,
    quindi non tutti i capitoli ne hanno ancora una. */
 const RULES_CHAPTER_COVERS = {
+  'Premessa': 'img/rules/premessa.jpg',
+  'Come giocare': 'img/rules/creare-un-personaggio.jpg',
+  'Le regole': 'img/rules/le-regole.jpg',
   'Tratti': 'img/rules/tratti-conoscenze-capacita.jpg',
   'Tecniche e magia': 'img/rules/tecniche-magie.jpg',
   'Equipaggiamento': 'img/rules/equipaggiamento.jpg',
@@ -102,7 +105,10 @@ const RULES_CHAPTER_COVERS = {
    dedicata oltre (o al posto di) quella dell'intero capitolo — es. "Boost"
    dentro "Tecniche e magia". Sezioni senza voce qui restano testo puro. */
 const RULES_SECTION_COVERS = {
-  // 'Caratteristiche primarie': 'img/rules/caratteristiche-primarie.jpg',
+  'Come giocare': 'img/rules/come-giocare.jpg',
+  'Personalità e Background': 'img/rules/personalita-background.jpg',
+  'Caratteristiche primarie': 'img/rules/caratteristiche-primarie.jpg',
+  'Boost': 'img/rules/boost.jpg'
 };
 
 function renderRulesIndex() {
