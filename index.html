@@ -24,9 +24,6 @@
 
   <!-- ============ COPERTINA ============ -->
   <section id="view-cover" class="view">
-    <img class="cover-img" src="img/cover.jpg" alt="">
-    <div class="cover-scrim"></div>
-
     <button class="cover-menu-btn" id="btn-cover-menu" aria-label="Apri indice" aria-expanded="false" aria-controls="cover-menu">
       <span class="menu-lines"><span></span><span></span><span></span></span>
     </button>
@@ -40,6 +37,14 @@
       <button class="cm-item" data-menu-nav="charlist">I tuoi personaggi</button>
       <button class="cm-item" data-menu-nav="newchar">Crea un personaggio</button>
     </nav>
+
+    <!-- Titolo e logo a dimensione fissa (non scalano mai con l'altezza
+         della finestra): se lo spazio non basta la sezione scorre, non li
+         rimpicciolisce — stessa logica già in uso per motto e bottoni sotto. -->
+    <div class="cover-header">
+      <img class="cover-title" src="img/title.png" alt="Minimal System — Basic Rules">
+      <img class="cover-logo" src="img/logo.png" alt="">
+    </div>
 
     <div class="cover-content">
       <div class="update-banner hidden" id="update-banner">

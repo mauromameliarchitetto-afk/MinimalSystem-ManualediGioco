@@ -73,23 +73,39 @@ input,select,textarea{font-family:var(--font-body);}
 /* ---------- Copertina ---------- */
 #view-cover{
   position:relative;
-  background:#050608; /* stesso nero di fondo dell'immagine di copertina */
-  justify-content:flex-end;
-  overflow:hidden;
+  background:#050608; /* stesso nero di fondo delle immagini di titolo/logo */
+  /* niente più justify-content:flex-end + immagine flex:1 che si schiacciava
+     con l'altezza della finestra: titolo e logo hanno una dimensione fissa
+     (vedi sotto), quindi se lo spazio verticale non basta è la pagina a
+     scorrere (esattamente come già succede con motto e bottoni sotto),
+     non un rimpicciolimento dell'immagine. */
 }
-#view-cover .cover-img{
-  flex:1 1 0;
-  min-height:0;
+.cover-header{
+  flex:none;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:calc(28px + var(--safe-top)) 24px 0;
+}
+.cover-title{
+  flex:none;
   width:100%;
-  padding-top:calc(8px + var(--safe-top));
-  object-fit:contain;      /* immagine intera, senza tagli, sopra i bottoni */
-  object-position:center top;
+  max-width:320px;
+  height:auto;
+  display:block;
 }
-#view-cover .cover-scrim{display:none;}
+.cover-logo{
+  flex:none;
+  width:180px;
+  max-width:46vw;
+  height:auto;
+  margin-top:2px;
+}
 .cover-content{
   position:relative;
   z-index:2;
-  padding:32px 24px calc(36px + var(--safe-bottom));
+  flex:none;
+  padding:24px 24px calc(36px + var(--safe-bottom));
   display:flex;
   flex-direction:column;
   align-items:center;
