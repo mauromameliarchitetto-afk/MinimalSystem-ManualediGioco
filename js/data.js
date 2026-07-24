@@ -196,12 +196,15 @@ const WEAPON_CLASSES = [
   { key: 'bianca', label: 'Arma bianca' },
   { key: 'tiro',   label: 'Arma da tiro' }
 ];
-// Suggerimenti (non esaustivi) per i bonus meccanici di scudi e armi, dalle
-// "Extra" del manuale (Deviare/Bloccare/Respingere per gli scudi, Tagliare/
-// Perforare/Rompere per le armi) — restano comunque un campo libero, si può
-// sempre scrivere un tratto diverso.
-const SHIELD_TRAIT_SUGGESTIONS = ['Bloccare', 'Deflettere', 'Spirito', 'Robustezza'];
-const WEAPON_TRAIT_SUGGESTIONS = ['Bloccare', 'Deflettere', 'Perforare', 'Rompere', 'Tagliare'];
+// Elenchi chiusi dei tratti su cui uno scudo o un'arma possono dare bonus
+// (oltre a un tratto nuovo, scelta "personalizzato" sempre disponibile).
+const SHIELD_TRAIT_OPTIONS = ['Bloccare', 'Deflettere', 'Spirito', 'Robustezza'];
+const WEAPON_TRAIT_OPTIONS = ['Bloccare', 'Deflettere', 'Perforare', 'Rompere', 'Tagliare'];
+// Statistiche primarie su cui uno scudo o un'arma possono dare bonus: solo
+// queste, non l'intera lista PRIMARY_STATS (FOR/DEX/F.MEN per le armi,
+// DIF/D.MEN per gli scudi — le uniche indicate per l'equipaggiamento).
+const SHIELD_PRIMARY_BONUS_KEYS = ['dif', 'dmen'];
+const WEAPON_PRIMARY_BONUS_KEYS = ['for', 'dex', 'fmen'];
 
 // Q.I. — fasce di apprendimento
 function qiLimite(qi) {

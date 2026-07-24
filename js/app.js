@@ -219,7 +219,12 @@ function defaultWeaponSlots() {
    TERTIARY_STATS) | 'trait' (listKey + name: se il tratto non è ancora in
    scheda viene aggiunto in automatico, partendo da base 0 — il bonus da solo
    ne determina il valore). */
-function makeEquipBonusRow() { return { id: uid(), kind: 'primary', key: 'for', listKey: '', name: '', valore: 1 }; }
+/* Default sensato in base al pezzo: scudo parte da DIF, arma da FOR,
+   armatura (o pezzo sconosciuto) resta su FOR come già in uso prima. */
+function makeEquipBonusRow(itemKind) {
+  const key = itemKind === 'scudo' ? 'dif' : 'for';
+  return { id: uid(), kind: 'primary', key, listKey: '', name: '', valore: 1 };
+}
 /* Se taglia/qualità sono entrambe scelte, riporta atk/dif/dur nel range
    ufficiale corrispondente (usato quando cambia una delle due scelte) */
 function clampSlotToRange(slot) {
@@ -575,6 +580,19 @@ function ensureShape(c) {
       if (typeof s.usaFor !== 'boolean') s.usaFor = false;
       if (typeof s.usaDex !== 'boolean') s.usaDex = false;
       if (typeof s.usaFmen !== 'boolean') s.usaFmen = false;
+    }
+    // scudi e armi incidono solo su DIF/D.MEN (scudo) o FOR/DEX/F.MEN (arma)
+    // e sui tratti dei rispettivi elenchi chiusi: eventuali bonus salvati
+    // fuori da queste regole (es. da prima di questa correzione) vengono
+    // riallineati al primo bersaglio valido, senza perdere il valore assegnato
+    if (s.kind === 'scudo' || s.kind === 'arma') {
+      const allowedPrimary = primaryBonusKeysFor(s.kind);
+      (s.bonuses || []).forEach(b => {
+        if (b.kind === 'tertiary') { b.kind = 'primary'; b.key = allowedPrimary[0]; }
+        else if (b.kind === 'primary' && !allowedPrimary.includes(b.key)) { b.key = allowedPrimary[0]; }
+        // un tratto già salvato con un nome fuori dall'elenco suggerito resta
+        // com'è: è la scelta "nuovo tratto personalizzato", sempre valida
+      });
     }
   });
   // il vincolo "solo Scudo e Arma 1" è superato: ora si possono aggiungere ed
@@ -1040,15 +1058,6 @@ function initDiagram() {
   ).join('');
 }
 
-/* Suggerimenti (datalist, non vincolanti) per il campo "Nome tratto" dei
-   bonus meccanici di scudi e armi — vedi SHIELD_TRAIT_SUGGESTIONS/
-   WEAPON_TRAIT_SUGGESTIONS in data.js. Non dipendono dal personaggio: si
-   popolano una sola volta all'avvio. */
-function renderTraitSuggestionDatalists() {
-  const scudo = $('#dl-trait-scudo'), arma = $('#dl-trait-arma');
-  if (scudo) scudo.innerHTML = SHIELD_TRAIT_SUGGESTIONS.map(n => `<option value="${escapeHtml(n)}">`).join('');
-  if (arma) arma.innerHTML = WEAPON_TRAIT_SUGGESTIONS.map(n => `<option value="${escapeHtml(n)}">`).join('');
-}
 
 function diagramValue(c, key) {
   // gli incrementi da consumabile si sommano al valore base finché attivi
@@ -1483,29 +1492,63 @@ function updateGrowthCost() {
 
 /* ------------------------------------------------------------- retro/eq */
 
+/* Statistiche primarie selezionabili per un bonus su questo pezzo: scudo e
+   arma sono limitati alle sole statistiche indicate per l'equipaggiamento
+   (DIF/D.MEN per gli scudi, FOR/DEX/F.MEN per le armi) — non l'intera
+   PRIMARY_STATS, che resta generica solo per l'armatura. */
+function primaryBonusKeysFor(itemKind) {
+  if (itemKind === 'scudo') return SHIELD_PRIMARY_BONUS_KEYS;
+  if (itemKind === 'arma') return WEAPON_PRIMARY_BONUS_KEYS;
+  return PRIMARY_STATS.map(s => s.key);
+}
+/* Tratti selezionabili per un bonus su questo pezzo: elenco chiuso
+   (SHIELD_TRAIT_OPTIONS/WEAPON_TRAIT_OPTIONS) + "nuovo tratto
+   personalizzato" per le ipotesi non previste — solo per scudo/arma;
+   l'armatura resta a campo libero come prima (non aveva un elenco ufficiale). */
+function traitOptionsFor(itemKind) {
+  if (itemKind === 'scudo') return SHIELD_TRAIT_OPTIONS;
+  if (itemKind === 'arma') return WEAPON_TRAIT_OPTIONS;
+  return null;
+}
 /* Una riga di bonus meccanico su un pezzo di equipaggiamento: tipo (statistica
-   primaria/secondaria o tratto) + bersaglio + valore. Per i tratti il nome è
-   un campo libero (come i tratti personalizzati in scheda): se non combacia
-   con nessun tratto già presente, ne viene creato uno nuovo con base 0 non
-   appena il bonus viene aggiunto — è il bonus stesso a dargli un valore. */
+   primaria o tratto — niente terziarie: Stile/Fortuna/Carisma non sono tra
+   quelle su cui il manuale fa incidere scudi/armi) + bersaglio + valore. Per
+   i tratti di scudo/arma il nome è un elenco chiuso più "personalizzato";
+   per l'armatura resta un campo libero come già in uso, non essendoci un
+   elenco ufficiale per quel pezzo. */
 function equipBonusRowHtml(b, i, bi, itemKind) {
   const kind = b.kind || 'primary';
-  const primaryOpts = PRIMARY_STATS.map(s => `<option value="${s.key}" ${kind === 'primary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
+  const primaryKeys = primaryBonusKeysFor(itemKind);
+  const primaryOpts = PRIMARY_STATS.filter(s => primaryKeys.includes(s.key))
+    .map(s => `<option value="${s.key}" ${kind === 'primary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
   const tertiaryOpts = TERTIARY_STATS.map(s => `<option value="${s.key}" ${kind === 'tertiary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
   const listOpts = Object.keys(TRAIT_LISTS).map(lk => `<option value="${lk}" ${kind === 'trait' && b.listKey === lk ? 'selected' : ''}>${TRAIT_LIST_LABELS[lk]}</option>`).join('');
-  // suggerimenti (non vincolanti) coerenti col tipo di pezzo: scudo o arma
-  const traitDatalist = itemKind === 'scudo' ? 'dl-trait-scudo' : itemKind === 'arma' ? 'dl-trait-arma' : '';
+  const traitOptions = traitOptionsFor(itemKind);
+  const isCustomTrait = !traitOptions || !traitOptions.includes(b.name);
+  const traitField = traitOptions
+    ? `<select data-bonustraitpreset="${i}::${bi}">
+        ${traitOptions.map(n => `<option value="${n}" ${!isCustomTrait && b.name === n ? 'selected' : ''}>${n}</option>`).join('')}
+        <option value="__custom__" ${isCustomTrait ? 'selected' : ''}>Nuovo tratto personalizzato…</option>
+      </select>
+      <select data-bonuslistkey="${i}::${bi}" class="${isCustomTrait ? '' : 'hidden'}">${listOpts}</select>
+      <input type="text" data-bonusname="${i}::${bi}" value="${escapeHtml(b.name || '')}" placeholder="Nome tratto" maxlength="40" class="${isCustomTrait ? '' : 'hidden'}">`
+    : `<select data-bonuslistkey="${i}::${bi}">${listOpts}</select>
+      <input type="text" data-bonusname="${i}::${bi}" value="${escapeHtml(b.name || '')}" placeholder="Nome tratto" maxlength="40">`;
+  // niente "statistica terziaria" (Stile/Fortuna/Carisma) su scudo/arma: non
+  // è tra le statistiche su cui il manuale li fa incidere — resta solo per
+  // l'armatura (comportamento generico preesistente, invariato)
+  const kindOpts = (itemKind === 'scudo' || itemKind === 'arma')
+    ? `<option value="primary" ${kind === 'primary' ? 'selected' : ''}>Statistica primaria</option>
+       <option value="trait" ${kind === 'trait' ? 'selected' : ''}>Tratto</option>`
+    : `<option value="primary" ${kind === 'primary' ? 'selected' : ''}>Statistica primaria</option>
+       <option value="tertiary" ${kind === 'tertiary' ? 'selected' : ''}>Statistica terziaria</option>
+       <option value="trait" ${kind === 'trait' ? 'selected' : ''}>Tratto</option>`;
   return `<div class="equip-bonus-row">
-    <select data-bonuskind="${i}::${bi}">
-      <option value="primary" ${kind === 'primary' ? 'selected' : ''}>Statistica primaria</option>
-      <option value="tertiary" ${kind === 'tertiary' ? 'selected' : ''}>Statistica secondaria</option>
-      <option value="trait" ${kind === 'trait' ? 'selected' : ''}>Tratto</option>
-    </select>
+    <select data-bonuskind="${i}::${bi}">${kindOpts}</select>
     <select data-bonuskey="${i}::${bi}" class="${kind === 'primary' ? '' : 'hidden'}">${primaryOpts}</select>
     <select data-bonuskeytert="${i}::${bi}" class="${kind === 'tertiary' ? '' : 'hidden'}">${tertiaryOpts}</select>
     <span class="equip-bonus-trait ${kind === 'trait' ? '' : 'hidden'}">
-      <select data-bonuslistkey="${i}::${bi}">${listOpts}</select>
-      <input type="text" data-bonusname="${i}::${bi}" value="${escapeHtml(b.name || '')}" placeholder="Nome tratto" maxlength="40" ${traitDatalist ? `list="${traitDatalist}"` : ''}>
+      ${traitField}
     </span>
     <input type="number" data-bonusvalore="${i}::${bi}" value="${Number(b.valore) || 1}" min="1" max="50" style="width:56px;">
     <button type="button" class="btn btn-icon btn-sm btn-ghost" data-delequipbonus="${i}::${bi}" title="Rimuovi bonus">✕</button>
@@ -2076,7 +2119,6 @@ function renderSheet() {
 function init() {
   loadAll();
   initDiagram();
-  renderTraitSuggestionDatalists();
   renderCharList();
   if (activeId && getActive()) {
     renderSheet();
@@ -3450,18 +3492,26 @@ function wireEquipGrid(sel, getSlots, doRender) {
     const bonusKey = e.target.closest('[data-bonuskey]');
     const bonusKeyTert = e.target.closest('[data-bonuskeytert]');
     const bonusListKey = e.target.closest('[data-bonuslistkey]');
-    if (!bonusName && !bonusKind && !bonusKey && !bonusKeyTert && !bonusListKey) return;
+    const bonusTraitPreset = e.target.closest('[data-bonustraitpreset]');
+    if (!bonusName && !bonusKind && !bonusKey && !bonusKeyTert && !bonusListKey && !bonusTraitPreset) return;
     const c = getActive(); if (!c) return;
     const slots = getSlots(c);
     if (bonusKind) {
       const [idx, bi] = parseBonusCtx(bonusKind.dataset.bonuskind);
       const b = slots[idx].bonuses[bi];
+      const itemKind = slots[idx].kind;
       b.kind = bonusKind.value;
-      // riallinea il dato al primo valore mostrato dal selettore appena
-      // comparso, altrimenti resterebbe vuoto finché l'utente non lo tocca
-      if (b.kind === 'primary' && !b.key) b.key = PRIMARY_STATS[0].key;
+      // riallinea il dato al primo valore consentito per QUESTO pezzo,
+      // altrimenti resterebbe vuoto (o puntato a una statistica non
+      // ammessa per scudo/arma) finché l'utente non lo tocca
+      const allowedPrimary = primaryBonusKeysFor(itemKind);
+      if (b.kind === 'primary' && !allowedPrimary.includes(b.key)) b.key = allowedPrimary[0];
       if (b.kind === 'tertiary' && !TERTIARY_STATS.some(s => s.key === b.key)) b.key = TERTIARY_STATS[0].key;
-      if (b.kind === 'trait' && !b.listKey) b.listKey = Object.keys(TRAIT_LISTS)[0];
+      if (b.kind === 'trait') {
+        const traitOptions = traitOptionsFor(itemKind);
+        if (traitOptions && !traitOptions.includes(b.name)) { b.name = traitOptions[0]; b.listKey = 'capacitaCombattive'; }
+        else if (!b.listKey) b.listKey = Object.keys(TRAIT_LISTS)[0];
+      }
       doRender(c);
     } else if (bonusKey) {
       const [idx, bi] = parseBonusCtx(bonusKey.dataset.bonuskey);
@@ -3472,6 +3522,23 @@ function wireEquipGrid(sel, getSlots, doRender) {
     } else if (bonusListKey) {
       const [idx, bi] = parseBonusCtx(bonusListKey.dataset.bonuslistkey);
       slots[idx].bonuses[bi].listKey = bonusListKey.value;
+    } else if (bonusTraitPreset) {
+      // elenco chiuso (scudo/arma): una voce suggerita -> nome+categoria
+      // impostati in automatico; "personalizzato" -> rivela categoria e
+      // nome liberi, senza toccare quanto già digitato
+      const [idx, bi] = parseBonusCtx(bonusTraitPreset.dataset.bonustraitpreset);
+      const b = slots[idx].bonuses[bi];
+      if (bonusTraitPreset.value !== '__custom__') {
+        b.name = bonusTraitPreset.value;
+        b.listKey = 'capacitaCombattive';
+      } else {
+        // svuota il nome: altrimenti, se combaciava ancora con un
+        // suggerimento, il render lo riconoscerebbe come preset e non come
+        // "personalizzato", ripristinando la tendina alla voce precedente
+        b.name = '';
+        if (!b.listKey) b.listKey = Object.keys(TRAIT_LISTS)[0];
+      }
+      doRender(c);
     } else if (bonusName) {
       const [idx, bi] = parseBonusCtx(bonusName.dataset.bonusname);
       slots[idx].bonuses[bi].name = bonusName.value.trim();
@@ -3496,7 +3563,7 @@ function wireEquipGrid(sel, getSlots, doRender) {
     if (addBtn) {
       const idx = Number(addBtn.dataset.addequipbonus);
       if (!Array.isArray(slots[idx].bonuses)) slots[idx].bonuses = [];
-      slots[idx].bonuses.push(makeEquipBonusRow());
+      slots[idx].bonuses.push(makeEquipBonusRow(slots[idx].kind));
       doRender(c);
       touchActive();
       return;
