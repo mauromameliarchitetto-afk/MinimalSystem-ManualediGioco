@@ -23,6 +23,8 @@
   --magico-forte:#33D6E8;
   --incremento:#C9A227;
   --incremento-forte:#FFD873;
+  --equip-momentaneo:#3DDC84;
+  --equip-momentaneo-forte:#6BFFAF;
 
   --font-title:'Rajdhani',sans-serif;
   --font-body:'Inter',sans-serif;
@@ -669,6 +671,13 @@ body.pdf-lock-scroll{overflow:hidden;}
   border-color:var(--incremento);color:var(--incremento-forte);
   font-family:var(--font-mono);flex:none;
 }
+/* Bonus da arma/scudo equipaggiati: verde, a indicare che statistica o
+   tratto sono momentanei (durano finché il pezzo resta equipaggiato),
+   a differenza del giallo/ambra usato per gli incrementi da consumabile. */
+.buff-chip-equip{
+  border-color:var(--equip-momentaneo);color:var(--equip-momentaneo-forte);
+  font-family:var(--font-mono);flex:none;
+}
 .stepper{display:flex;align-items:center;gap:0;flex:1;justify-content:flex-end;}
 .stepper button{
   width:30px;height:30px;border-radius:var(--radius-sm);
@@ -903,6 +912,23 @@ table.edit-table thead th{white-space:nowrap;}
   display:block;text-align:center;font-family:var(--font-mono);font-size:12px;
   color:var(--testo-primario-dark);
 }
+
+/* ---------- Scudo/armi: equipaggiato vs inventario, tipo, caratteristiche ---------- */
+.slot-equip-toggle{display:flex;gap:8px;margin-bottom:8px;}
+.slot-equip-toggle .btn{flex:1;}
+.slot-card-inventory{opacity:.6;}
+.slot-card-inventory .slot-name{color:var(--testo-secondario-dark);}
+.chk-inline{
+  display:flex;align-items:center;gap:5px;font-size:12px;color:var(--testo-secondario-dark-2);
+  background:var(--antracite-1);border:1px solid var(--bordo-scuro);border-radius:var(--radius-sm);
+  padding:6px 9px;cursor:pointer;flex:1;min-width:64px;justify-content:center;
+}
+.chk-inline input{accent-color:var(--fisico-forte);}
+.weapon-stat-flags{flex-wrap:wrap;}
+.attack-weapon-list{display:flex;flex-direction:column;gap:8px;}
+.attack-weapon-row{justify-content:flex-start;gap:8px;}
+.attack-results{display:flex;flex-direction:column;gap:6px;}
+.attack-result-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 
 /* ---------- Note toast ---------- */
 #toast{

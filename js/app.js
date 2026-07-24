@@ -196,12 +196,21 @@ function defaultSlots() {
   return ['Capo', 'Busto', 'Braccio Sx', 'Braccio Dx', 'Gamba Sx', 'Gamba Dx']
     .map(name => ({ name, kind: 'armatura', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, bonuses: [] }));
 }
-/* Fronte scheda: 1 scudo + 1 arma, equipaggiabili insieme */
+/* Fronte scheda: scudi e armi, ciascuno flaggabile come equipaggiato o no —
+   se non equipaggiato, non entra nel calcolo di Bloccare/Attacca né nei
+   bonus meccanici e passa a fare da "inventario" (resta comunque in scheda,
+   riequipaggiabile in qualsiasi momento). Le armi hanno anche una classe
+   (bianca/da tiro, mutuamente esclusive nello stesso attacco) e i flag delle
+   caratteristiche con cui agiscono (FOR/DEX/F.MEN). */
+function makeWeaponSlot(kind) {
+  const s = { name: kind === 'scudo' ? 'Scudo' : 'Arma', kind, size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, bonuses: [], equipaggiato: true };
+  if (kind === 'arma') { s.weaponClass = 'bianca'; s.usaFor = true; s.usaDex = false; s.usaFmen = false; }
+  return s;
+}
 function defaultWeaponSlots() {
-  return [
-    { name: 'Scudo', kind: 'scudo', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, bonuses: [] },
-    { name: 'Arma 1', kind: 'arma', size: '', quality: '', atk: 0, dif: 0, bonus: '', dur: 0, bonuses: [] }
-  ];
+  const scudo = makeWeaponSlot('scudo');
+  const arma = makeWeaponSlot('arma'); arma.name = 'Arma 1';
+  return [scudo, arma];
 }
 /* Una riga di "bonus meccanico" su un pezzo di equipaggiamento (arma, scudo
    o armatura): a differenza del vecchio campo Bonus (testo libero, mai letto
@@ -557,9 +566,21 @@ function ensureShape(c) {
   (c.weaponSlots || []).forEach(s => {
     if (s.quality === undefined) s.quality = '';
     if (!Array.isArray(s.bonuses)) s.bonuses = [];
+    // personaggi creati prima del flag equipaggiato/inventario: erano già
+    // sempre "attivi" prima di questa funzione, quindi restano equipaggiati
+    if (s.equipaggiato === undefined) s.equipaggiato = true;
+    if (s.kind === 'arma') {
+      if (s.weaponClass !== 'bianca' && s.weaponClass !== 'tiro') s.weaponClass = 'bianca';
+      if (typeof s.usaFor !== 'boolean' && typeof s.usaDex !== 'boolean' && typeof s.usaFmen !== 'boolean') s.usaFor = true;
+      if (typeof s.usaFor !== 'boolean') s.usaFor = false;
+      if (typeof s.usaDex !== 'boolean') s.usaDex = false;
+      if (typeof s.usaFmen !== 'boolean') s.usaFmen = false;
+    }
   });
-  // rimosse le locazioni Arma 2/Arma 3: restano solo Scudo e Arma 1, equipaggiabili insieme
-  if (c.weaponSlots) c.weaponSlots = c.weaponSlots.filter(s => s.name !== 'Arma 2' && s.name !== 'Arma 3');
+  // il vincolo "solo Scudo e Arma 1" è superato: ora si possono aggiungere ed
+  // equipaggiare più armi (vedi equipaggiato/weaponClass sopra), quindi le
+  // vecchie locazioni "Arma 2"/"Arma 3" filtrate in passato non vanno più
+  // rimosse a ogni caricamento
   return c;
 }
 
@@ -740,16 +761,18 @@ function renderPrimaryStats(c) {
       : (isHpMp && grown) ? (stat.key === 'hp' ? c.hpMaxTracked : c.mpMaxTracked) || 0
       : c.primary[stat.key];
     const min = (isPr || (isHpMp && grown)) ? 0 : PRIMARY_MIN;
-    const buff = buffTotal(c, stat.key);
+    const equipBuff = equipBonusTotal(c, 'primary', stat.key);
+    const consumableBuff = buffTotal(c, stat.key) - equipBuff;
     const fullLabel = isPr ? `${stat.full} (totale)` : (isHpMp && grown) ? `${stat.full} (totale)` : stat.full;
     return `<div class="stat-row">
-      <div class="stat-label ${stat.axis}${buff ? ' buffed' : ''}"><span class="abbr">${stat.label}</span><span class="full">${fullLabel}</span></div>
+      <div class="stat-label ${stat.axis}${(consumableBuff || equipBuff) ? ' buffed' : ''}"><span class="abbr">${stat.label}</span><span class="full">${fullLabel}</span></div>
       <div class="stepper">
         <button data-pstat="${stat.key}" data-dir="-1" aria-label="Diminuisci" ${locked ? 'disabled' : ''}>−</button>
         <input type="number" data-pstat-input="${stat.key}" value="${val}" min="${min}" ${locked ? 'disabled' : ''}>
         <button data-pstat="${stat.key}" data-dir="1" aria-label="Aumenta" ${locked ? 'disabled' : ''}>+</button>
       </div>
-      ${buff ? `<span class="chip buff-chip" title="Incremento attivo da consumabile">+${buff}</span>` : ''}
+      ${consumableBuff ? `<span class="chip buff-chip" title="Incremento attivo da consumabile">+${consumableBuff}</span>` : ''}
+      ${equipBuff ? `<span class="chip buff-chip-equip" title="Bonus da arma/scudo equipaggiato: momentaneo, dura finché il pezzo resta equipaggiato">+${equipBuff} equip.</span>` : ''}
     </div>`;
   }).join('');
   updatePrimaryRemaining(c);
@@ -828,10 +851,11 @@ function statLabel(key) {
    bersaglio: kind 'primary'/'tertiary' confrontano key, kind 'trait'
    confronta listKey+name (un tratto può chiamarsi allo stesso modo in
    categorie diverse). Scansiona sia il fronte (weaponSlots) sia il retro
-   (slots): un pezzo equipaggiato vale sempre, non serve "attivarlo" come i
-   consumabili. */
+   (slots): l'armatura vale sempre (non ha un flag "equipaggiato", occupa
+   già una locazione fissa del corpo), armi e scudi solo se effettivamente
+   equipaggiati — altrimenti sono "in inventario" e i loro bonus sono sospesi. */
 function equipBonusTotal(c, kind, key, listKey) {
-  const allSlots = [...(c.weaponSlots || []), ...(c.slots || [])];
+  const allSlots = [...(c.weaponSlots || []).filter(s => s.equipaggiato !== false), ...(c.slots || [])];
   let total = 0;
   allSlots.forEach(s => (s.bonuses || []).forEach(b => {
     if (b.kind !== kind) return;
@@ -1016,6 +1040,16 @@ function initDiagram() {
   ).join('');
 }
 
+/* Suggerimenti (datalist, non vincolanti) per il campo "Nome tratto" dei
+   bonus meccanici di scudi e armi — vedi SHIELD_TRAIT_SUGGESTIONS/
+   WEAPON_TRAIT_SUGGESTIONS in data.js. Non dipendono dal personaggio: si
+   popolano una sola volta all'avvio. */
+function renderTraitSuggestionDatalists() {
+  const scudo = $('#dl-trait-scudo'), arma = $('#dl-trait-arma');
+  if (scudo) scudo.innerHTML = SHIELD_TRAIT_SUGGESTIONS.map(n => `<option value="${escapeHtml(n)}">`).join('');
+  if (arma) arma.innerHTML = WEAPON_TRAIT_SUGGESTIONS.map(n => `<option value="${escapeHtml(n)}">`).join('');
+}
+
 function diagramValue(c, key) {
   // gli incrementi da consumabile si sommano al valore base finché attivi
   if (key.startsWith('p:')) return c.primary[key.slice(2)] + buffTotal(c, key.slice(2));
@@ -1071,7 +1105,7 @@ function renderTertiaryStats(c) {
         <input type="number" data-tstat-input="${stat.key}" value="${val}" min="${floor}">
         <button data-tstat="${stat.key}" data-dir="1" aria-label="Aumenta">+</button>
       </div>
-      ${buff ? `<span class="chip buff-chip" title="Bonus da equipaggiamento">+${buff}</span>` : ''}
+      ${buff ? `<span class="chip buff-chip-equip" title="Bonus da arma/scudo equipaggiato: momentaneo, dura finché il pezzo resta equipaggiato">+${buff}</span>` : ''}
     </div>`;
   }).join('');
   updateTertiaryRemaining(c);
@@ -1226,7 +1260,7 @@ function traitRowHtml(listKey, name, value, isCustom, idx, locked, narratore, eq
     ? `<input type="text" value="${escapeHtml(name)}" data-customname="${listKey}" data-idx="${idx}" ${rowLocked ? 'disabled' : ''} placeholder="Nome tratto">`
     : escapeHtml(name);
   const badge = narratore ? ` <span class="chip buff-chip" title="Scritto dal Narratore: non consuma i punti del giocatore, modificabile solo da lui">Narratore</span>` : '';
-  const equipBadge = bonus ? ` <span class="chip buff-chip" title="Bonus da equipaggiamento">+${bonus} equip.</span>` : '';
+  const equipBadge = bonus ? ` <span class="chip buff-chip-equip" title="Bonus da arma/scudo equipaggiato: momentaneo, dura finché il pezzo resta equipaggiato">+${bonus} equip.</span>` : '';
   return `<div class="trait-row" data-trait="${escapeHtml(name)}" data-list="${listKey}" ${isCustom ? `data-custom-idx="${idx}"` : ''} ${narratore ? 'data-narratore="1"' : ''}>
     <div class="t-name">${nameHtml}${badge}${equipBadge}</div>
     <span class="t-dice" title="${bonus ? `Base ${base} + equipaggiamento ${bonus}` : 'Valore base'}">+${effective}</span>
@@ -1454,11 +1488,13 @@ function updateGrowthCost() {
    un campo libero (come i tratti personalizzati in scheda): se non combacia
    con nessun tratto già presente, ne viene creato uno nuovo con base 0 non
    appena il bonus viene aggiunto — è il bonus stesso a dargli un valore. */
-function equipBonusRowHtml(b, i, bi) {
+function equipBonusRowHtml(b, i, bi, itemKind) {
   const kind = b.kind || 'primary';
   const primaryOpts = PRIMARY_STATS.map(s => `<option value="${s.key}" ${kind === 'primary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
   const tertiaryOpts = TERTIARY_STATS.map(s => `<option value="${s.key}" ${kind === 'tertiary' && b.key === s.key ? 'selected' : ''}>${s.label}</option>`).join('');
   const listOpts = Object.keys(TRAIT_LISTS).map(lk => `<option value="${lk}" ${kind === 'trait' && b.listKey === lk ? 'selected' : ''}>${TRAIT_LIST_LABELS[lk]}</option>`).join('');
+  // suggerimenti (non vincolanti) coerenti col tipo di pezzo: scudo o arma
+  const traitDatalist = itemKind === 'scudo' ? 'dl-trait-scudo' : itemKind === 'arma' ? 'dl-trait-arma' : '';
   return `<div class="equip-bonus-row">
     <select data-bonuskind="${i}::${bi}">
       <option value="primary" ${kind === 'primary' ? 'selected' : ''}>Statistica primaria</option>
@@ -1469,7 +1505,7 @@ function equipBonusRowHtml(b, i, bi) {
     <select data-bonuskeytert="${i}::${bi}" class="${kind === 'tertiary' ? '' : 'hidden'}">${tertiaryOpts}</select>
     <span class="equip-bonus-trait ${kind === 'trait' ? '' : 'hidden'}">
       <select data-bonuslistkey="${i}::${bi}">${listOpts}</select>
-      <input type="text" data-bonusname="${i}::${bi}" value="${escapeHtml(b.name || '')}" placeholder="Nome tratto" maxlength="40">
+      <input type="text" data-bonusname="${i}::${bi}" value="${escapeHtml(b.name || '')}" placeholder="Nome tratto" maxlength="40" ${traitDatalist ? `list="${traitDatalist}"` : ''}>
     </span>
     <input type="number" data-bonusvalore="${i}::${bi}" value="${Number(b.valore) || 1}" min="1" max="50" style="width:56px;">
     <button type="button" class="btn btn-icon btn-sm btn-ghost" data-delequipbonus="${i}::${bi}" title="Rimuovi bonus">✕</button>
@@ -1477,8 +1513,10 @@ function equipBonusRowHtml(b, i, bi) {
 }
 /* Card di equip condivisa da retro (solo armature) e fronte (scudo/armi):
    il tipo è fisso per contesto/indice, restano da scegliere solo taglia e
-   qualità — Atk/Dif/Durabilità diventano cursori nel range ufficiale */
-function equipCardHtml(s, i, namePlaceholder) {
+   qualità — Atk/Dif/Durabilità diventano cursori nel range ufficiale.
+   Solo scudi/armi (removable=true) hanno il toggle equipaggiato/inventario,
+   il pulsante di rimozione e, per le armi, classe e caratteristiche usate. */
+function equipCardHtml(s, i, namePlaceholder, removable) {
   const typeInfo = EQUIP_TYPES.find(t => t.key === s.kind);
   const sizes = typeInfo ? typeInfo.sizes : [];
   const range = equipRange(s.kind, s.size, s.quality);
@@ -1499,11 +1537,31 @@ function equipCardHtml(s, i, namePlaceholder) {
       <span class="sf-val">${r ? val : '—'}</span>
     </div>`;
   };
+  const equipped = s.equipaggiato !== false;
+  const equipToggle = removable ? `
+    <div class="slot-equip-toggle">
+      <button type="button" class="btn btn-sm ${equipped ? 'btn-primary' : 'btn-ghost'}" data-slotequip="${i}" title="${equipped ? 'Equipaggiato: tocca per spostare in Inventario' : 'In Inventario: tocca per equipaggiare'}">
+        ${equipped ? '✓ Equipaggiato' : '🎒 In Inventario'}
+      </button>
+      <button type="button" class="btn btn-icon btn-sm btn-ghost" data-slotremove="${i}" title="Rimuovi definitivamente">🗑</button>
+    </div>` : '';
+  const weaponExtras = (removable && s.kind === 'arma') ? `
+    ${pickerRow('Tipologia', WEAPON_CLASSES, s.weaponClass || 'bianca', 'slotweaponclass')}
+    <div class="slot-picker">
+      <span class="sp-label">Agisce con (per il calcolo di Attacca)</span>
+      <div class="sp-row weapon-stat-flags">
+        <label class="chk-inline"><input type="checkbox" data-slotusa="${i}::usaFor" ${s.usaFor ? 'checked' : ''}> FOR</label>
+        <label class="chk-inline"><input type="checkbox" data-slotusa="${i}::usaDex" ${s.usaDex ? 'checked' : ''}> DEX</label>
+        <label class="chk-inline"><input type="checkbox" data-slotusa="${i}::usaFmen" ${s.usaFmen ? 'checked' : ''}> F.MEN (Danno magico)</label>
+      </div>
+    </div>` : '';
   return `
-    <div class="slot-card" data-slotidx="${i}">
+    <div class="slot-card${removable && !equipped ? ' slot-card-inventory' : ''}" data-slotidx="${i}">
+      ${equipToggle}
       <input type="text" class="slot-name" value="${escapeHtml(s.name)}" data-slotname="${i}" placeholder="${namePlaceholder}">
       ${sizes.length ? pickerRow('Taglia', sizes, s.size, 'slotsize') : ''}
       ${pickerRow('Qualità', EQUIP_QUALITIES, s.quality, 'slotquality')}
+      ${weaponExtras}
       <div class="slot-fields">
         ${rangeField('Atk', 'atk')}
         ${rangeField('Dif', 'dif')}
@@ -1514,19 +1572,78 @@ function equipCardHtml(s, i, namePlaceholder) {
         <input type="text" value="${escapeHtml(s.bonus || '')}" data-slotfield="bonus" data-idx="${i}" placeholder="es. incisa con rune, appartenuta al nonno...">
       </div>
       <div class="slot-picker equip-bonuses">
-        <span class="sp-label">Bonus meccanici (aumentano davvero statistiche/tratti)</span>
-        ${(s.bonuses || []).map((b, bi) => equipBonusRowHtml(b, i, bi)).join('')}
+        <span class="sp-label">Bonus meccanici (aumentano davvero statistiche/tratti)${removable ? ' — attivi solo se equipaggiato' : ''}</span>
+        ${(s.bonuses || []).map((b, bi) => equipBonusRowHtml(b, i, bi, s.kind)).join('')}
         <button type="button" class="btn btn-ghost btn-sm" data-addequipbonus="${i}" style="align-self:flex-start;">+ Aggiungi bonus</button>
       </div>
     </div>`;
 }
 function renderSlots(c) {
-  $('#slot-grid').innerHTML = c.slots.map((s, i) => equipCardHtml(s, i, 'Locazione')).join('');
+  $('#slot-grid').innerHTML = c.slots.map((s, i) => equipCardHtml(s, i, 'Locazione', false)).join('');
 }
 function renderWeaponSlots(c) {
-  $('#weapon-grid').innerHTML = c.weaponSlots.map((s, i) =>
-    equipCardHtml(s, i, s.kind === 'scudo' ? 'Nome scudo' : 'Nome arma')).join('');
+  const cards = c.weaponSlots.map((s, i) =>
+    equipCardHtml(s, i, s.kind === 'scudo' ? 'Nome scudo' : 'Nome arma', true));
+  // equipaggiati prima, poi inventario: rispecchia lo spostamento richiesto
+  // quando un'arma/scudo viene disequipaggiato, senza perdere l'indice reale
+  // (data-slotidx resta quello vero in c.weaponSlots, gli event handler non
+  // dipendono dall'ordine visivo)
+  const order = c.weaponSlots
+    .map((s, i) => ({ i, equipped: s.equipaggiato !== false }))
+    .sort((a, b) => (a.equipped === b.equipped) ? (a.i - b.i) : (a.equipped ? -1 : 1))
+    .map(x => x.i);
+  $('#weapon-grid').innerHTML = order.map(i => cards[i]).join('');
+  renderBlockSection(c);
+  renderAttackWeaponList(c);
 }
+
+/* ------------------------------------------------------- Bloccare/Attacca */
+
+function equippedShields(c) { return (c.weaponSlots || []).filter(s => s.kind === 'scudo' && s.equipaggiato !== false); }
+function equippedWeapons(c) { return (c.weaponSlots || []).filter(s => s.kind === 'arma' && s.equipaggiato !== false); }
+
+/* Tiro "puro" di una statistica primaria: il dado dipende dal suo valore
+   BASE (senza i bonus da equipaggiamento/consumabile, come da regola per
+   Bloccare e Attacca) e il risultato si somma a quello stesso valore base —
+   stessa convenzione già in uso per il Tiro statistica generico. */
+function rollPureStatTotal(c, key) {
+  const pure = Number(c.primary[key]) || 0;
+  const label = diceForValue(pure);
+  if (label === 'd12+d8') {
+    const a = rollDie(12), b = rollDie(8);
+    return { total: a + b + pure, detail: `d12+d8 ${a}+${b} +${pure}` };
+  }
+  const sides = Number(label.slice(1));
+  const r = rollDie(sides);
+  return { total: r + pure, detail: `${label} ${r} +${pure}` };
+}
+
+function renderBlockSection(c) {
+  const note = $('#block-no-shield-note');
+  const btn = $('#block-roll-btn');
+  if (!note || !btn) return;
+  const has = equippedShields(c).length > 0;
+  note.classList.toggle('hidden', has);
+  btn.disabled = !has;
+}
+
+function renderAttackWeaponList(c) {
+  const wrap = $('#attack-weapon-list');
+  const note = $('#attack-no-weapon-note');
+  if (!wrap || !note) return;
+  const weapons = equippedWeapons(c);
+  note.classList.toggle('hidden', weapons.length > 0);
+  wrap.innerHTML = weapons.map(w => {
+    const realIdx = c.weaponSlots.indexOf(w);
+    const used = [w.usaFor ? 'FOR' : null, w.usaDex ? 'DEX' : null, w.usaFmen ? 'F.MEN' : null].filter(Boolean).join(' + ') || '—';
+    const classLabel = (WEAPON_CLASSES.find(wc => wc.key === w.weaponClass) || WEAPON_CLASSES[0]).label;
+    return `<label class="chk-inline attack-weapon-row">
+      <input type="checkbox" data-attackweapon="${realIdx}">
+      <span>${escapeHtml(w.name || 'Arma')} — <span class="chip">${classLabel}</span> <span class="chip">Atk ${Number(w.atk) || 0}</span> <span class="chip">${used}</span></span>
+    </label>`;
+  }).join('');
+}
+
 function editTableRows(id, rows, dataAttr, fields, cellRenderers) {
   if (!rows.length) {
     $(id).innerHTML = `<tr><td colspan="${fields.length}" class="helper-text" style="padding:10px 8px;">Nessuna sbloccata a questo livello.</td></tr>`;
@@ -1959,6 +2076,7 @@ function renderSheet() {
 function init() {
   loadAll();
   initDiagram();
+  renderTraitSuggestionDatalists();
   renderCharList();
   if (activeId && getActive()) {
     renderSheet();
@@ -2850,6 +2968,84 @@ function wireStaticEvents() {
   wireEquipGrid('#slot-grid', c => c.slots, renderSlots);
   wireEquipGrid('#weapon-grid', c => c.weaponSlots, renderWeaponSlots);
 
+  $('#btn-add-weapon').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const n = c.weaponSlots.filter(s => s.kind === 'arma').length + 1;
+    const w = makeWeaponSlot('arma'); w.name = `Arma ${n}`;
+    c.weaponSlots.push(w);
+    renderWeaponSlots(c);
+    touchActive();
+  });
+  $('#btn-add-shield').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const n = c.weaponSlots.filter(s => s.kind === 'scudo').length + 1;
+    const s = makeWeaponSlot('scudo'); s.name = n > 1 ? `Scudo ${n}` : 'Scudo';
+    c.weaponSlots.push(s);
+    renderWeaponSlots(c);
+    touchActive();
+  });
+
+  // ---- Bloccare: Dif scudo + Dif personaggio (bonus inclusi) + tiro Dif puro ----
+  $('#block-roll-btn').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const shields = equippedShields(c);
+    if (!shields.length) { toast('Nessuno scudo equipaggiato'); return; }
+    const shieldDif = shields.reduce((s, sh) => s + (Number(sh.dif) || 0), 0);
+    const charDif = (Number(c.primary.dif) || 0) + buffTotal(c, 'dif');
+    const roll = rollPureStatTotal(c, 'dif');
+    const total = shieldDif + charDif + roll.total;
+    $('#block-roll-result').textContent = total;
+    $('#block-roll-detail').textContent = `Scudo Dif +${shieldDif} · Dif personaggio +${charDif} · tiro Dif puro ${roll.detail}`;
+  });
+
+  // ---- Attacca: al massimo 2 armi equipaggiate, stessa Tipologia; la
+  // seconda vale metà danno; Danno Fisico (FOR/DEX) e Danno Magico (F.MEN)
+  // restano due totali distinti ----
+  $('#attack-weapon-list').addEventListener('change', e => {
+    const box = e.target.closest('[data-attackweapon]');
+    if (!box) return;
+    const checked = $$('#attack-weapon-list [data-attackweapon]:checked');
+    if (checked.length > 2) {
+      box.checked = false;
+      toast('Puoi usare al massimo 2 armi nello stesso attacco');
+      return;
+    }
+    if (checked.length === 2) {
+      const c = getActive(); if (!c) return;
+      const [a, b] = checked.map(inp => c.weaponSlots[Number(inp.dataset.attackweapon)]);
+      if (a && b && a.weaponClass !== b.weaponClass) {
+        box.checked = false;
+        toast('Arma bianca e arma da tiro non si possono usare insieme');
+      }
+    }
+  });
+  $('#attack-roll-btn').addEventListener('click', () => {
+    const c = getActive(); if (!c) return;
+    const checked = $$('#attack-weapon-list [data-attackweapon]:checked')
+      .map(inp => c.weaponSlots[Number(inp.dataset.attackweapon)]).filter(Boolean);
+    if (!checked.length) { toast('Scegli almeno un\'arma equipaggiata'); return; }
+    if (checked.length > 2) { toast('Puoi usare al massimo 2 armi nello stesso attacco'); return; }
+    if (checked.length === 2 && checked[0].weaponClass !== checked[1].weaponClass) {
+      toast('Arma bianca e arma da tiro non si possono usare insieme'); return;
+    }
+    const main = checked[0], second = checked[1];
+    const detail = [`Arma principale "${main.name || 'Arma'}" Atk +${Number(main.atk) || 0}`];
+    let physTotal = Number(main.atk) || 0;
+    if (second) {
+      const half = Math.floor((Number(second.atk) || 0) / 2);
+      physTotal += half;
+      detail.push(`Arma secondaria "${second.name || 'Arma'}" Atk ${Number(second.atk) || 0}/2 = +${half}`);
+    }
+    const usaFor = checked.some(w => w.usaFor), usaDex = checked.some(w => w.usaDex), usaFmen = checked.some(w => w.usaFmen);
+    if (usaFor) { const r = rollPureStatTotal(c, 'for'); physTotal += r.total; detail.push(`FOR puro: ${r.detail}`); }
+    if (usaDex) { const r = rollPureStatTotal(c, 'dex'); physTotal += r.total; detail.push(`DEX puro: ${r.detail}`); }
+    let magicTotal = 0;
+    if (usaFmen) { const r = rollPureStatTotal(c, 'fmen'); magicTotal += r.total; detail.push(`F.MEN puro (Danno magico): ${r.detail}`); }
+    $('#attack-phys-result').textContent = physTotal;
+    $('#attack-magic-result').textContent = usaFmen ? magicTotal : '—';
+    $('#attack-roll-detail').innerHTML = detail.join('<br>');
+  });
+
   // ---- scelta Eclettico ai Lv 8/16 (2 Tec / 2 Ab / 1+1) ----
   $('#tecab-choice-box').addEventListener('change', e => {
     const sel = e.target.closest('[data-tecabchoice]');
@@ -3204,6 +3400,8 @@ function refreshAfterEquipBonusChange(c) {
   renderTraits(c);
   renderDiagram(c);
   updatePlayBars(c);
+  renderBlockSection(c);
+  renderAttackWeaponList(c);
 }
 function wireEquipGrid(sel, getSlots, doRender) {
   $(sel).addEventListener('input', e => {
@@ -3237,6 +3435,16 @@ function wireEquipGrid(sel, getSlots, doRender) {
     }
   });
   $(sel).addEventListener('change', e => {
+    const slotUsa = e.target.closest('[data-slotusa]');
+    if (slotUsa) {
+      const c = getActive(); if (!c) return;
+      const slots = getSlots(c);
+      const [idx, field] = slotUsa.dataset.slotusa.split('::');
+      slots[Number(idx)][field] = slotUsa.checked;
+      renderAttackWeaponList(c);
+      touchActive();
+      return;
+    }
     const bonusName = e.target.closest('[data-bonusname]');
     const bonusKind = e.target.closest('[data-bonuskind]');
     const bonusKey = e.target.closest('[data-bonuskey]');
@@ -3280,7 +3488,9 @@ function wireEquipGrid(sel, getSlots, doRender) {
   $(sel).addEventListener('click', e => {
     const addBtn = e.target.closest('[data-addequipbonus]');
     const delBtn = e.target.closest('[data-delequipbonus]');
-    const btn = e.target.closest('[data-slotsize],[data-slotquality]');
+    const equipBtn = e.target.closest('[data-slotequip]');
+    const removeBtn = e.target.closest('[data-slotremove]');
+    const btn = e.target.closest('[data-slotsize],[data-slotquality],[data-slotweaponclass]');
     const c = getActive(); if (!c) return;
     const slots = getSlots(c);
     if (addBtn) {
@@ -3299,9 +3509,34 @@ function wireEquipGrid(sel, getSlots, doRender) {
       touchActive();
       return;
     }
+    if (equipBtn) {
+      const idx = Number(equipBtn.dataset.slotequip);
+      slots[idx].equipaggiato = slots[idx].equipaggiato === false ? true : false;
+      doRender(c);
+      refreshAfterEquipBonusChange(c);
+      touchActive();
+      return;
+    }
+    if (removeBtn) {
+      const idx = Number(removeBtn.dataset.slotremove);
+      slots.splice(idx, 1);
+      doRender(c);
+      refreshAfterEquipBonusChange(c);
+      touchActive();
+      return;
+    }
     if (!btn) return;
     const card = btn.closest('[data-slotidx]');
     const slot = slots[Number(card.dataset.slotidx)];
+    if (btn.hasAttribute('data-slotweaponclass')) {
+      // classe dell'arma: sempre una delle due, mai vuota (serve per la
+      // regola "bianca e da tiro non si combinano" in Attacca)
+      slot.weaponClass = btn.dataset.slotweaponclass;
+      doRender(c);
+      renderAttackWeaponList(c);
+      touchActive();
+      return;
+    }
     const val = btn.dataset.slotsize || btn.dataset.slotquality;
     if (btn.hasAttribute('data-slotsize')) {
       slot.size = slot.size === val ? '' : val;

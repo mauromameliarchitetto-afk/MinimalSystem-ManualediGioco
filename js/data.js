@@ -190,6 +190,19 @@ function equipRange(type, size, quality) {
   return q || null;
 }
 
+// Armi: due tipologie mutuamente esclusive nello stesso attacco (manuale,
+// sezione Equipaggiamento) — un'arma bianca e una da tiro non si combinano.
+const WEAPON_CLASSES = [
+  { key: 'bianca', label: 'Arma bianca' },
+  { key: 'tiro',   label: 'Arma da tiro' }
+];
+// Suggerimenti (non esaustivi) per i bonus meccanici di scudi e armi, dalle
+// "Extra" del manuale (Deviare/Bloccare/Respingere per gli scudi, Tagliare/
+// Perforare/Rompere per le armi) — restano comunque un campo libero, si può
+// sempre scrivere un tratto diverso.
+const SHIELD_TRAIT_SUGGESTIONS = ['Bloccare', 'Deflettere', 'Spirito', 'Robustezza'];
+const WEAPON_TRAIT_SUGGESTIONS = ['Bloccare', 'Deflettere', 'Perforare', 'Rompere', 'Tagliare'];
+
 // Q.I. — fasce di apprendimento
 function qiLimite(qi) {
   if (qi < 100) return 11;

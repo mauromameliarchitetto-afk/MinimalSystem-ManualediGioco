@@ -368,8 +368,40 @@
         </div>
 
         <div class="section-title"><span class="dot neutral"></span>Scudo e armi</div>
-        <p class="helper-text">Scegli Taglia e Qualità per lo scudo e per ciascuna arma — Atk, Dif e Durabilità si impostano di conseguenza nel range ufficiale. L'armatura si gestisce nel Retro Scheda. Nel campo Bonus annota effetti come "+2 a Tagliare", "+1 a Rompere", "+1 a Perforare", "+1 a Guardia", "+2 a Danno magico" o "+1d6 a Forza/Destrezza/Mira" (dadi: D4, D6, D8, D10, D20, D100).</p>
+        <p class="helper-text">Scegli Taglia e Qualità per ogni scudo/arma — Atk, Dif e Durabilità si impostano di conseguenza nel range ufficiale. Il pulsante in alto a ogni pezzo lo equipaggia o lo sposta in Inventario: solo i pezzi equipaggiati contano per Bloccare, Attacca e i bonus meccanici. Le armi hanno anche una Tipologia (bianca/da tiro: non si combinano nello stesso attacco) e le caratteristiche con cui agiscono. L'armatura si gestisce nel Retro Scheda.</p>
         <div class="slot-grid" id="weapon-grid"></div>
+        <div class="field-row" style="margin-top:4px;">
+          <button class="btn btn-ghost btn-sm" id="btn-add-weapon" style="align-self:flex-start;">+ Aggiungi arma</button>
+          <button class="btn btn-ghost btn-sm" id="btn-add-shield" style="align-self:flex-start;">+ Aggiungi scudo</button>
+        </div>
+        <datalist id="dl-trait-scudo"></datalist>
+        <datalist id="dl-trait-arma"></datalist>
+
+        <div class="section-title"><span class="dot physical"></span>Bloccare</div>
+        <p class="helper-text">Tiro di Bloccare con lo/gli scudo/i equipaggiato/i: Dif scudo + Dif del personaggio (bonus attivi inclusi) + tiro puro di Dif (dado in base al valore base, senza bonus).</p>
+        <div class="box"><div class="box-bar physical"></div><div class="box-pad">
+          <p class="helper-text hidden" id="block-no-shield-note" style="margin:0 0 8px;">Nessuno scudo equipaggiato.</p>
+          <div class="roll-row">
+            <button class="btn btn-primary" id="block-roll-btn">Tira Bloccare</button>
+            <div class="roll-result" id="block-roll-result">—</div>
+          </div>
+          <div class="roll-detail" id="block-roll-detail"></div>
+        </div></div>
+
+        <div class="section-title"><span class="dot physical"></span>Attacca</div>
+        <p class="helper-text">Scegli quali armi equipaggiate entrano nell'attacco (massimo due, stessa Tipologia — bianca o da tiro non insieme): con due armi la seconda vale metà danno. Il Danno Fisico somma FOR e/o DEX puri (senza bonus di scheda) se l'arma li usa; il Danno Magico (F.MEN, a parte) è calcolato separatamente.</p>
+        <div class="box"><div class="box-bar physical"></div><div class="box-pad">
+          <div class="attack-weapon-list" id="attack-weapon-list"></div>
+          <p class="helper-text hidden" id="attack-no-weapon-note" style="margin:0;">Nessuna arma equipaggiata.</p>
+          <div class="roll-row" style="margin-top:10px;">
+            <button class="btn btn-primary" id="attack-roll-btn">Attacca</button>
+          </div>
+          <div class="attack-results" style="margin-top:10px;">
+            <div class="attack-result-row"><span>Danno Fisico</span><span class="roll-result" id="attack-phys-result">—</span></div>
+            <div class="attack-result-row"><span style="color:var(--magico-forte);">Danno Magico</span><span class="roll-result" id="attack-magic-result" style="color:var(--magico-forte);">—</span></div>
+          </div>
+          <div class="roll-detail" id="attack-roll-detail"></div>
+        </div></div>
 
         <div class="section-title"><span class="dot neutral"></span>Tiro tratto</div>
         <div class="box"><div class="box-bar"></div><div class="box-pad">
