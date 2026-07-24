@@ -1900,12 +1900,15 @@ function pesoCorporeoOf(c) {
   const n = parseFloat(String((c.bg && c.bg.peso) || '').replace(',', '.'));
   return isNaN(n) ? 0 : n;
 }
-/* Peso trasportabile nello Zaino (Regola del Peso, manuale): FOR effettiva
-   (bonus attivi inclusi) + peso corporeo, /2. */
-function zainoPesoMax(c) {
-  const forEff = (Number(c.primary.for) || 0) + buffTotal(c, 'for');
-  return pesoTrasportabile(forEff, pesoCorporeoOf(c));
+/* Peso trasportabile nello Zaino (Regola del Peso, manuale): Forza effettiva
+   (bonus attivi inclusi) + peso corporeo, /2 — restituisce anche le due
+   componenti per poterle mostrare nella formula (vedi renderZainoSummary). */
+function zainoPesoComponents(c) {
+  const forza = (Number(c.primary.for) || 0) + buffTotal(c, 'for');
+  const peso = pesoCorporeoOf(c);
+  return { forza, peso, max: pesoTrasportabile(forza, peso) };
 }
+function zainoPesoMax(c) { return zainoPesoComponents(c).max; }
 /* Peso occupato: oggetti normali + armi/scudi NON equipaggiati. Ciò che è
    indossato/impugnato non pesa sullo Zaino, solo ciò che sta riposto. */
 function zainoPesoUsato(c) {
@@ -1917,8 +1920,9 @@ function zainoPesoUsato(c) {
 function renderZainoSummary(c) {
   const el = $('#zaino-peso-summary');
   if (!el) return;
-  const usato = zainoPesoUsato(c), max = zainoPesoMax(c);
-  el.textContent = `${usato} / ${max} Kg`;
+  const usato = zainoPesoUsato(c);
+  const { forza, peso, max } = zainoPesoComponents(c);
+  el.textContent = `${usato} / (${forza} Forza + ${peso} Peso) ÷ 2 = ${max} Kg`;
   el.className = 'remaining' + (usato > max ? ' neg' : '');
   const inZaino = (c.weaponSlots || []).filter(s => s.equipaggiato === false);
   const listEl = $('#zaino-armi-list');
